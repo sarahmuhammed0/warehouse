@@ -1,0 +1,14 @@
+{
+  "@@locale": "en",
+  "appName": "Warehouse OS",
+  "@appName": {
+    "description": "The application's display name"
+  },
+  "systemStatusTitle": "System status",
+  "@systemStatusTitle": {
+    "description": "Phase 0 status page heading"
+  },
+  "recheck": "Recheck",
+  "backendApi": "Backend API",
+  "database": "Database"
+}

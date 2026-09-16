@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment — real secrets never committed; .example files are.
+.env
+.env.*
+!.env.example
+!*/.env.example
+
+# Build output (Flutter's own frontend/.gitignore also covers frontend/build/,
+# .dart_tool/, etc. — kept here too as a repo-root backstop)
+backend/dist/
+frontend/build/
+frontend/.dart_tool/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Docker (bind-mounted data, if ever added — the named volume itself lives
+# inside Docker's own storage, not this repo)
+docker-data/

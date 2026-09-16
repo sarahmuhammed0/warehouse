@@ -1,0 +1,9 @@
+# Localization-ready foundation (Phase 0). No screens are translated yet —
+# this just wires the generation pipeline so adding a string is: add the key
+# to app_en.arb, run `flutter gen-l10n` (or `flutter run`/`build`, which do
+# it automatically), then use AppLocalizations.of(context).yourKey.
+
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-dir: lib/l10n/generated

@@ -1,0 +1,52 @@
+# Isolated MySQL 8.x for Warehouse OS development.
+#
+# This is intentionally the ONLY database service defined here. It does not
+# touch, replace, or coexist-configure with the host's existing MariaDB
+# install in any way — different engine image, different container, a
+# dedicated named volume, and a host port chosen specifically to avoid the
+# default 3306 that MariaDB is already using. See /docs/environment.md.
+#
+# Usage:
+#   docker compose up -d mysql      start (first run initializes the DB)
+#   docker compose logs -f mysql    watch startup / confirm it's healthy
+#   docker compose down             stop (data persists in the named volume)
+#   docker compose down -v          stop AND wipe the dev database
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: warehouse_os_mysql_dev
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-warehouse_os_dev}
+      MYSQL_USER: ${MYSQL_USER:-warehouse_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+    ports:
+      # host:container — host side deliberately NOT 3306, so this can never
+      # collide with the pre-existing local MariaDB instance.
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - warehouse_os_mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  # Explicitly named so it's unmistakable in `docker volume ls` — separate
+  # from and unrelated to anything the existing MariaDB install uses.
+  warehouse_os_mysql_data:
+    name: warehouse_os_mysql_data

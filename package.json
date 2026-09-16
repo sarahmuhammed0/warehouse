@@ -1,0 +1,16 @@
+{
+  "name": "warehouse-os",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Multi-tenant Factory / Warehouse / Storage management system — monorepo root (Phase 0: foundation). Backend only — the Flutter frontend is not an npm workspace, see frontend/pubspec.yaml.",
+  "workspaces": ["backend"],
+  "scripts": {
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "cd frontend && flutter run -d chrome",
+    "dev:db": "docker compose up -d mysql",
+    "dev:db:stop": "docker compose stop mysql",
+    "dev:db:down": "docker compose down",
+    "dev:db:logs": "docker compose logs -f mysql",
+    "test": "npm run test -w backend"
+  }
+}

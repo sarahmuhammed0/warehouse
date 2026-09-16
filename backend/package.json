@@ -1,0 +1,33 @@
+{
+  "name": "warehouse-os-backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Warehouse OS API — Node.js + Express backend (Phase 0: foundation only, no business modules yet).",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "echo \"(Phase 0) no automated tests yet — see README verification steps\" && exit 0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.11.4",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7",
+    "pino-pretty": "^13.0.0"
+  }
+}
