@@ -45,8 +45,11 @@ traceability matrix.
 | Business account deletion | Never a true hard delete in-app — "Delete" means archive/disable |
 | Six smaller assumptions | Negative-inventory default, multi-currency, barcode symbology, custom-field storage shape, backup split, unit conversion — see the artifact's "Ambiguities" section for each |
 
-## Phase 0 status
+## Phase 1 status
 
-Project foundation only — see the root `README.md` and `docs/environment.md`.
-No business modules, schema, or mock data. Phase 1 begins only on explicit
-instruction, per the approved roadmap.
+UI/UX design system + responsive application shell — see the root
+`README.md`, `docs/ui-architecture.md` (component catalog and conventions),
+`docs/localization.md` (RTL/locale approach), and
+`docs/phase1-traceability.md` (every requirement's status). Still no
+business modules, database schema, or mock data. Phase 2 begins only on
+explicit instruction, per the approved roadmap.

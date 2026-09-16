@@ -2,17 +2,22 @@
 
 Multi-tenant Factory / Warehouse / Storage management system.
 
-**Status: Phase 0 — Project Foundation.** Scaffolding and dev infrastructure
-only. No business modules (Products, Sales, Inventory, Auth, Users,
-Reports, ...) exist yet — see [`docs/architecture.md`](docs/architecture.md)
-for the approved roadmap and [`docs/environment.md`](docs/environment.md)
-for the database environment this project targets.
+**Status: Phase 1 — UI/UX Design System + Application Shell.** The Flutter
+design system, responsive application shell, and reusable component
+library are built. No business modules (Products, Sales, Inventory, Auth,
+Users, Reports, ...) exist yet — see [`docs/architecture.md`](docs/architecture.md)
+for the approved roadmap, [`docs/ui-architecture.md`](docs/ui-architecture.md)
+for the Flutter design system/component catalog, and
+[`docs/phase1-traceability.md`](docs/phase1-traceability.md) for exactly
+what's built vs. deferred.
 
 ## Technology stack
 
 | Layer | Technology | Note |
 |---|---|---|
 | Frontend | **Flutter + Dart** | Overrides the specification's literal "React.js" — an explicit, documented decision. See "Technology deviation" below. |
+| State management | **Riverpod** | See `docs/state-management.md` |
+| Routing | **go_router** | Public / business-shell / admin-shell route trees — `frontend/lib/routing/` |
 | Backend | Node.js + Express.js | REST API |
 | Database | **MySQL 8.x** (not the existing local MariaDB) | Isolated via Docker — see `docs/environment.md` |
 
@@ -29,7 +34,7 @@ approved architecture are unaffected.
 
 ## Prerequisites
 
-| Tool | Required for | Status on this machine (checked at Phase 0 setup) |
+| Tool | Required for | Status on this machine |
 |---|---|---|
 | Node.js ≥ 20 | backend | ✅ present |
 | npm ≥ 10 | backend dependency install | ✅ present |
@@ -37,32 +42,38 @@ approved architecture are unaffected.
 | Docker Desktop (with WSL2, on Windows) | isolated MySQL 8.x | ❌ **not installed here yet** — see `docs/environment.md` |
 | git | version control | ✅ present |
 
-### ⚠️ Known issue: this machine's Flutter SDK cannot currently build or test
+### ⚠️ Known issue (carried over from Phase 0, still unresolved): this machine's Flutter SDK cannot currently build, run, or test
 
-`flutter analyze` passes cleanly (0 issues) and `flutter pub get` resolves
-correctly — the project itself is sound. However, `flutter test` and
-`flutter build web` both fail to *compile*, with errors like:
+`flutter analyze` passes cleanly (0 issues, verified again after Phase 1's
+much larger codebase) and `flutter pub get` resolves correctly — the
+project itself is sound. However, `flutter test`, `flutter build web`, and
+`flutter run` (checked again in Phase 1, including the web-server/debug
+pipeline specifically, in case it differed from the release build — it
+doesn't) all fail to *compile*, with errors like:
 
 ```
 Error: Undefined name 'awaitNotRequired'.
 ```
 
 This reproduces identically in the SDK's own bundled `material_ui` /
-`cupertino_ui` packages (Flutter's internal Material/Cupertino widgets),
-regardless of any dependency choice in this project — it is not caused by
-`flutter_riverpod`, `go_router`, `dio`, or any other package this project
-added. It points to an internal version inconsistency in this specific
-Flutter 3.44.0 installation itself (the toolchain also reports a newer
-Flutter version is available). Likely fixes, **none applied here** since
-upgrading a globally-installed SDK is a machine-level change outside this
-project's scope:
+`cupertino_ui` packages, regardless of any dependency this project added —
+confirmed again in Phase 1 with the full component library and app shell
+in place, not just Phase 0's minimal screen. It points to an internal
+version inconsistency in this specific Flutter 3.44.0 installation itself.
+Likely fixes, **none applied here** since upgrading a globally-installed
+SDK is a machine-level change outside this project's scope:
 
 - `flutter upgrade` (updates the SDK in place), or
 - reinstalling/pinning to a different verified-stable Flutter release.
 
-Until one of those happens, `flutter run`/`flutter build`/`flutter test`
-cannot be used to visually or automatically verify the app on this machine
-— `flutter analyze` is the verification that currently works.
+**What this means for Phase 1's verification:** every component was
+reviewed against `flutter analyze` (clean) and against a real widget-test
+suite (`frontend/test/widget_test.dart` — shell rendering at desktop and
+mobile widths, breakpoint math, button/status-badge rendering, both
+themes), but that suite could not actually **execute** here for the same
+reason. No screenshot, running-app, or passing-test-output claim is made
+for anything this issue blocks — see `docs/phase1-traceability.md` for the
+per-requirement breakdown of what's verified vs. not.
 
 ## First-time setup
 
@@ -112,44 +123,41 @@ an npm workspace — use `flutter` commands directly inside `frontend/`.
 
 ```
 warehouse-os/
-├── backend/                 Node.js + Express API
-│   └── src/
-│       ├── config/           env.js — the only file that reads process.env
-│       ├── db/                 MySQL connection pool + health check
-│       ├── middleware/          authenticate/authorize/validate foundations
-│       │                        (not yet mounted — no routes need them until
-│       │                        Phase 1), error handler, 404 handler
-│       ├── routes/               /api/health (Phase 0's only route)
-│       ├── modules/               business modules — empty until Phase 1
-│       ├── utils/                  logger, AppError, password/token helpers
-│       ├── app.js                  Express app assembly (middleware chain)
-│       └── server.js                entry point, graceful shutdown
-├── frontend/                 Flutter app (feature-based architecture)
+├── backend/                 Node.js + Express API (unchanged since Phase 0)
+│   └── src/                  config/, db/, middleware/, routes/, modules/ (empty), utils/
+├── frontend/                 Flutter app
 │   └── lib/
-│       ├── app/                app entry shell: router.dart, theme/
-│       ├── core/                 cross-cutting foundation:
-│       │   ├── config/            env.dart (compile-time config, no secrets)
-│       │   ├── network/            api_client.dart, paginated_result.dart
-│       │   ├── error/               failure.dart
-│       │   ├── validation/           validators.dart
-│       │   └── widgets/               app_card.dart, status_badge.dart,
-│       │                              responsive/ (breakpoints + layout)
-│       ├── features/               business modules — empty until Phase 1;
-│       │   └── system_status/       Phase 0's one real feature (data/ +
-│       │                            presentation/, incl. Riverpod providers)
-│       └── l10n/                    app_en.arb — localization-ready
-├── database/                 Reserved structure — empty until Phase 1
+│       ├── main.dart          entry point
+│       ├── app.dart            MaterialApp.router: theme, locale, RTL, routing
+│       ├── theme/                design tokens (colors/type/spacing/radius/
+│       │                          elevation) + ThemeData + theme_controller
+│       ├── localization/          locale metadata/state (see l10n/ for ARB files)
+│       ├── l10n/                   app_en.arb, app_ar.arb, app_ku.arb + generated/
+│       ├── routing/                 app_routes.dart, app_router.dart (3 route trees)
+│       ├── core/                     non-UI infra: config, network, error, validation
+│       ├── shared/                    the reusable UI kit — layout, navigation,
+│       │                              buttons, badges, tables, forms, feedback,
+│       │                              overlays, dashboard, search, pagination, cards
+│       └── features/                   one folder per module — 16 business +
+│                                        2 admin placeholders + system_status (real)
+├── database/                 Reserved structure — empty until Phase 2
 │   ├── migrations/
 │   └── seeds/
 ├── docs/
-│   ├── architecture.md        Pointer to the approved architecture document
-│   ├── environment.md         MySQL 8.x environment details + isolation guarantees
-│   ├── state-management.md     Why Riverpod was chosen for the Flutter app
-│   └── database-access-strategy.md  Why mysql2 + raw SQL for Phase 0
+│   ├── architecture.md          Pointer to the approved architecture document
+│   ├── environment.md           MySQL 8.x environment details + isolation guarantees
+│   ├── state-management.md       Why Riverpod
+│   ├── database-access-strategy.md  Why mysql2 + raw SQL
+│   ├── ui-architecture.md         Design system, component catalog, screen conventions
+│   ├── localization.md             RTL approach + the flagged Kurdish-locale assumption
+│   └── phase1-traceability.md       Every Phase 1 requirement → file → status
 ├── docker-compose.yml          Isolated MySQL 8.x (Docker) — see docs/environment.md
 ├── .env.example                 docker-compose's MySQL credentials (template)
 └── package.json                  Backend orchestration only (see above)
 ```
+
+See `docs/ui-architecture.md` §1 for the full annotated `frontend/lib/`
+tree and the reasoning behind the `core/` vs. `shared/` split.
 
 ## Development workflow
 
@@ -158,15 +166,26 @@ warehouse-os/
    screen exists; it's done when the backend enforces the same rule the UI
    suggests (tenant isolation, permissions, and validation are backend
    concerns first, per the architecture's security rules).
-2. No mock data, no fake API responses — every screen this project ships
-   talks to the real backend, even in Phase 0 (`SystemStatusScreen` calls
-   the real `/api/health` and `/api/health/db`).
+2. No mock data, no fake API responses — every screen that has real data to
+   show talks to the real backend (`system_status` calls the real
+   `/api/health` endpoints); every screen that doesn't yet have a backend
+   shows a clearly-labeled placeholder instead of fabricated numbers
+   (§16's dashboard rule).
 3. Secrets live only in `.env` files (git-ignored); `.env.example` files
-   document every variable without real values.
+   document every variable without real values. Flutter has no secrets at
+   all yet (`core/config/env.dart`'s doc comment explains why a mobile/web
+   build can never hold one safely).
+4. New screens follow `docs/ui-architecture.md` §5 — build on
+   `PageScaffold`/`AppDataTable`/the shared form fields, add a
+   `features/<module>/data/` repository, never call the network layer
+   directly from a widget.
 
-## What Phase 0 deliberately does not include
+## What Phase 1 deliberately does not include
 
-Per the approved architecture, none of the following exist yet: business
-modules of any kind, authentication endpoints (the JWT/password-hashing
-utilities exist as foundation code but are unused), the database schema,
-seed/demo data, or any mock/fake API responses.
+Per the Phase 1 brief: authentication logic, database schema/migrations,
+and every business module's actual functionality (Products, Categories,
+Inventory, Sales, Orders, Customers, Suppliers, Purchases, Returns,
+Production, Employees, Reports, Documents, Activity History, Settings,
+System Admin). All 16 + 2 routes exist and are reachable; each renders a
+placeholder that clearly says so — see `docs/phase1-traceability.md` for
+the full per-requirement status.

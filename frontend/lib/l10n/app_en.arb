@@ -1,13 +1,82 @@
 {
   "@@locale": "en",
+
   "appName": "Warehouse OS",
-  "@appName": {
-    "description": "The application's display name"
+  "@appName": { "description": "The application's display name" },
+
+  "navDashboard": "Dashboard",
+  "navProducts": "Products",
+  "navCategories": "Categories",
+  "navInventory": "Inventory",
+  "navSales": "Sales",
+  "navOrders": "Orders",
+  "navCustomers": "Customers",
+  "navSuppliers": "Suppliers",
+  "navPurchases": "Purchases",
+  "navReturns": "Returns",
+  "navProduction": "Production",
+  "navEmployees": "Employees",
+  "navReports": "Reports",
+  "navDocuments": "Documents",
+  "navActivityHistory": "Activity History",
+  "navSettings": "Settings",
+
+  "adminAreaLabel": "System Admin",
+  "adminNavDashboard": "Admin Dashboard",
+  "adminNavBusinesses": "Businesses",
+  "backToBusinessApp": "Back to business app",
+
+  "search": "Search",
+  "searchPlaceholder": "Search…",
+  "filters": "Filters",
+  "clearFilters": "Clear filters",
+  "apply": "Apply",
+  "retry": "Retry",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "close": "Close",
+  "save": "Save",
+  "loading": "Loading…",
+
+  "emptyStateDefaultTitle": "Nothing here yet",
+  "emptyStateDefaultDescription": "There's no data to show right now.",
+  "errorStateDefaultTitle": "Something went wrong",
+  "errorStateDefaultDescription": "We couldn't load this. Please try again.",
+
+  "moduleComingSoonTitle": "{module} is coming in a later phase",
+  "@moduleComingSoonTitle": {
+    "placeholders": { "module": { "type": "String" } }
   },
+  "moduleComingSoonDescription": "This screen is a placeholder for the real {module} module, which will connect to the backend once it's built.",
+  "@moduleComingSoonDescription": {
+    "placeholders": { "module": { "type": "String" } }
+  },
+
+  "rowsPerPage": "Rows per page",
+  "pageOfTotal": "Page {page} of {totalPages}",
+  "@pageOfTotal": {
+    "placeholders": { "page": { "type": "int" }, "totalPages": { "type": "int" } }
+  },
+  "firstPage": "First page",
+  "previousPage": "Previous page",
+  "nextPage": "Next page",
+  "lastPage": "Last page",
+
+  "confirmActionDefaultTitle": "Are you sure?",
+  "confirmActionDefaultDescription": "This action cannot be undone.",
+
+  "account": "Account",
+  "notifications": "Notifications",
+  "noNotificationsYet": "No notifications yet",
+
+  "dashboardKeyMetrics": "Key metrics",
+  "dashboardRecentActivity": "Recent activity",
+  "dashboardAlerts": "Alerts",
+  "dashboardChartsPlaceholder": "Chart will render here once connected to real data",
+  "dashboardNoActivityYet": "No recent activity yet",
+  "dashboardNoAlerts": "No alerts",
+
   "systemStatusTitle": "System status",
-  "@systemStatusTitle": {
-    "description": "Phase 0 status page heading"
-  },
   "recheck": "Recheck",
   "backendApi": "Backend API",
   "database": "Database"

@@ -1,0 +1,73 @@
+{
+  "@@locale": "ku",
+
+  "appName": "سیستەمی کۆگا",
+
+  "navDashboard": "داشبۆرد",
+  "navProducts": "بەرهەمەکان",
+  "navCategories": "جۆرەکان",
+  "navInventory": "کۆگا",
+  "navSales": "فرۆشتن",
+  "navOrders": "داواکارییەکان",
+  "navCustomers": "کڕیارەکان",
+  "navSuppliers": "دابینکەرەکان",
+  "navPurchases": "کڕین",
+  "navReturns": "گەڕاندنەوە",
+  "navProduction": "بەرهەمهێنان",
+  "navEmployees": "کارمەندەکان",
+  "navReports": "ڕاپۆرتەکان",
+  "navDocuments": "بەڵگەنامەکان",
+  "navActivityHistory": "مێژووی چالاکی",
+  "navSettings": "ڕێکخستنەکان",
+
+  "adminAreaLabel": "بەڕێوەبردنی سیستەم",
+  "adminNavDashboard": "داشبۆردی بەڕێوەبەر",
+  "adminNavBusinesses": "کۆمپانیاکان",
+  "backToBusinessApp": "گەڕانەوە بۆ ئەپەکە",
+
+  "search": "گەڕان",
+  "searchPlaceholder": "گەڕان…",
+  "filters": "پاڵاوتن",
+  "clearFilters": "سڕینەوەی پاڵاوتن",
+  "apply": "جێبەجێکردن",
+  "retry": "هەوڵدانەوە",
+  "cancel": "پاشگەزبوونەوە",
+  "confirm": "پشتڕاستکردنەوە",
+  "close": "داخستن",
+  "save": "پاشەکەوتکردن",
+  "loading": "بارکردن…",
+
+  "emptyStateDefaultTitle": "هێشتا هیچ نییە",
+  "emptyStateDefaultDescription": "هیچ داتایەک نییە بۆ نیشاندان.",
+  "errorStateDefaultTitle": "هەڵەیەک ڕوویدا",
+  "errorStateDefaultDescription": "نەتوانرا ئەمە باربکرێت. تکایە دووبارە هەوڵبدەوە.",
+
+  "moduleComingSoonTitle": "{module} لە قۆناغێکی داهاتوودا دێت",
+  "moduleComingSoonDescription": "ئەم پەڕەیە شوێنگرەوەیە بۆ بەشی ڕاستەقینەی {module}، کە دواتر بە سێرڤەرەکەوە بەستراوە دەبێت.",
+
+  "rowsPerPage": "ڕیز بۆ هەر پەڕەیەک",
+  "pageOfTotal": "پەڕەی {page} لە {totalPages}",
+  "firstPage": "یەکەم پەڕە",
+  "previousPage": "پەڕەی پێشوو",
+  "nextPage": "پەڕەی داهاتوو",
+  "lastPage": "دوایین پەڕە",
+
+  "confirmActionDefaultTitle": "دڵنیایت؟",
+  "confirmActionDefaultDescription": "ناتوانرێت ئەم کردارە بگەڕێندرێتەوە.",
+
+  "account": "هەژمار",
+  "notifications": "ئاگادارکردنەوەکان",
+  "noNotificationsYet": "هێشتا هیچ ئاگادارکردنەوەیەک نییە",
+
+  "dashboardKeyMetrics": "پێوەرە سەرەکییەکان",
+  "dashboardRecentActivity": "چالاکی دوایین",
+  "dashboardAlerts": "ئاگادارییەکان",
+  "dashboardChartsPlaceholder": "هێڵکاری لێرە دەردەکەوێت کاتێک بە داتای ڕاستەقینە بەستراوەتەوە",
+  "dashboardNoActivityYet": "هێشتا هیچ چالاکییەک نییە",
+  "dashboardNoAlerts": "هیچ ئاگادارییەک نییە",
+
+  "systemStatusTitle": "دۆخی سیستەم",
+  "recheck": "پشکنینەوە",
+  "backendApi": "خزمەتگوزاری سێرڤەر",
+  "database": "بنکەدراوە"
+}

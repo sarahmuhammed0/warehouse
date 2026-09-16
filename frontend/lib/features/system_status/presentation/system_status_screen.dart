@@ -2,36 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/failure.dart';
-import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/responsive/responsive_layout.dart';
-import '../../../core/widgets/status_badge.dart';
+import '../../../shared/badges/status_badge.dart';
+import '../../../shared/cards/app_card.dart';
+import '../../../shared/layout/responsive/responsive_layout.dart';
+import '../../../theme/app_colors.dart';
+import '../../../theme/app_spacing.dart';
+import '../../../theme/app_typography.dart';
 import 'providers/health_providers.dart';
 
-/// Phase 0's one screen. Deliberately not a business screen — it exists to
-/// prove the full chain (Flutter → API layer → Express → MySQL) works end
-/// to end with real requests, no mocked data. It's also the first screen
-/// built on [ResponsiveLayout], so the pattern is proven before dozens of
-/// business screens are built on top of it.
+/// Retained from Phase 0 as a dev utility (not a business screen, not in
+/// the main nav — see `routing/app_routes.dart`'s comment). It proves the
+/// full chain (Flutter → API layer → Express → MySQL) still works end to
+/// end after Phase 1's restructuring, with real requests, no mocked data.
 class SystemStatusScreen extends StatelessWidget {
   const SystemStatusScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Warehouse OS'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                'Phase 0 — Project Foundation',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('System status (dev utility)')),
       body: ResponsiveLayout(
         mobile: (context) => const _StatusBody(maxWidth: double.infinity),
         desktop: (context) => const Center(child: _StatusBody(maxWidth: 640)),
@@ -47,13 +36,14 @@ class _StatusBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
+          spacing: AppSpacing.lg,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -61,10 +51,10 @@ class _StatusBody extends ConsumerWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('System status', style: Theme.of(context).textTheme.titleLarge),
+                    Text('System status', style: AppTypography.pageTitle.copyWith(color: colors.textPrimary)),
                     Text(
                       'Live checks against the real backend and database — no mock data.',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: AppTypography.caption.copyWith(color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -95,15 +85,13 @@ class _ApiHealthCard extends ConsumerWidget {
 
     return AppCard(
       title: Row(
-        spacing: 8,
+        spacing: AppSpacing.sm,
         children: [
           const Text('Backend API'),
-          StatusBadge(
-            status: health.when(
-              data: (_) => AppStatus.ok,
-              loading: () => AppStatus.checking,
-              error: (_, _) => AppStatus.error,
-            ),
+          health.when(
+            data: (_) => StatusBadge(label: 'OK', tone: StatusTone.success),
+            loading: () => StatusBadge(label: 'Checking', tone: StatusTone.neutral),
+            error: (_, _) => StatusBadge(label: 'Unreachable', tone: StatusTone.danger),
           ),
         ],
       ),
@@ -119,7 +107,7 @@ class _ApiHealthCard extends ConsumerWidget {
         loading: () => const Text('Checking…'),
         error: (error, _) => Text(
           error is Failure ? error.message : 'Unexpected error.',
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
+          style: TextStyle(color: context.colors.error),
         ),
       ),
     );
@@ -135,15 +123,13 @@ class _DatabaseHealthCard extends ConsumerWidget {
 
     return AppCard(
       title: Row(
-        spacing: 8,
+        spacing: AppSpacing.sm,
         children: [
           const Text('Database (MySQL)'),
-          StatusBadge(
-            status: health.when(
-              data: (_) => AppStatus.ok,
-              loading: () => AppStatus.checking,
-              error: (_, _) => AppStatus.error,
-            ),
+          health.when(
+            data: (_) => StatusBadge(label: 'OK', tone: StatusTone.success),
+            loading: () => StatusBadge(label: 'Checking', tone: StatusTone.neutral),
+            error: (_, _) => StatusBadge(label: 'Unreachable', tone: StatusTone.danger),
           ),
         ],
       ),
@@ -162,7 +148,7 @@ class _DatabaseHealthCard extends ConsumerWidget {
           error is Failure
               ? '${error.message} — see docs/environment.md for how to start it.'
               : 'Unexpected error.',
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
+          style: TextStyle(color: context.colors.error),
         ),
       ),
     );
@@ -177,14 +163,14 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline)),
-          Text(value, style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+          Text(label, style: AppTypography.body.copyWith(color: colors.textSecondary)),
+          Text(value, style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: colors.textPrimary)),
         ],
       ),
     );

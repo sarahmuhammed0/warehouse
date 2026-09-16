@@ -1,0 +1,73 @@
+{
+  "@@locale": "ar",
+
+  "appName": "نظام المستودعات",
+
+  "navDashboard": "لوحة التحكم",
+  "navProducts": "المنتجات",
+  "navCategories": "الفئات",
+  "navInventory": "المخزون",
+  "navSales": "المبيعات",
+  "navOrders": "الطلبات",
+  "navCustomers": "العملاء",
+  "navSuppliers": "الموردون",
+  "navPurchases": "المشتريات",
+  "navReturns": "المرتجعات",
+  "navProduction": "الإنتاج",
+  "navEmployees": "الموظفون",
+  "navReports": "التقارير",
+  "navDocuments": "المستندات",
+  "navActivityHistory": "سجل النشاط",
+  "navSettings": "الإعدادات",
+
+  "adminAreaLabel": "إدارة النظام",
+  "adminNavDashboard": "لوحة تحكم المشرف",
+  "adminNavBusinesses": "الشركات",
+  "backToBusinessApp": "العودة إلى التطبيق",
+
+  "search": "بحث",
+  "searchPlaceholder": "بحث…",
+  "filters": "التصفية",
+  "clearFilters": "مسح التصفية",
+  "apply": "تطبيق",
+  "retry": "إعادة المحاولة",
+  "cancel": "إلغاء",
+  "confirm": "تأكيد",
+  "close": "إغلاق",
+  "save": "حفظ",
+  "loading": "جارٍ التحميل…",
+
+  "emptyStateDefaultTitle": "لا توجد بيانات بعد",
+  "emptyStateDefaultDescription": "لا يوجد شيء لعرضه حاليًا.",
+  "errorStateDefaultTitle": "حدث خطأ ما",
+  "errorStateDefaultDescription": "تعذّر تحميل هذا. يرجى المحاولة مرة أخرى.",
+
+  "moduleComingSoonTitle": "{module} قادم في مرحلة لاحقة",
+  "moduleComingSoonDescription": "هذه الشاشة نائبة عن وحدة {module} الفعلية، والتي سيتم ربطها بالخادم عند اكتمال بنائها.",
+
+  "rowsPerPage": "عدد الصفوف في الصفحة",
+  "pageOfTotal": "صفحة {page} من {totalPages}",
+  "firstPage": "الصفحة الأولى",
+  "previousPage": "الصفحة السابقة",
+  "nextPage": "الصفحة التالية",
+  "lastPage": "الصفحة الأخيرة",
+
+  "confirmActionDefaultTitle": "هل أنت متأكد؟",
+  "confirmActionDefaultDescription": "لا يمكن التراجع عن هذا الإجراء.",
+
+  "account": "الحساب",
+  "notifications": "الإشعارات",
+  "noNotificationsYet": "لا توجد إشعارات بعد",
+
+  "dashboardKeyMetrics": "المؤشرات الرئيسية",
+  "dashboardRecentActivity": "النشاط الأخير",
+  "dashboardAlerts": "التنبيهات",
+  "dashboardChartsPlaceholder": "سيتم عرض الرسم البياني هنا عند الاتصال بالبيانات الفعلية",
+  "dashboardNoActivityYet": "لا يوجد نشاط حديث بعد",
+  "dashboardNoAlerts": "لا توجد تنبيهات",
+
+  "systemStatusTitle": "حالة النظام",
+  "recheck": "إعادة الفحص",
+  "backendApi": "واجهة الخادم",
+  "database": "قاعدة البيانات"
+}
