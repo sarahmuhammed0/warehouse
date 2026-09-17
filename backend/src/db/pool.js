@@ -54,6 +54,33 @@ export async function checkDatabaseConnection() {
   }
 }
 
+/**
+ * The one place a multi-statement write is wrapped in a transaction
+ * (architecture §13/§29). `fn` receives a checked-out connection — every
+ * query inside it must use that connection, not the shared `pool`
+ * directly, or it won't be part of the transaction. Commits on success,
+ * rolls back and rethrows on any error; the connection is always released
+ * back to the pool either way.
+ *
+ * @template T
+ * @param {(conn: import('mysql2/promise').PoolConnection) => Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+export async function runInTransaction(fn) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await fn(conn);
+    await conn.commit();
+    return result;
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 export async function closePool() {
   await pool.end();
 }

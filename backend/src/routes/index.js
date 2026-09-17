@@ -3,11 +3,16 @@
 
 import { Router } from "express";
 import { healthRouter } from "./health.routes.js";
+import { authRouter } from "../modules/auth/routes.js";
+import { adminAuthRouter } from "../modules/admin-auth/routes.js";
+import { businessesRouter } from "../modules/businesses/routes.js";
 
 export const apiRouter = Router();
 
 apiRouter.use("/health", healthRouter);
+apiRouter.use("/auth", authRouter); // business users
+apiRouter.use("/admin/auth", adminAuthRouter); // System Admins — separate router, separate identity table
+apiRouter.use("/admin/businesses", businessesRouter); // System-Admin-only, minimal (see modules/businesses)
 
-// Phase 1+ modules mount here, e.g.:
-//   apiRouter.use("/auth", authRouter);
+// Phase 3+ modules mount here, e.g.:
 //   apiRouter.use("/products", productsRouter);

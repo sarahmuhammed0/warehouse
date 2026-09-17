@@ -62,3 +62,26 @@ Once Docker is available, `npm run dev:db` followed by a re-check of
 `GET /api/health/db` is the entire remaining verification — no code changes
 are needed, since the backend's DB layer was built against this exact target
 from the start.
+
+## Update (Phase 2): the docker-compose path was superseded on this machine
+
+Docker was never installed on this development machine. Instead, Phase 2
+discovered a **native Windows service, "MySQL80"**, already running and
+listening on `127.0.0.1:3307` — coincidentally the same isolated port this
+project's `docker-compose.yml` was already configured to use, and still
+entirely separate from the pre-existing MariaDB install on `3306`. The
+standard "root, empty password" unconfigured-install case was checked once
+(and failed, confirming the instance is genuinely secured); no further
+credential guessing was attempted. Rather than guess further, the user was
+asked and chose to provision the database and app user themselves, using
+the SQL reproduced in `docs/database.md`'s "Engine" section.
+
+**`backend/.env`'s `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`
+values target this native MySQL80 instance**, not a Docker container — the
+`docker-compose.yml` file and `npm run dev:db` scripts documented above
+remain valid for a machine that does have Docker (or as an alternative to
+provisioning the native service by hand), but were not what this specific
+environment ended up using. As of the last check performed this phase,
+`GET /api/health/db` still reports `DATABASE_UNREACHABLE`
+(`ER_ACCESS_DENIED_ERROR` for `warehouse_app`) — see `docs/database.md`'s
+"Verification status" for the full honest breakdown.

@@ -11,7 +11,7 @@ import '../error/failure.dart';
 /// [Failure], never with HTTP/Dio types directly.
 class ApiClient {
   ApiClient({Dio? dio})
-    : _dio = dio ??
+    : dio = dio ??
           Dio(
             BaseOptions(
               baseUrl: Env.apiBaseUrl,
@@ -20,34 +20,40 @@ class ApiClient {
             ),
           );
 
-  final Dio _dio;
+  /// Exposed (not private) so `core/network/auth_interceptor.dart` can
+  /// attach itself in `main.dart` — the interceptor needs the same Dio
+  /// instance every request goes through, not a second one.
+  final Dio dio;
 
-  /// GET request that returns the unwrapped `data` payload, or throws a
-  /// [Failure] the caller can show directly to the user.
-  Future<Map<String, dynamic>> getJson(String path) async {
+  Future<Map<String, dynamic>> getJson(String path) => _unwrap(dio.get<Map<String, dynamic>>(path));
+
+  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) =>
+      _unwrap(dio.post<Map<String, dynamic>>(path, data: body));
+
+  Future<Map<String, dynamic>> _unwrap(Future<Response<Map<String, dynamic>>> request) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(path);
+      final response = await request;
       final body = response.data;
 
       if (body == null || body['success'] != true) {
-        final error = body?['error'] as Map<String, dynamic>?;
-        throw Failure(
-          (error?['code'] as String?) ?? 'REQUEST_FAILED',
-          (error?['message'] as String?) ?? 'Request failed (${response.statusCode}).',
-        );
+        throw _failureFrom(body, response.statusCode);
       }
 
       return (body['data'] as Map<String, dynamic>?) ?? const {};
     } on DioException catch (e) {
       final data = e.response?.data;
-      if (data is Map<String, dynamic> && data['error'] is Map) {
-        final error = data['error'] as Map<String, dynamic>;
-        throw Failure(
-          (error['code'] as String?) ?? 'REQUEST_FAILED',
-          (error['message'] as String?) ?? 'Request failed.',
-        );
+      if (data is Map<String, dynamic>) {
+        throw _failureFrom(data, e.response?.statusCode);
       }
       throw Failure.network();
     }
+  }
+
+  Failure _failureFrom(Map<String, dynamic>? body, int? statusCode) {
+    final error = body?['error'] as Map<String, dynamic>?;
+    return Failure(
+      (error?['code'] as String?) ?? 'REQUEST_FAILED',
+      (error?['message'] as String?) ?? 'Request failed (${statusCode ?? 'unknown'}).',
+    );
   }
 }

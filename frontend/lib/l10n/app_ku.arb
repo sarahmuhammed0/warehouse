@@ -69,5 +69,15 @@
   "systemStatusTitle": "دۆخی سیستەم",
   "recheck": "پشکنینەوە",
   "backendApi": "خزمەتگوزاری سێرڤەر",
-  "database": "بنکەدراوە"
+  "database": "بنکەدراوە",
+
+  "loginTitle": "سیستەمی کۆگا",
+  "loginSubtitle": "بچۆ ژوورەوە بۆ هەژماری بازرگانیت",
+  "phoneNumber": "ژمارەی مۆبایل",
+  "password": "وشەی نهێنی",
+  "login": "چوونەژوورەوە",
+  "phoneRequired": "ژمارەی مۆبایل پێویستە.",
+  "passwordRequired": "وشەی نهێنی پێویستە.",
+  "sessionExpiredMessage": "دانیشتنەکەت بەسەرچوو. تکایە دووبارە بچۆ ژوورەوە.",
+  "logout": "چوونەدەرەوە"
 }

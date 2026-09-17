@@ -1,14 +1,13 @@
-// Authentication middleware foundation (architecture §7/§8).
+// Authentication middleware (architecture §7/§8, wired up in Phase 2).
 //
-// NOT mounted on any route yet — there is no /api/auth/login to issue a
-// token in Phase 0, so wiring this in now would only ever reject requests.
-// It exists so Phase 1 adds one line (`app.use('/api', authenticate, ...)`
-// or per-route) instead of writing this from scratch, and so the shape of
-// `req.context` is decided once, here, not reinvented per module.
-//
-// Sets req.context = { userId, businessId, isSystemAdmin, permissions }
-// from a verified JWT — businessId is what §7's tenant isolation reads on
-// every request; it is never taken from a route param or request body.
+// Sets req.auth = { accountType, userId, businessId } from a verified
+// access-token JWT — businessId is what §10's tenant isolation reads on
+// every request; it is never taken from a route param, query string, or
+// request body. `userId` is the authenticated subject's id in whichever
+// table `accountType` names ('business_user' → users.id, 'system_admin' →
+// system_admins.id) — the two id spaces are never conflated because every
+// tenant-scoped query is additionally gated by `requireAccountType`
+// (see routes) before it can run.
 
 import { verifyAccessToken } from "../utils/token.js";
 import { AppError } from "../utils/AppError.js";
@@ -22,11 +21,15 @@ export function authenticate(req, res, next) {
   }
 
   const payload = verifyAccessToken(token);
-  req.context = {
+
+  if (payload.accountType !== "business_user" && payload.accountType !== "system_admin") {
+    return next(new AppError("INVALID_TOKEN", "Session is invalid or has expired.", 401));
+  }
+
+  req.auth = {
+    accountType: payload.accountType,
     userId: payload.userId,
-    businessId: payload.businessId ?? null,
-    isSystemAdmin: Boolean(payload.isSystemAdmin),
-    permissions: payload.permissions ?? [],
+    businessId: payload.accountType === "business_user" ? (payload.businessId ?? null) : null,
   };
   next();
 }

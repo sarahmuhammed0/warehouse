@@ -25,8 +25,10 @@ app.use(
   })
 );
 
-// Global rate limit — a first, coarse layer; per-route limits (e.g. a
-// tighter one on /api/auth/*) are added when auth exists (Phase 1).
+// Global rate limit — a first, coarse layer. A tighter, dedicated limiter
+// sits on /api/auth/*/login specifically (modules/auth/routes.js,
+// modules/admin-auth/routes.js) since that's the endpoint most worth
+// slowing down for credential-stuffing.
 app.use(
   rateLimit({
     windowMs: 60 * 1000,

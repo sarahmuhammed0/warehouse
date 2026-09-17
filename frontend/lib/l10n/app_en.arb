@@ -79,5 +79,15 @@
   "systemStatusTitle": "System status",
   "recheck": "Recheck",
   "backendApi": "Backend API",
-  "database": "Database"
+  "database": "Database",
+
+  "loginTitle": "Warehouse OS",
+  "loginSubtitle": "Sign in to your business account",
+  "phoneNumber": "Phone number",
+  "password": "Password",
+  "login": "Login",
+  "phoneRequired": "Phone number is required.",
+  "passwordRequired": "Password is required.",
+  "sessionExpiredMessage": "Your session expired. Please sign in again.",
+  "logout": "Logout"
 }

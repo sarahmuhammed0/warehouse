@@ -69,5 +69,15 @@
   "systemStatusTitle": "حالة النظام",
   "recheck": "إعادة الفحص",
   "backendApi": "واجهة الخادم",
-  "database": "قاعدة البيانات"
+  "database": "قاعدة البيانات",
+
+  "loginTitle": "نظام المستودعات",
+  "loginSubtitle": "سجّل الدخول إلى حساب شركتك",
+  "phoneNumber": "رقم الهاتف",
+  "password": "كلمة المرور",
+  "login": "تسجيل الدخول",
+  "phoneRequired": "رقم الهاتف مطلوب.",
+  "passwordRequired": "كلمة المرور مطلوبة.",
+  "sessionExpiredMessage": "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى.",
+  "logout": "تسجيل الخروج"
 }

@@ -9,9 +9,9 @@ import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 
-/// Root widget. Real branding (a logged-in business's own logo/name, per
-/// architecture §4) replaces the static app name once Phase 2's business
-/// context exists — Phase 1 has no tenant to brand for yet.
+/// Root widget. The app shell re-brands itself with the authenticated
+/// business's own name once logged in (§24) — see
+/// `routing/app_router.dart`'s `_businessBrandLabel`.
 class WarehouseOsApp extends ConsumerWidget {
   const WarehouseOsApp({super.key});
 
@@ -19,6 +19,7 @@ class WarehouseOsApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
+    final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
       title: 'Warehouse OS',
@@ -27,7 +28,7 @@ class WarehouseOsApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       locale: locale,
-      routerConfig: appRouter,
+      routerConfig: router,
       // Kurdish delegates must come first: Localizations picks the first
       // delegate in the list whose isSupported(locale) is true for each
       // localization type, and Flutter's own Global*Localizations.delegate
