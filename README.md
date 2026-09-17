@@ -2,14 +2,17 @@
 
 Multi-tenant Factory / Warehouse / Storage management system.
 
-**Status: Phase 1 — UI/UX Design System + Application Shell.** The Flutter
-design system, responsive application shell, and reusable component
-library are built. No business modules (Products, Sales, Inventory, Auth,
-Users, Reports, ...) exist yet — see [`docs/architecture.md`](docs/architecture.md)
-for the approved roadmap, [`docs/ui-architecture.md`](docs/ui-architecture.md)
-for the Flutter design system/component catalog, and
-[`docs/phase1-traceability.md`](docs/phase1-traceability.md) for exactly
-what's built vs. deferred.
+**Status: Phase 1.5 — Flutter toolchain fixed, Phase 1 verified for real.**
+The Flutter design system, responsive application shell, and reusable
+component library are built (Phase 1) and now actually run, build, and
+test successfully (Phase 1.5 — the SDK issue below is resolved). No
+business modules (Products, Sales, Inventory, Auth, Users, Reports, ...)
+exist yet — see [`docs/architecture.md`](docs/architecture.md) for the
+approved roadmap, [`docs/ui-architecture.md`](docs/ui-architecture.md) for
+the Flutter design system/component catalog,
+[`docs/toolchain-fix.md`](docs/toolchain-fix.md) for the SDK issue and its
+root cause, and [`docs/phase1-traceability.md`](docs/phase1-traceability.md)
+for exactly what's built vs. deferred.
 
 ## Technology stack
 
@@ -38,42 +41,40 @@ approved architecture are unaffected.
 |---|---|---|
 | Node.js ≥ 20 | backend | ✅ present |
 | npm ≥ 10 | backend dependency install | ✅ present |
-| Flutter SDK (stable) | frontend | ✅ present (3.44.0 / Dart 3.12.0) — see the known issue below |
+| Flutter SDK (stable) | frontend | ✅ present (3.44.0 / Dart 3.12.0) — build/run/test now work, see below |
 | Docker Desktop (with WSL2, on Windows) | isolated MySQL 8.x | ❌ **not installed here yet** — see `docs/environment.md` |
 | git | version control | ✅ present |
 
-### ⚠️ Known issue (carried over from Phase 0, still unresolved): this machine's Flutter SDK cannot currently build, run, or test
+### ✅ Resolved (Phase 1.5): the Flutter SDK build/test issue from Phase 0/1
 
-`flutter analyze` passes cleanly (0 issues, verified again after Phase 1's
-much larger codebase) and `flutter pub get` resolves correctly — the
-project itself is sound. However, `flutter test`, `flutter build web`, and
-`flutter run` (checked again in Phase 1, including the web-server/debug
-pipeline specifically, in case it differed from the release build — it
-doesn't) all fail to *compile*, with errors like:
+Phase 0 and Phase 1 both hit `flutter test`/`flutter build`/`flutter run`
+failing with `Error: Undefined name 'awaitNotRequired'` inside the SDK's
+own bundled `material_ui`/`cupertino_ui` packages, while `flutter analyze`
+stayed clean. **Root cause (confirmed, not guessed):** those two packages
+are independently-versioned pub.dev packages Flutter's Material/Cupertino
+widgets are built on; a plain `pub get` resolved their *latest* published
+versions, which use a framework export this specific installed Flutter
+build (stable, commit `559ffa3f75`, 2026-05-15) doesn't have yet — a real,
+currently-tracked upstream version-skew issue
+([flutter/packages#12622](https://github.com/flutter/packages/pull/12622)).
 
-```
-Error: Undefined name 'awaitNotRequired'.
-```
+**Fix:** two lines in `frontend/pubspec.yaml` pinning `material_ui`/
+`cupertino_ui` to their last versions compatible with this Flutter build —
+no SDK reinstall/upgrade, no changes to `flutter_riverpod`/`go_router`/
+`dio`/`flutter_localizations` or any other real dependency. Full diagnosis
+(what was ruled out and how, with evidence) and the fix's exact reasoning:
+[`docs/toolchain-fix.md`](docs/toolchain-fix.md).
 
-This reproduces identically in the SDK's own bundled `material_ui` /
-`cupertino_ui` packages, regardless of any dependency this project added —
-confirmed again in Phase 1 with the full component library and app shell
-in place, not just Phase 0's minimal screen. It points to an internal
-version inconsistency in this specific Flutter 3.44.0 installation itself.
-Likely fixes, **none applied here** since upgrading a globally-installed
-SDK is a machine-level change outside this project's scope:
-
-- `flutter upgrade` (updates the SDK in place), or
-- reinstalling/pinning to a different verified-stable Flutter release.
-
-**What this means for Phase 1's verification:** every component was
-reviewed against `flutter analyze` (clean) and against a real widget-test
-suite (`frontend/test/widget_test.dart` — shell rendering at desktop and
-mobile widths, breakpoint math, button/status-badge rendering, both
-themes), but that suite could not actually **execute** here for the same
-reason. No screenshot, running-app, or passing-test-output claim is made
-for anything this issue blocks — see `docs/phase1-traceability.md` for the
-per-requirement breakdown of what's verified vs. not.
+**Now genuinely verified, re-run from a clean state:** `flutter clean` +
+`pub get` → `flutter analyze` (0 issues) → `flutter test` (**19/19
+passing**, including new RTL/routing/table/dialog/pagination tests written
+during this fix) → `flutter build web --release` (succeeds) → `flutter run
+-d web-server` (compiles, serves, responds to a real request). Running
+those real tests also caught and fixed one genuine Phase 1 gap: Kurdish
+(`ku`) isn't in Flutter's own built-in Material/Cupertino translation set,
+which crashed the app under that locale — see
+[`docs/localization.md`](docs/localization.md)'s "Update (Phase 1.5)"
+section for the fix.
 
 ## First-time setup
 
@@ -101,7 +102,7 @@ npm run dev:db:logs          # optional: watch it come up / confirm healthy
 # Backend
 npm run dev:backend          # http://localhost:4000
 
-# Frontend (once the SDK issue above is resolved)
+# Frontend
 cd frontend && flutter run -d chrome     # or -d windows / a connected device
 ```
 
@@ -110,7 +111,7 @@ cd frontend && flutter run -d chrome     # or -d windows / a connected device
 | Script | Does |
 |---|---|
 | `npm run dev:backend` | backend only, with reload on change |
-| `npm run dev:frontend` | `flutter run -d chrome` — see the known issue above |
+| `npm run dev:frontend` | `flutter run -d chrome` |
 | `npm run dev:db` | start the MySQL 8.x container (background) |
 | `npm run dev:db:stop` | stop the container, keep its data |
 | `npm run dev:db:down` | stop and remove the container (data persists in its named volume) |

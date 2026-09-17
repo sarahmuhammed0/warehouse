@@ -88,6 +88,19 @@ Nothing below `app.dart` sets its own `TextDirection`.
   form fields (Flutter's default `TextAlign.start`), so labels, helper
   text, and table cell content never needed explicit RTL handling.
 
+### Update (Phase 1.5): Kurdish needed a framework-localization fallback
+
+Once the localization foundation was actually exercised by a real,
+executable test (Phase 1.5, after the Flutter toolchain was repaired — see
+`docs/toolchain-fix.md`), it surfaced a genuine gap: Flutter's own built-in
+`MaterialLocalizations`/`CupertinoLocalizations` don't have a Kurdish
+translation set, so the app crashed under the `ku` locale. Fixed via
+`lib/localization/kurdish_localizations_fallback.dart` — two delegates
+that claim `ku` support and serve Arabic's translations for generic
+framework chrome only, registered ahead of the standard delegates in
+`app.dart`. `lib/l10n/app_ku.arb` (this project's own Kurdish strings) is
+unaffected and unchanged by this.
+
 ### Verifying RTL (§29/§31)
 
 `features/settings/settings_screen.dart`'s "Appearance (foundation

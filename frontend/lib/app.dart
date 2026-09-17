@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'l10n/generated/app_localizations.dart';
 import 'localization/app_locales.dart';
+import 'localization/kurdish_localizations_fallback.dart';
 import 'localization/locale_controller.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
@@ -27,7 +28,16 @@ class WarehouseOsApp extends ConsumerWidget {
       themeMode: themeMode,
       locale: locale,
       routerConfig: appRouter,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      // Kurdish delegates must come first: Localizations picks the first
+      // delegate in the list whose isSupported(locale) is true for each
+      // localization type, and Flutter's own Global*Localizations.delegate
+      // (inside AppLocalizations.localizationsDelegates) doesn't support
+      // `ku` at all — see localization/kurdish_localizations_fallback.dart.
+      localizationsDelegates: [
+        const KurdishMaterialLocalizationsDelegate(),
+        const KurdishCupertinoLocalizationsDelegate(),
+        ...AppLocalizations.localizationsDelegates,
+      ],
       supportedLocales: AppLocalizations.supportedLocales,
       builder: (context, child) {
         // Explicit RTL resolution (§21/§20) rather than relying solely on

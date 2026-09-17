@@ -52,6 +52,15 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+# Phase 1.5 toolchain fix — pins two of the Flutter SDK's own transitive
+# framework packages to their last versions compatible with this installed
+# Flutter SDK build. Root cause, evidence, and removal criteria are fully
+# documented in docs/toolchain-fix.md — do not remove this without reading
+# that file first.
+dependency_overrides:
+  material_ui: "<1.3.0"
+  cupertino_ui: "<1.1.0"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
