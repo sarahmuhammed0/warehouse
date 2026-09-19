@@ -65,7 +65,19 @@ class AppButton extends StatelessWidget {
                 Icon(icon, size: 17, color: foreground),
                 const SizedBox(width: AppSpacing.sm),
               ],
-              Text(label, style: AppTypography.button.copyWith(color: foreground)),
+              // Flexible + ellipsis, not a bare Text: `mainAxisSize.min`
+              // otherwise insists on the label's full intrinsic width, so a
+              // long label inside a narrow parent (e.g. a 380px-capped
+              // login card) overflows instead of shrinking — a real
+              // rendering bug, same class as AppDropdownField's earlier
+              // missing `isExpanded`.
+              Flexible(
+                child: Text(
+                  label,
+                  style: AppTypography.button.copyWith(color: foreground),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           );
 

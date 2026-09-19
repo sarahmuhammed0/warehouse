@@ -9,12 +9,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:warehouse_os_app/app.dart';
+import 'package:warehouse_os_app/core/config/app_mode.dart';
 import 'package:warehouse_os_app/core/error/failure.dart';
+import 'package:warehouse_os_app/core/network/api_client.dart';
 import 'package:warehouse_os_app/features/admin/admin_businesses_screen.dart';
+import 'package:warehouse_os_app/features/admin/admin_dashboard_screen.dart';
+import 'package:warehouse_os_app/features/auth/data/auth_models.dart';
+import 'package:warehouse_os_app/features/auth/data/auth_repository.dart';
+import 'package:warehouse_os_app/features/auth/data/demo_auth_repository.dart';
 import 'package:warehouse_os_app/features/auth/presentation/login_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_controller.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:warehouse_os_app/features/categories/categories_screen.dart';
+import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
 import 'package:warehouse_os_app/features/products/presentation/product_detail_screen.dart';
 import 'package:warehouse_os_app/features/products/presentation/product_form_screen.dart';
 import 'package:warehouse_os_app/l10n/generated/app_localizations.dart';
@@ -440,6 +447,13 @@ void main() {
       tester,
     ) async {
       final repo = FakeAuthRepository();
+      // The demo-mode card (§10 of docs/frontend-demo-mode.md) pushes the
+      // real form below the 800x600 default test viewport — a taller
+      // viewport keeps the Login button on-screen and tappable.
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(pumpableApp(repo));
       await tester.pumpAndSettle();
 
@@ -453,6 +467,10 @@ void main() {
 
     testWidgets('submits trimmed phone + password to the repository on valid input', (tester) async {
       final repo = FakeAuthRepository();
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(pumpableApp(repo));
       await tester.pumpAndSettle();
 
@@ -476,6 +494,10 @@ void main() {
       // already complete and the app already navigated to the dashboard.
       final completer = Completer<void>();
       final repo = FakeAuthRepository()..pendingCompleter = completer;
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(pumpableApp(repo));
       await tester.pumpAndSettle();
 
@@ -484,7 +506,7 @@ void main() {
       await tester.tap(find.widgetWithText(AppButton, 'Login'));
       await tester.pump(); // one frame: AuthAuthenticating, login() still pending
 
-      final button = tester.widget<AppButton>(find.byType(AppButton));
+      final button = tester.widget<AppButton>(find.byKey(const ValueKey('loginSubmitButton')));
       expect(button.loading, isTrue);
 
       completer.complete();
@@ -495,6 +517,10 @@ void main() {
       tester,
     ) async {
       final repo = FakeAuthRepository()..loginError = const Failure('INVALID_CREDENTIALS', 'Incorrect phone number or password.');
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(pumpableApp(repo));
       await tester.pumpAndSettle();
 
@@ -750,6 +776,109 @@ void main() {
 
     final productionNavItem = businessNavItems.firstWhere((i) => i.moduleKey == 'production');
     expect(storageStoreModules.contains(productionNavItem.moduleKey), isFalse);
+  });
+
+  group('Demo/backend mode selection (frontend-only demo-mode verification)', () {
+    test('buildAuthRepository selects DemoAuthRepository for AppMode.demo', () {
+      final client = ApiClient();
+      final repo = buildAuthRepository(AppMode.demo, client, AccountType.businessUser);
+      expect(repo, isA<DemoAuthRepository>());
+    });
+
+    test('buildAuthRepository selects ApiAuthRepository for AppMode.backend', () {
+      final client = ApiClient();
+      final repo = buildAuthRepository(AppMode.backend, client, AccountType.businessUser);
+      expect(repo, isA<ApiAuthRepository>());
+    });
+
+    test('DemoAuthRepository resolves login/refresh/me without any HTTP client', () async {
+      // No ApiClient/Dio instance exists anywhere in this test — proves the
+      // demo path genuinely never reaches for the network, not just that it
+      // happens to succeed.
+      final repo = DemoAuthRepository();
+
+      final businessSession = await repo.login(phone: kDemoBusinessPhone, password: kDemoPassword);
+      expect(businessSession.business, isNotNull);
+      expect(businessSession.account.name, 'Demo Owner');
+
+      final adminSession = await repo.login(phone: kDemoAdminPhone, password: kDemoPassword);
+      expect(adminSession.business, isNull);
+      expect(adminSession.account.name, 'Demo System Admin');
+
+      final refreshed = await repo.refresh(adminSession.refreshToken);
+      final identity = await repo.me();
+      expect(identity.business, isNull); // still the admin identity after refresh
+      expect(refreshed.accessToken, isNotEmpty);
+    });
+
+    testWidgets('Default mode (no dart-define) is demo — the app never calls a real backend to reach the dashboard', (tester) async {
+      expect(AppModeConfig.mode, AppMode.demo, reason: 'flutter test runs with no --dart-define=APP_MODE, so this proves the documented default');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [secureTokenStorageProvider.overrideWithValue(InMemoryTokenStorage())],
+          child: const WarehouseOsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginScreen), findsOneWidget);
+      // The login screen's own demo card carries the same "DEMO MODE" text
+      // as the shell's badge — both are real, both are expected here.
+      expect(find.text('DEMO MODE'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, 'Business (Demo)'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsNothing);
+      expect(find.text('Dashboard'), findsWidgets);
+      expect(find.text('DEMO MODE'), findsOneWidget); // shell-wide indicator, §10
+    });
+
+    testWidgets('System Admin demo reaches the admin dashboard, not the business shell', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [secureTokenStorageProvider.overrideWithValue(InMemoryTokenStorage())],
+          child: const WarehouseOsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(AppButton, 'System Admin (Demo)'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsNothing);
+      expect(find.text('Businesses'), findsWidgets); // admin nav item + page title
+      // Widget-type checks, not text: several labels (e.g. "Products") are
+      // legitimately reused as admin stat-card headings on this very
+      // screen, so text alone can't prove which shell rendered — the type
+      // of the landed screen can.
+      expect(find.byType(AdminDashboardScreen), findsOneWidget);
+      expect(find.byType(DashboardPlaceholderScreen), findsNothing);
+    });
+
+    testWidgets('Demo session survives logout → the business demo can log back in', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [secureTokenStorageProvider.overrideWithValue(InMemoryTokenStorage())],
+          child: const WarehouseOsApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(AppButton, 'Business (Demo)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dashboard'), findsWidgets);
+
+      await tester.tap(find.byIcon(Icons.account_circle_outlined));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Logout'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginScreen), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, 'Business (Demo)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dashboard'), findsWidgets);
+    });
   });
 }
 

@@ -258,5 +258,11 @@
 
   "statTotalProducts": "Total products",
   "statTotalCustomers": "Total customers",
-  "customizeDashboard": "Customize"
+  "customizeDashboard": "Customize",
+
+  "demoModeIndicator": "DEMO MODE",
+  "demoModeLoginBanner": "Backend not required — try the app instantly with demo data.",
+  "continueAsBusinessDemo": "Business (Demo)",
+  "continueAsSystemAdminDemo": "System Admin (Demo)",
+  "demoModeOrDivider": "or sign in with a real account"
 }

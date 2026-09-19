@@ -247,5 +247,11 @@
 
   "statTotalProducts": "إجمالي المنتجات",
   "statTotalCustomers": "إجمالي العملاء",
-  "customizeDashboard": "تخصيص"
+  "customizeDashboard": "تخصيص",
+
+  "demoModeIndicator": "وضع تجريبي",
+  "demoModeLoginBanner": "لا حاجة لخادم — جرّب التطبيق فورًا ببيانات تجريبية.",
+  "continueAsBusinessDemo": "شركة (تجريبي)",
+  "continueAsSystemAdminDemo": "مشرف نظام (تجريبي)",
+  "demoModeOrDivider": "أو سجّل الدخول بحساب حقيقي"
 }

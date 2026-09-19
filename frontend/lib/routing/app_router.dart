@@ -199,20 +199,26 @@ String? _redirect(Ref ref, GoRouterState state) {
   // doc comment).
   if (authState is AuthInitial) return null;
 
-  final isAuthenticated = authState is AuthAuthenticated;
-
-  if (!isAuthenticated) {
+  if (authState is! AuthAuthenticated) {
     return isPublicRoute ? null : AppRoutes.login;
   }
 
-  // Authenticated. Phase 2's Flutter UI only ever authenticates business
-  // users (see auth_controller.dart) — there is no Flutter System Admin
-  // login yet, so any authenticated session reaching an admin route is
-  // necessarily a business user and must be turned away (§21: "must not
-  // accidentally inherit arbitrary business-user access" — the same rule
-  // in reverse).
-  if (isAdminRoute) return AppRoutes.dashboard;
-  if (location == AppRoutes.login) return AppRoutes.dashboard;
+  // Which shell an authenticated session belongs to is a real signal the
+  // session itself already carries: `business == null` is exactly how
+  // `AuthSession`/`AuthIdentity` mark a System Admin identity (see
+  // auth_models.dart's own doc comment) — never a separate flag that could
+  // drift out of sync with it. Before the frontend-only demo mode
+  // (docs/frontend-demo-mode.md) added a System Admin *demo* login, Phase
+  // 2's Flutter app only ever authenticated business users in practice, so
+  // this branch was previously unreachable rather than absent — nothing
+  // about real backend-mode behavior changes here.
+  final isAdminSession = authState.business == null;
+
+  if (isPublicRoute) {
+    return isAdminSession ? AppRoutes.adminDashboard : AppRoutes.dashboard;
+  }
+  if (isAdminRoute && !isAdminSession) return AppRoutes.dashboard;
+  if (!isAdminRoute && isAdminSession) return AppRoutes.adminDashboard;
   return null;
 }
 

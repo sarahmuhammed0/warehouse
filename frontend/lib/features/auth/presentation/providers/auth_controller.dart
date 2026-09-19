@@ -1,18 +1,32 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/app_mode.dart';
 import '../../../../core/error/failure.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/providers.dart';
 import '../../../../core/storage/secure_token_storage.dart';
 import '../../data/auth_models.dart';
 import '../../data/auth_repository.dart';
+import '../../data/demo_auth_repository.dart';
 import 'auth_state.dart';
 
+/// The one seam `AppModeConfig` is consulted at for auth — a pure function,
+/// not inlined in the provider, specifically so it's unit-testable without
+/// needing a live `ProviderContainer` or a real `--dart-define` flip (see
+/// test/widget_test.dart's "Demo/backend mode selection" group).
+AuthRepository buildAuthRepository(AppMode mode, ApiClient client, AccountType accountType) {
+  return switch (mode) {
+    // Business-user login only in backend mode — Phase 2's Flutter UI
+    // deliberately doesn't build a separate System Admin login screen (see
+    // docs/authentication.md "Flutter scope"); the backend fully supports
+    // it, this just never points at AccountType.systemAdmin in this phase.
+    AppMode.backend => ApiAuthRepository(client, accountType: accountType),
+    AppMode.demo => DemoAuthRepository(),
+  };
+}
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  // Business-user login only — Phase 2's Flutter UI deliberately doesn't
-  // build a separate System Admin login screen (see docs/authentication.md
-  // "Flutter scope"); the backend fully supports it, this provider is
-  // simply never pointed at AccountType.systemAdmin in this phase.
-  return ApiAuthRepository(ref.watch(apiClientProvider), accountType: AccountType.businessUser);
+  return buildAuthRepository(AppModeConfig.mode, ref.watch(apiClientProvider), AccountType.businessUser);
 });
 
 final secureTokenStorageProvider = Provider<TokenStorage>((ref) => SecureTokenStorage());

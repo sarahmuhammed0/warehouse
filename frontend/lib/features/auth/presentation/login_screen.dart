@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide required;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../../core/validation/validators.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/buttons/app_button.dart';
@@ -9,6 +10,7 @@ import '../../../shared/forms/app_text_field.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_typography.dart';
+import '../data/demo_auth_repository.dart';
 import 'providers/auth_controller.dart';
 import 'providers/auth_state.dart';
 
@@ -51,6 +53,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  void _continueAsDemo(String phone) {
+    ref.read(authControllerProvider.notifier).clearError();
+    ref.read(authControllerProvider.notifier).login(phone: phone, password: kDemoPassword);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -73,6 +80,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 _Branding(colors: colors, l10n: l10n),
                 if (authState is AuthSessionExpired)
                   _Banner(message: l10n.sessionExpiredMessage, tone: _BannerTone.info),
+                if (AppModeConfig.isDemo)
+                  _DemoModeCard(l10n: l10n, isAuthenticating: isAuthenticating, onContinue: _continueAsDemo),
+                if (AppModeConfig.isDemo)
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: colors.border)),
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                          child: Text(
+                            l10n.demoModeOrDivider,
+                            style: AppTypography.caption.copyWith(color: colors.textMuted),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: colors.border)),
+                    ],
+                  ),
                 AppCard(
                   child: Form(
                     key: _formKey,
@@ -98,6 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         if (authState is AuthError)
                           _Banner(message: authState.message, tone: _BannerTone.error),
                         AppButton(
+                          key: const ValueKey('loginSubmitButton'),
                           label: l10n.login,
                           onPressed: isAuthenticating ? null : _submit,
                           loading: isAuthenticating,
@@ -111,6 +138,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The two one-click demo paths (§2/§6 of the frontend-demo-mode brief) —
+/// only rendered when `AppModeConfig.isDemo`, never in backend mode. Both
+/// buttons call the exact same `AuthController.login()` the real form uses;
+/// `DemoAuthRepository` is what makes that call resolve locally instead of
+/// hitting Dio — this widget has no auth logic of its own.
+class _DemoModeCard extends StatelessWidget {
+  const _DemoModeCard({required this.l10n, required this.isAuthenticating, required this.onContinue});
+
+  final AppLocalizations l10n;
+  final bool isAuthenticating;
+  final void Function(String phone) onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: AppSpacing.sm,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: colors.infoBg, borderRadius: BorderRadius.circular(6)),
+                child: Text(
+                  l10n.demoModeIndicator,
+                  style: AppTypography.statusBadge.copyWith(color: colors.info),
+                ),
+              ),
+            ],
+          ),
+          Text(l10n.demoModeLoginBanner, style: AppTypography.caption.copyWith(color: colors.textMuted)),
+          AppButton(
+            label: l10n.continueAsBusinessDemo,
+            icon: Icons.storefront_outlined,
+            variant: AppButtonVariant.secondary,
+            expand: true,
+            onPressed: isAuthenticating ? null : () => onContinue(kDemoBusinessPhone),
+          ),
+          AppButton(
+            label: l10n.continueAsSystemAdminDemo,
+            icon: Icons.admin_panel_settings_outlined,
+            variant: AppButtonVariant.outline,
+            expand: true,
+            onPressed: isAuthenticating ? null : () => onContinue(kDemoAdminPhone),
+          ),
+        ],
       ),
     );
   }

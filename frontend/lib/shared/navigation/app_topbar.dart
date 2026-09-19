@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/config/app_mode.dart';
 import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/providers/auth_state.dart';
 import '../../features/notifications/data/notification_providers.dart';
@@ -57,10 +58,27 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
                   IconButton(icon: const Icon(Icons.menu), onPressed: onMenuTap),
                   const SizedBox(width: AppSpacing.sm),
                 ],
-                Text(
-                  pageContext,
-                  style: AppTypography.sectionTitle.copyWith(color: colors.textPrimary),
+                Flexible(
+                  child: Text(
+                    pageContext,
+                    style: AppTypography.sectionTitle.copyWith(color: colors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                if (AppModeConfig.isDemo) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  // §10 of the frontend-demo-mode brief: small, non-intrusive,
+                  // always visible — so a demo-mode action is never mistaken
+                  // for something saved to a real backend.
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: colors.warningBg, borderRadius: BorderRadius.circular(6)),
+                    child: Text(
+                      l10n.demoModeIndicator,
+                      style: AppTypography.statusBadge.copyWith(color: colors.warning),
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 if (showSearch && context.isDesktopWidth) ...[
                   SizedBox(

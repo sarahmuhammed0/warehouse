@@ -176,6 +176,23 @@ Full design, the account-separation rationale, token lifetimes, login
 protection/rate limiting, and the two recorded deviations from the original
 architecture: **[`docs/authentication.md`](docs/authentication.md)**.
 
+## Frontend-only demo mode
+
+The frontend can run **fully independently of the backend** for UI testing —
+default in every local/test run, no `--dart-define` needed. The login screen
+offers two one-tap demo entry points (Business and System Admin) that sign in
+through a local `DemoAuthRepository`, never touching Dio/the network; every
+business module still reads from the same `Local*Repository`/demo-data layer
+described above, so the whole app — every module, CRUD, search/filter/
+pagination, System Admin screens, logout/re-login — is fully navigable with
+the backend completely off. A small "DEMO MODE" badge marks the shell
+whenever this mode is active. The real backend-mode auth path
+(`ApiAuthRepository`, JWT/refresh, secure storage, route guards) is untouched
+and selectable via `--dart-define=APP_MODE=backend` — see
+**[`docs/frontend-demo-mode.md`](docs/frontend-demo-mode.md)** for the full
+architecture, the central `AppModeConfig` switch, and why the mode is never
+silently auto-selected after a real backend error.
+
 ## Multi-tenancy
 
 Shared database, shared schema — every business-owned row carries
@@ -212,13 +229,16 @@ npm run test:integration  # login flow, session lifecycle, mandatory tenant-isol
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 39 tests — app shell, RTL/localization, routing guards,
+flutter test           # 45 tests — app shell, RTL/localization, routing guards,
                          # data table states, pagination, dialogs/overlays, the full
-                         # login-screen suite (Phase 2), and this phase's business-module
+                         # login-screen suite (Phase 2), this phase's business-module
                          # suite: product list/detail/create validation, category
                          # creation, dashboard stat/customization, settings section
                          # switching, System Admin business list, global search,
-                         # factory-type module filtering
+                         # factory-type module filtering, and the demo/backend mode
+                         # selection suite (buildAuthRepository, DemoAuthRepository,
+                         # full business-demo and System-Admin-demo login → dashboard
+                         # → logout → re-login flows, all with the backend off)
 flutter build web --release   # confirms the release build still succeeds
 ```
 
@@ -260,6 +280,7 @@ warehouse-os/
 ├── frontend/
 │   └── lib/
 │       ├── core/
+│       │   ├── config/                     app_mode.dart — the one demo/backend mode switch
 │       │   ├── network/                  ApiClient, AuthInterceptor, shared providers
 │       │   └── storage/                   TokenStorage interface + SecureTokenStorage
 │       ├── core/repositories/               PagedQuery, PagedListController (shared
@@ -267,8 +288,9 @@ warehouse-os/
 │       │                                     implementation for every list screen),
 │       │                                     DemoRepository mixin + paginateInMemory
 │       ├── features/
-│       │   ├── auth/                       data/ (models, repository), presentation/
-│       │   │                               (login_screen, AuthController/AuthState) — Phase 2, unchanged
+│       │   ├── auth/                       data/ (models, repository, DemoAuthRepository —
+│       │   │                               this phase), presentation/ (login_screen with
+│       │   │                               its demo entry points, AuthController/AuthState)
 │       │   ├── products/, categories/, inventory/, sales/, orders/, customers/,
 │       │   │   suppliers/, purchases/, returns/, production/, employees/, reports/,
 │       │   │   documents/, activity_history/, notifications/, search/, settings/,
@@ -283,7 +305,7 @@ warehouse-os/
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                   39 tests total
+│       └── widget_test.dart                   45 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,
@@ -294,7 +316,8 @@ warehouse-os/
 │   ├── database.md                         Phase 2 — schema, migrations, verification status
 │   ├── phase2-traceability.md               Every Phase 2 requirement → file → status
 │   ├── frontend-coverage.md                 This phase — every spec section → screen → status
-│   └── frontend-backend-contract-notes.md    This phase — what each module expects a real API to look like
+│   ├── frontend-backend-contract-notes.md    This phase — what each module expects a real API to look like
+│   └── frontend-demo-mode.md                 This phase — the frontend-only demo mode architecture
 ├── docker-compose.yml          Isolated MySQL 8.x (Docker path) — see docs/environment.md
 ├── .env.example                 docker-compose's MySQL credentials (template)
 └── package.json                  Backend orchestration only (see above)

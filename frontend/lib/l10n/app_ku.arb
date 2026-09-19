@@ -247,5 +247,11 @@
 
   "statTotalProducts": "کۆی گشتی بەرهەمەکان",
   "statTotalCustomers": "کۆی گشتی کڕیارەکان",
-  "customizeDashboard": "دەستکاریکردن"
+  "customizeDashboard": "دەستکاریکردن",
+
+  "demoModeIndicator": "دۆخی نموونەیی",
+  "demoModeLoginBanner": "پێویستی بە سێرڤەر نییە — ئەپەکە بە داتای نموونەیی تاقی بکەوە.",
+  "continueAsBusinessDemo": "بازرگانی (نموونەیی)",
+  "continueAsSystemAdminDemo": "بەڕێوەبەری سیستەم (نموونەیی)",
+  "demoModeOrDivider": "یان بچۆ ژوورەوە بە هەژمارێکی ڕاستەقینە"
 }
