@@ -33,26 +33,35 @@ class AppCard extends StatelessWidget {
         border: Border.all(color: colors.border),
         borderRadius: AppRadius.mdRadius,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (title != null || actions != null) ...[
-            Row(
-              children: [
-                if (title != null)
-                  Expanded(
-                    child: DefaultTextStyle.merge(
-                      style: AppTypography.cardTitle.copyWith(color: colors.textPrimary),
-                      child: title!,
+      // A real Material ancestor, not just this Container's own
+      // BoxDecoration — content that includes a ListTile (several modules'
+      // cards do) paints its background/ink splashes on the nearest
+      // Material ancestor; without one, Flutter raises a real "may be
+      // invisible" assertion. `transparency` so this never overrides the
+      // Container's own background color above.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (title != null || actions != null) ...[
+              Row(
+                children: [
+                  if (title != null)
+                    Expanded(
+                      child: DefaultTextStyle.merge(
+                        style: AppTypography.cardTitle.copyWith(color: colors.textPrimary),
+                        child: title!,
+                      ),
                     ),
-                  ),
-                ...?actions,
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
+                  ...?actions,
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            child,
           ],
-          child,
-        ],
+        ),
       ),
     );
   }

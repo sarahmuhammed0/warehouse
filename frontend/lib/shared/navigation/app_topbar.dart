@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/providers/auth_state.dart';
+import '../../features/notifications/data/notification_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../routing/app_routes.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
@@ -60,17 +63,19 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
                 ),
                 const Spacer(),
                 if (showSearch && context.isDesktopWidth) ...[
-                  const SizedBox(
+                  SizedBox(
                     width: 280,
-                    child: GlobalSearchBar(),
+                    child: GlobalSearchBar(
+                      onSubmitted: (query) {
+                        final trimmed = query.trim();
+                        if (trimmed.isEmpty) return;
+                        context.push('${AppRoutes.search}?q=${Uri.encodeQueryComponent(trimmed)}');
+                      },
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                 ],
-                _TopBarIcon(
-                  icon: Icons.notifications_outlined,
-                  tooltip: l10n.notifications,
-                  onTap: () => _showNotificationsPlaceholder(context, l10n),
-                ),
+                _NotificationBell(l10n: l10n),
                 const SizedBox(width: AppSpacing.xs),
                 _AccountMenu(
                   accountName: accountName,
@@ -85,13 +90,6 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
     );
   }
 
-  void _showNotificationsPlaceholder(BuildContext context, AppLocalizations l10n) {
-    showMenu<void>(
-      context: context,
-      position: const RelativeRect.fromLTRB(1000, 60, 16, 0),
-      items: [PopupMenuItem<void>(enabled: false, child: Text(l10n.noNotificationsYet))],
-    );
-  }
 }
 
 enum _AccountAction { logout }
@@ -133,19 +131,57 @@ class _AccountMenu extends StatelessWidget {
   }
 }
 
-class _TopBarIcon extends StatelessWidget {
-  const _TopBarIcon({required this.icon, required this.tooltip, required this.onTap});
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
+/// Real notification center (spec §29/§31) — low/out-of-stock entries are
+/// derived live from real product data (`NotificationsController`); the
+/// badge count and dropdown are both driven by that same provider, not a
+/// static placeholder.
+class _NotificationBell extends ConsumerWidget {
+  const _NotificationBell({required this.l10n});
+  final AppLocalizations l10n;
 
   @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(icon, color: context.colors.textSecondary),
-      tooltip: tooltip,
-      onPressed: onTap,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final notifications = ref.watch(notificationsProvider);
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
+
+    return PopupMenuButton<String>(
+      tooltip: l10n.notifications,
+      icon: Badge(
+        label: Text('$unreadCount'),
+        isLabelVisible: unreadCount > 0,
+        child: Icon(Icons.notifications_outlined, color: colors.textSecondary),
+      ),
+      itemBuilder: (context) => [
+        if (notifications.isEmpty)
+          PopupMenuItem<String>(enabled: false, child: Text(l10n.noNotificationsYet))
+        else ...[
+          for (final n in notifications.take(6))
+            PopupMenuItem<String>(
+              value: n.id,
+              onTap: () => ref.read(notificationsProvider.notifier).markRead(n.id),
+              child: SizedBox(
+                width: 260,
+                child: Row(
+                  children: [
+                    Icon(Icons.circle, size: 8, color: n.isUnread ? colors.primary : Colors.transparent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(n.title, style: AppTypography.bodyStrong.copyWith(color: colors.textPrimary)),
+                          Text(n.body, style: AppTypography.caption.copyWith(color: colors.textMuted), overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }

@@ -8,24 +8,72 @@ class AppRoutes {
   // Business application (persistent shell)
   static const dashboard = '/dashboard';
   static const products = '/products';
+  static const productNew = '/products/new';
+  static String productDetail(String id) => '/products/$id';
+  static String productEdit(String id) => '/products/$id/edit';
+
   static const categories = '/categories';
+
   static const inventory = '/inventory';
+  static const inventoryTransfers = '/inventory/transfers';
+  static const inventoryLocations = '/inventory/locations';
+
   static const sales = '/sales';
+  static const saleNew = '/sales/new';
+
   static const orders = '/orders';
+  static String orderDetail(String id) => '/orders/$id';
+
   static const customers = '/customers';
+  static String customerDetail(String id) => '/customers/$id';
+
   static const suppliers = '/suppliers';
+  static String supplierDetail(String id) => '/suppliers/$id';
+
   static const purchases = '/purchases';
+  static const purchaseNew = '/purchases/new';
+  static String purchaseDetail(String id) => '/purchases/$id';
+
   static const returns = '/returns';
+  static const returnNew = '/returns/new';
+  static String returnDetail(String id) => '/returns/$id';
+
   static const production = '/production';
+  static const productionNew = '/production/new';
+  static String productionDetail(String id) => '/production/$id';
+
   static const employees = '/employees';
+  static const employeeNew = '/employees/new';
+  static String employeeEdit(String id) => '/employees/$id/edit';
+  static const roles = '/employees/roles';
+
   static const reports = '/reports';
+  static const operationalReports = '/reports/operational';
+  static const businessReports = '/reports/business';
+
   static const documents = '/documents';
+  static const pdfTemplateBuilder = '/documents/pdf-template';
+  static const documentNumbering = '/documents/numbering';
+
   static const activityHistory = '/activity-history';
+  static const notifications = '/notifications';
+  static const search = '/search';
+
   static const settings = '/settings';
+  static const settingsBusiness = '/settings/business';
+  static const settingsUsers = '/settings/users';
+  static const settingsInventory = '/settings/inventory';
+  static const settingsSales = '/settings/sales';
+  static const settingsPdf = '/settings/pdf';
+  static const settingsProduction = '/settings/production';
+  static const settingsSecurity = '/settings/security';
+  static const settingsCustomFields = '/settings/custom-fields';
+  static const settingsBackup = '/settings/backup';
 
   // System Admin (separate shell — architecture §56/§57)
   static const adminDashboard = '/admin';
   static const adminBusinesses = '/admin/businesses';
+  static String adminBusinessDetail(String id) => '/admin/businesses/$id';
 
   // Retained from Phase 0 — a dev utility, not part of the business nav.
   static const systemStatus = '/system-status';

@@ -10,13 +10,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:warehouse_os_app/app.dart';
 import 'package:warehouse_os_app/core/error/failure.dart';
+import 'package:warehouse_os_app/features/admin/admin_businesses_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/login_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_controller.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:warehouse_os_app/features/categories/categories_screen.dart';
+import 'package:warehouse_os_app/features/products/presentation/product_detail_screen.dart';
+import 'package:warehouse_os_app/features/products/presentation/product_form_screen.dart';
 import 'package:warehouse_os_app/l10n/generated/app_localizations.dart';
 import 'package:warehouse_os_app/localization/app_locales.dart';
 import 'package:warehouse_os_app/localization/locale_controller.dart';
+import 'package:warehouse_os_app/features/settings/data/business_type_config.dart';
+import 'package:warehouse_os_app/routing/app_router.dart';
+import 'package:warehouse_os_app/routing/app_routes.dart';
 import 'package:warehouse_os_app/shared/badges/status_badge.dart';
+import 'package:warehouse_os_app/shared/navigation/nav_items.dart';
 import 'package:warehouse_os_app/shared/buttons/app_button.dart';
 import 'package:warehouse_os_app/shared/feedback/app_empty_state.dart';
 import 'package:warehouse_os_app/shared/feedback/app_error_state.dart';
@@ -574,6 +582,174 @@ void main() {
       expect(repo.logoutCalled, isTrue);
       expect(find.byType(LoginScreen), findsOneWidget);
     });
+  });
+
+  group('Business modules (frontend-first phase verification)', () {
+    /// Every test in this group needs to navigate the real app router after
+    /// the initial pump, so each builds its own [ProviderContainer] (rather
+    /// than a bare `ProviderScope`) and always re-reads `routerProvider`
+    /// fresh at the point of use — never caching the `GoRouter` instance in
+    /// a local variable, since changing a provider the router itself
+    /// watches (e.g. `businessTypeProvider`) makes `routerProvider`
+    /// recompute to a brand-new instance (the same mechanism
+    /// `_businessBrandLabel` already relies on for re-branding).
+    ProviderContainer authenticatedContainer() => ProviderContainer(
+      overrides: [authControllerProvider.overrideWith(FakeAuthenticatedController.new)],
+    );
+
+    Future<void> pumpDesktop(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Products list loads real demo data and opens detail on tap', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      container.read(routerProvider).go(AppRoutes.products);
+      await tester.pumpAndSettle();
+
+      expect(find.text('3-Seat Sofa — Charcoal'), findsOneWidget);
+
+      await tester.tap(find.text('3-Seat Sofa — Charcoal'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('Product create form rejects submission with no category selected', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      container.read(routerProvider).push(AppRoutes.productNew);
+      await tester.pumpAndSettle();
+
+      final createButton = find.widgetWithText(AppButton, 'Create');
+      expect(createButton, findsOneWidget);
+      await tester.tap(createButton);
+      await tester.pumpAndSettle();
+
+      // Still on the create form — no category selected means the submit
+      // was rejected (§8: category is a required field).
+      expect(find.byType(ProductFormScreen), findsOneWidget);
+    });
+
+    testWidgets('Categories: adding a new category shows it in the list', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      container.read(routerProvider).go(AppRoutes.categories);
+      await tester.pumpAndSettle();
+      expect(find.byType(CategoriesScreen), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, 'Add Categories'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(AppTextField).first, 'Outdoor Furniture');
+      await tester.enterText(find.byType(AppTextField).at(1), 'OUT');
+      await tester.tap(find.widgetWithText(AppButton, 'Create'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Outdoor Furniture'), findsOneWidget);
+    });
+
+    testWidgets('Dashboard shows total-products/total-customers stat cards without colliding with sidebar labels', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      // Exactly one "Products" (sidebar) and one "Total products" (stat
+      // card) — these must never collide on the same screen.
+      expect(find.text('Products'), findsOneWidget);
+      expect(find.text('Total products'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+    });
+
+    testWidgets('Dashboard customization dialog toggles a widget off', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      await tester.tap(find.widgetWithText(AppButton, 'Customize'));
+      await tester.pumpAndSettle();
+      expect(find.text('Customize'), findsWidgets); // dialog title + button both read "Customize"
+
+      await tester.tap(find.text('lowStock').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Low Stock'), findsNothing);
+    });
+
+    testWidgets('Settings: switching to the Security section shows password-policy fields', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      container.read(routerProvider).go(AppRoutes.settings);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Security'));
+      await tester.pumpAndSettle();
+
+      // Field labels render via FormFieldWrapper's RichText, not a plain
+      // Text widget — see the login-screen tests above for the same note.
+      expect(find.textContaining('Minimum password length', findRichText: true), findsOneWidget);
+    });
+
+    testWidgets('System Admin business list screen loads real demo businesses', (tester) async {
+      // Pumped directly, not through the app router: a business-user
+      // session (the only kind Phase 2's Flutter app can authenticate as)
+      // is correctly redirected away from every `/admin/*` route — see the
+      // "An authenticated session reaching an admin route is redirected"
+      // test above. That's the router's job; this test is only for
+      // AdminBusinessesScreen's own rendering logic.
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            // A real Scaffold ancestor, matching how AppShell always wraps
+            // PageScaffold in production — a bare `home: AdminBusinessesScreen()`
+            // has no Material ancestor for the screen's own TextField.
+            home: const Scaffold(body: AdminBusinessesScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Karwan Furniture Factory'), findsOneWidget);
+    });
+
+    testWidgets('Global search finds a seeded product by name', (tester) async {
+      final container = authenticatedContainer();
+      addTearDown(container.dispose);
+      await pumpDesktop(tester, container);
+
+      container.read(routerProvider).go('${AppRoutes.search}?q=Ergonomic');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ergonomic Office Chair'), findsOneWidget);
+    });
+  });
+
+  test('Factory type configuration: Storage Store excludes Production, Furniture Factory includes it', () {
+    final storageStoreModules = businessTypeModules[BusinessType.storageStore]!;
+    final furnitureFactoryModules = businessTypeModules[BusinessType.furnitureFactory]!;
+    expect(storageStoreModules.contains('production'), isFalse);
+    expect(furnitureFactoryModules.contains('production'), isTrue);
+
+    final productionNavItem = businessNavItems.firstWhere((i) => i.moduleKey == 'production');
+    expect(storageStoreModules.contains(productionNavItem.moduleKey), isFalse);
   });
 }
 

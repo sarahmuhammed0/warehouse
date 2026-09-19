@@ -42,9 +42,14 @@ class AppDropdownField<T> extends StatelessWidget {
       required: required,
       child: DropdownButtonFormField<T>(
         initialValue: value,
+        // Without this, a long option label (a real category/role/status
+        // name, not just short test fixtures) overflows the dropdown's
+        // internal Row instead of truncating — a real rendering bug this
+        // phase's tests caught live, not a hypothetical.
+        isExpanded: true,
         items: [
           for (final option in options)
-            DropdownMenuItem(value: option.value, child: Text(option.label)),
+            DropdownMenuItem(value: option.value, child: Text(option.label, overflow: TextOverflow.ellipsis)),
         ],
         onChanged: onChanged,
         validator: validator,

@@ -1,0 +1,118 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../l10n/generated/app_localizations.dart';
+import '../../../routing/app_routes.dart';
+import '../../../shared/badges/status_badge.dart';
+import '../../../shared/buttons/app_button.dart';
+import '../../../shared/cards/app_card.dart';
+import '../../../shared/feedback/app_error_state.dart';
+import '../../../shared/layout/breadcrumbs.dart';
+import '../../../shared/layout/page_scaffold.dart';
+import '../../../theme/app_typography.dart';
+import '../data/return_models.dart';
+import '../data/return_providers.dart';
+
+/// Return detail — Requested → Approved/Rejected → Completed (§16). Inventory
+/// only restocks on Completed (two-stage policy, see `ProductReturn.restocksOnCompletion`'s
+/// doc comment and `docs/architecture.md`'s ambiguity #2).
+class ReturnDetailScreen extends ConsumerWidget {
+  const ReturnDetailScreen({super.key, required this.returnId});
+  final String returnId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final async = ref.watch(returnByIdProvider(returnId));
+
+    return async.when(
+      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
+      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(returnByIdProvider(returnId)))),
+      data: (item) => PageScaffold(
+        title: item.returnNumber,
+        breadcrumbs: [BreadcrumbItem(l10n.navReturns, onTap: () => context.go(AppRoutes.returns)), BreadcrumbItem(item.returnNumber)],
+        secondaryActions: [
+          if (item.status == ReturnStatus.requested) ...[
+            AppButton(label: l10n.approve, onPressed: () => _update(context, ref, item.id, ReturnStatus.approved)),
+            AppButton(label: l10n.reject, variant: AppButtonVariant.destructive, onPressed: () => _update(context, ref, item.id, ReturnStatus.rejected)),
+          ],
+          if (item.status == ReturnStatus.approved)
+            AppButton(label: l10n.statusCompleted, onPressed: () => _update(context, ref, item.id, ReturnStatus.completed)),
+        ],
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 16,
+          children: [
+            AppCard(
+              title: Text(l10n.fieldProduct),
+              child: Column(
+                children: [
+                  for (final line in item.items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 2, child: Text(line.productName)),
+                          Expanded(child: Text('×${line.quantity}', textAlign: TextAlign.center)),
+                          Expanded(
+                            child: StatusBadge(
+                              label: line.condition == ItemCondition.sellable ? l10n.statusActive : l10n.statusRejected,
+                              tone: line.condition == ItemCondition.sellable ? StatusTone.success : StatusTone.danger,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            AppCard(
+              title: Text(l10n.details),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 8,
+                children: [
+                  _row(l10n.fieldOrderNumber, item.orderNumber),
+                  _row(l10n.fieldCustomer, item.customerName ?? '—'),
+                  _row(l10n.fieldReason, item.reason),
+                  _row(l10n.fieldRemainingAmount, item.refundAmount.toStringAsFixed(2)),
+                  _row(l10n.fieldCreatedBy, item.requestedBy),
+                  Row(
+                    children: [
+                      Expanded(child: Text(l10n.fieldStatus, style: AppTypography.label)),
+                      StatusBadge(
+                        label: switch (item.status) {
+                          ReturnStatus.requested => l10n.statusRequested,
+                          ReturnStatus.approved => l10n.statusApproved,
+                          ReturnStatus.rejected => l10n.statusRejected,
+                          ReturnStatus.completed => l10n.statusCompleted,
+                        },
+                        tone: switch (item.status) {
+                          ReturnStatus.requested => StatusTone.neutral,
+                          ReturnStatus.approved => StatusTone.info,
+                          ReturnStatus.rejected => StatusTone.danger,
+                          ReturnStatus.completed => StatusTone.success,
+                        },
+                      ),
+                    ],
+                  ),
+                  if (item.notes != null) ...[const Divider(), Text(item.notes!)],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _update(BuildContext context, WidgetRef ref, String id, ReturnStatus status) async {
+    await ref.read(returnListControllerProvider.notifier).updateStatus(id, status);
+    ref.invalidate(returnByIdProvider(id));
+  }
+
+  Widget _row(String label, String value) {
+    return Row(children: [Expanded(child: Text(label, style: AppTypography.label)), Expanded(child: Text(value, style: AppTypography.bodyStrong))]);
+  }
+}

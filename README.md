@@ -2,23 +2,32 @@
 
 Multi-tenant Factory / Warehouse / Storage management system.
 
-**Status: Phase 2 — Authentication + Multi-Tenancy Foundation.** Real phone
-+ password login (business users and System Admins, structurally separate
-accounts), backend-enforced tenant isolation, JWT + refresh-token session
-handling, login protection/rate limiting, audit logging, and the matching
-Flutter auth UI (Riverpod state, Dio interceptor, secure token storage,
-routing guards) are built and tested. No business modules (Products,
-Categories, Inventory, Sales, Orders, Customers, Suppliers, Purchases,
-Returns, Production, Employees/RBAC, Reports, Documents) exist yet — those
-begin in Phase 3+.
+**Status: Frontend-first phase — the full business-module UI is built.**
+Backend development is deliberately paused this phase (per explicit
+instruction) in favor of completing the Flutter frontend for every module
+the specification describes: Products (incl. variants), Categories,
+Inventory (stock/locations/transfers/alerts), Sales, Orders, Customers,
+Suppliers, Purchases, Returns, Production (incl. BOM), Employees/Roles/
+Permissions, Reports, Documents/PDF preview, Activity History,
+Notifications, Global Search, Settings (10 sections), and — previously
+deferred — the System Admin dashboard and business-detail screens. Every
+screen is real and navigable, built on the shared design system, backed by
+a clearly-isolated local/demo data layer (never a live backend) — see
+[`docs/frontend-coverage.md`](docs/frontend-coverage.md) for the full
+requirement-by-requirement status and
+[`docs/frontend-backend-contract-notes.md`](docs/frontend-backend-contract-notes.md)
+for exactly what each module expects a real API to look like once backend
+work resumes.
 
-See [`docs/architecture.md`](docs/architecture.md) for the approved
-roadmap, [`docs/authentication.md`](docs/authentication.md),
+Phase 2's real, backend-verified authentication (phone + password login,
+JWT/refresh handling, secure token storage, routing guards, System Admin
+auth foundation) is **untouched** — see
+[`docs/authentication.md`](docs/authentication.md),
 [`docs/multi-tenancy.md`](docs/multi-tenancy.md),
-[`docs/security.md`](docs/security.md), and
-[`docs/database.md`](docs/database.md) for this phase's design in full, and
-[`docs/phase2-traceability.md`](docs/phase2-traceability.md) for exactly
-what's built vs. deferred, requirement by requirement.
+[`docs/security.md`](docs/security.md),
+[`docs/database.md`](docs/database.md), and
+[`docs/phase2-traceability.md`](docs/phase2-traceability.md) for that
+phase's design in full — none of it changed this phase.
 
 ## Technology stack
 
@@ -203,12 +212,26 @@ npm run test:integration  # login flow, session lifecycle, mandatory tenant-isol
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 30 tests — app shell, RTL/localization, routing guards,
-                         # data table states, pagination, dialogs/overlays, and the
-                         # full login-screen suite (render/validate/loading/error/
-                         # success states, en/ar/ku locales, logout, session expiry)
+flutter test           # 39 tests — app shell, RTL/localization, routing guards,
+                         # data table states, pagination, dialogs/overlays, the full
+                         # login-screen suite (Phase 2), and this phase's business-module
+                         # suite: product list/detail/create validation, category
+                         # creation, dashboard stat/customization, settings section
+                         # switching, System Admin business list, global search,
+                         # factory-type module filtering
 flutter build web --release   # confirms the release build still succeeds
 ```
+
+Several real rendering/state bugs were caught and fixed by writing these
+tests, not just inspecting code — see `docs/frontend-coverage.md`'s
+methodology note. Concretely: `AppDropdownField` was missing
+`isExpanded: true` (long option labels silently overflowed), `AppCard` had
+no `Material` ancestor (a real Flutter assertion once any card contained a
+`ListTile`), `SearchResultsScreen` built a fresh `Future` inline in every
+`build()` (a `FutureBuilder` anti-pattern that never settles), and one
+screen nested a `ListView` inside `PageScaffold`'s own scroll view
+(unbounded-height viewport crash). All four are fixed at the shared-widget
+level, not papered over per screen.
 
 ## Repository structure
 
@@ -239,19 +262,28 @@ warehouse-os/
 │       ├── core/
 │       │   ├── network/                  ApiClient, AuthInterceptor, shared providers
 │       │   └── storage/                   TokenStorage interface + SecureTokenStorage
+│       ├── core/repositories/               PagedQuery, PagedListController (shared
+│       │                                     pagination/search/filter state, one
+│       │                                     implementation for every list screen),
+│       │                                     DemoRepository mixin + paginateInMemory
 │       ├── features/
 │       │   ├── auth/                       data/ (models, repository), presentation/
-│       │   │                               (login_screen, AuthController/AuthState)
-│       │   └── ...                          16 business + 2 admin placeholders,
-│       │                                     system_status (real, unchanged)
-│       ├── routing/                        app_router.dart — now with real
-│       │                                    authenticated/unauthenticated redirect
-│       │                                    guards (routerProvider, Riverpod-backed)
-│       └── shared/, theme/, l10n/, localization/   unchanged Phase 1 design system
+│       │   │                               (login_screen, AuthController/AuthState) — Phase 2, unchanged
+│       │   ├── products/, categories/, inventory/, sales/, orders/, customers/,
+│       │   │   suppliers/, purchases/, returns/, production/, employees/, reports/,
+│       │   │   documents/, activity_history/, notifications/, search/, settings/,
+│       │   │   admin/                        each: data/ (models + Local*Repository +
+│       │   │                                  Riverpod providers) + presentation/
+│       │   │                                  (list/detail/form screens) — this phase
+│       │   └── system_status/                real, unchanged since Phase 0
+│       ├── routing/                        app_router.dart — auth guards (Phase 2) +
+│       │                                    business-type module filtering (this phase,
+│       │                                    routerProvider, Riverpod-backed)
+│       └── shared/, theme/, l10n/, localization/   design system — extended, not replaced
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                   30 tests total
+│       └── widget_test.dart                   39 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,
@@ -260,7 +292,9 @@ warehouse-os/
 │   ├── multi-tenancy.md                  Phase 2 — isolation enforcement + System Admin boundary
 │   ├── security.md                        Phase 2 — full checklist review
 │   ├── database.md                         Phase 2 — schema, migrations, verification status
-│   └── phase2-traceability.md               Every Phase 2 requirement → file → status
+│   ├── phase2-traceability.md               Every Phase 2 requirement → file → status
+│   ├── frontend-coverage.md                 This phase — every spec section → screen → status
+│   └── frontend-backend-contract-notes.md    This phase — what each module expects a real API to look like
 ├── docker-compose.yml          Isolated MySQL 8.x (Docker path) — see docs/environment.md
 ├── .env.example                 docker-compose's MySQL credentials (template)
 └── package.json                  Backend orchestration only (see above)
@@ -274,13 +308,19 @@ tree and the reasoning behind the `core/` vs. `shared/` split.
 1. Every requirement traces back to the specification and the approved
    architecture (`docs/architecture.md`) — a module isn't "done" because a
    screen exists; it's done when the backend enforces the same rule the UI
-   suggests. Phase 2 is the concrete example: the Flutter routing guard is
-   explicitly documented as UX convenience only — every real security
-   boundary (tenant isolation, account-type authorization) is re-checked
-   server-side on every request, never trusted from the client.
-2. No mock data, no fake API responses, no fake authentication — every
-   screen that has real data to show talks to the real backend; the login
-   screen talks to the real `/api/auth/login`, full stop.
+   suggests. Phase 2's routing guard is the concrete example: explicitly
+   documented as UX convenience only — every real security boundary (tenant
+   isolation, account-type authorization) is re-checked server-side on
+   every request, never trusted from the client. That principle is
+   unchanged this phase even though backend work is paused.
+2. This phase's business-module screens are demo-data-backed by explicit
+   instruction (backend work paused) — but the isolation is real: every
+   `Local*Repository` implements `DemoRepository`
+   (`core/repositories/demo_data_source.dart`) so it's mechanically
+   obvious, from the type alone, which repositories still need a real API.
+   Phase 2's authentication remains fully real — the login screen still
+   talks to the real `/api/auth/login`, full stop; nothing about auth was
+   weakened or mocked to build the rest of the UI.
 3. Secrets live only in `.env` files (git-ignored); `.env.example` files
    document every variable without real values. `JWT_SECRET` is a real
    locally-generated random value, never a repo-committed constant.
@@ -290,12 +330,24 @@ tree and the reasoning behind the `core/` vs. `shared/` split.
    directly from a widget. New backend modules follow `docs/multi-tenancy.md`'s
    pattern: `businessId` from `req.auth`, never from client input.
 
-## What Phase 2 deliberately does not include
+## What Phase 2 deliberately did not include (superseded)
 
-Per the Phase 2 brief's explicit scope: Products, Categories, Inventory,
-Sales, Orders, Purchases, Returns, Production, Reports, PDF generation,
-Notifications, and full Employees/RBAC/role-management (beyond the single
-`is_owner` elevation flag needed this phase) are all out of scope — Phase 3+
-work. Password reset ("forgot password") is also deferred — see
-`docs/authentication.md`. See `docs/phase2-traceability.md` for the
-complete, requirement-by-requirement status.
+Phase 2's own scope excluded every business module by design — see
+`docs/phase2-traceability.md` for that phase's requirement-by-requirement
+status. This frontend-first phase builds the Flutter UI for all of those
+modules (see "Frontend-first phase" below); Phase 2's authentication scope
+boundary itself is unaffected.
+
+## What this frontend-first phase deliberately does not include
+
+Per the master prompt's explicit scope: **no backend work** — no MySQL
+provisioning, no migrations beyond Phase 2's six, no new database schema,
+no backend CRUD/reports/PDF generation/transactions, no changes to Node.js
+APIs or Phase 2's tenant enforcement. Every business-module screen reads
+from a clearly-isolated local/demo repository, never a live endpoint — see
+`docs/frontend-coverage.md`'s "deferred/lighter-depth items" for the
+handful of sub-features (variant/custom-field persistence, order edit-
+history entries, most report types' live queries, barcode *scanning* vs.
+*preview*) that are UI scaffolding without a data layer yet, and
+`docs/frontend-backend-contract-notes.md` for exactly what each module
+expects a real API to look like when backend work resumes.

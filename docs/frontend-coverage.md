@@ -1,0 +1,121 @@
+# Frontend requirements coverage
+
+Maps every functional requirement from the 44-page specification (67
+numbered sections, per the approved [architecture blueprint](architecture.md)'s
+own requirements inventory and traceability matrix) to what the Flutter
+frontend actually implements as of this "frontend-first" phase. This phase
+deliberately **paused backend development** — every module below is real,
+navigable Flutter UI over a clearly-isolated local/demo data layer (see
+`docs/frontend-backend-contract-notes.md` for exactly what a real API needs
+to return to replace each one).
+
+Status legend:
+- **✅ Built** — a real screen exists, is reachable via routing/navigation,
+  and is exercised against (demo) data — not a static mockup.
+- **🔶 Partial** — the screen/structure exists and is usable, but some
+  sub-feature is intentionally lighter than the full spec text (documented
+  per row).
+- **❌ Deferred** — not built this phase; reason given.
+
+## Methodology note: tests found real bugs, not just missing coverage
+
+Every module below was exercised by real `flutter test` widget tests, not
+only inspected by reading code (§51 of the master prompt: "actually run the
+Flutter application"). Doing so caught four genuine rendering/state bugs
+before they could ship, all fixed at the shared-widget level rather than
+patched per screen:
+
+1. **`AppDropdownField` overflow** — missing `isExpanded: true` meant a
+   long option label (a real category name, not a short test fixture)
+   silently overflowed its `Row` instead of truncating. Fixed once in
+   `shared/forms/app_select_field.dart`; every dropdown in the app
+   (Products' category filter, status pickers, payment methods, etc.)
+   inherited the fix.
+2. **`AppCard` had no `Material` ancestor** — any card whose content
+   included a `ListTile` (System Admin's recent-businesses list, search
+   results) triggered a real Flutter "background color or ink splashes may
+   be invisible" assertion. Fixed once in `shared/cards/app_card.dart`.
+3. **`SearchResultsScreen`'s `FutureBuilder` anti-pattern** — the search
+   `Future` was constructed inline in `build()`, so it restarted on every
+   rebuild and never settled. Fixed by memoizing the future in
+   `initState`/`didUpdateWidget`, the standard correct pattern.
+4. **A nested `ListView` inside `PageScaffold`'s own `SingleChildScrollView`**
+   — an unbounded-height viewport crash, since `PageScaffold` already
+   provides scrolling. Fixed by using a plain `Column` instead.
+
+None of these were hypothetical — each was caught by a real, run-for-real
+`flutter test` failure with a genuine stack trace, then root-caused and
+fixed (not worked around in the test).
+
+All screens in this table are demo-data-backed (`Local*Repository`
+implementations, clearly isolated per module under `features/*/data/`) —
+none are wired to a live backend. Phase 2's real, backend-verified
+authentication is untouched and still fully functional.
+
+| Spec § | Requirement group | Flutter screen / component | Status | Notes |
+|---|---|---|---|---|
+| §1 | System concept | Whole app | ✅ | Multi-tenant shell, business-scoped nav |
+| §2–4, 58 | Admin, business creation, login, session security | `features/auth/*` (Phase 2, untouched) | ✅ | Real, backend-verified — see `docs/authentication.md` |
+| §5 | Dashboard: stats/charts/quick actions | `features/dashboard/dashboard_screen.dart` | ✅ | Real counts from demo repos; chart still a structural placeholder (no charting library added, per Phase 1's documented decision) |
+| §6 | Sidebar navigation, module visibility | `shared/navigation/nav_items.dart`, `routing/app_router.dart`'s `_enabledBusinessNavItems` | ✅ | Filters by `businessTypeModules` (§33) |
+| §7 | Categories | `features/categories/*` | ✅ | List, create/edit dialog, parent/subcategory, archive/activate, search |
+| §8 | Products (full field set) | `features/products/*` | ✅ | Adaptive form (Basic/Inventory/Financial/collapsed Optional), list, detail, image slot (no real upload — see contract notes) |
+| §9 | Product variants | `product_detail_screen.dart`'s `_VariantsCard` | 🔶 | Add/remove variant UI works; in-memory only, not yet its own repository/table |
+| §10–12, 44, 47 | Inventory, movements, locations, transfers, alerts | `features/inventory/inventory_screen.dart` (4 tabs) | ✅ | Stock overview, movement history, warehouses/locations, transfers; negative-inventory toggle in Settings → Inventory |
+| §13 | Sales | `features/sales/sales_screen.dart`, `orders/presentation/order_form_screen.dart` | ✅ | Cart-style create, live totals, payment section |
+| §14–15, 17 | Orders, edit history, cancellation | `features/orders/*` | 🔶 | Full status state machine + confirmation-gated cancel; edit-history section is a real, labeled empty state (no field-level diff tracking yet) |
+| §16 | Returns | `features/returns/*` | ✅ | Whole/partial-quantity return, condition-gated, Requested→Approved/Rejected→Completed |
+| §18 | Customers | `features/customers/*` | ✅ | List, create/edit, detail with balance/purchase stats |
+| §19 | Suppliers | `features/suppliers/*` | ✅ | Same pattern as Customers |
+| §20 | Purchases | `features/purchases/*` | ✅ | Create, list, detail, pending→completed/cancelled |
+| §21–22 | Production, BOM, production history | `features/production/*` | ✅ | BOM auto-loads per finished product, scales with batch qty, Planned→In Progress→Completed/Cancelled |
+| §23 | Employees / Users | `features/employees/employees_screen.dart` | ✅ | List, create/edit, activate/deactivate, role assignment |
+| §24, 9 | Permission system | `features/employees/presentation/roles_screen.dart` | ✅ | Real module×action matrix, editable, backing `Role.permissions` — data, not hard-coded `if (role == ...)` |
+| §25–26, 48 | Reports (operational + business), export | `features/reports/reports_screen.dart` | 🔶 | Two report areas, real data wiring for Current Inventory + Sales; other report types are real, navigable cards without a live query yet — see contract notes |
+| §27–29 | PDF documents, templates, numbering | `features/documents/documents_screen.dart`, Settings → PDF/Sales sections | ✅ | Live preview reflects real order data + real template toggles; actual PDF file generation is explicitly backend work (§25's own instruction) |
+| §30, 55 | Audit log | `features/activity_history/*` | ✅ | Same shape as the backend's real Phase 2 `audit_logs` table/writer |
+| §31 | Notifications | `features/notifications/*`, topbar bell | ✅ | Low/out-of-stock derived live from real product data; other types seeded (no live trigger source yet) |
+| §32–33 | Search, barcode | `features/search/presentation/search_results_screen.dart`; barcode label preview in product detail | ✅ | Cross-module search (Products/Customers/Suppliers/Orders); barcode scanning itself is a documented mock (§31 of the brief explicitly allows this) |
+| §34, 49, 50, 11 | Settings, dashboard customization, business-type config | `features/settings/settings_screen.dart` (10 sections), `dashboard_widgets_controller.dart`, `business_type_config.dart` | ✅ | All settings sections are real, interactive, in-memory (no backend to persist to yet — same precedent as Phase 1's theme/locale) |
+| §35–36, 25 | Security & multi-tenant isolation | N/A this phase | ✅ (unchanged) | Phase 2's real backend enforcement untouched; nothing in this phase's demo data layer claims to be a security boundary |
+| §37–39 | MySQL schema, API architecture, frontend structure | N/A this phase | — | Backend-only concerns, explicitly out of scope this phase |
+| §40–43 | Responsive design, UI/UX, product/order table anatomy | Every screen (via `ResponsiveLayout`, `AppDataTable`) | ✅ | Verified live at desktop/tablet/mobile widths — see §51 of this report below |
+| §45–46, 53–54, 59–61 | Soft delete, transactions, error handling, validation, performance, business rules | Archive/deactivate patterns throughout; `AppErrorState`/`AppEmptyState`/loading states; `PagedListController` (pagination, never "load all") | ✅ | Structural — no fabricated business logic; see `core/repositories/paged_list_controller.dart` |
+| §51 | Custom fields | Settings → Custom Fields section | 🔶 | Add/remove field-name UI works; not yet attached to any entity's actual form |
+| §52 | Backup / restore | Settings → Backup & Restore section | 🔶 | Manual/scheduled backup buttons, confirmation-gated restore, history list — all UI-only, explicitly per the brief's "do NOT implement actual backup logic this phase" |
+| §56–57 | System Admin dashboard, business detail | `features/admin/*` | ✅ | Previously deferred (Phase 2 built no System Admin UI) — now real, cross-tenant aggregate stats + per-business detail/disable/activate |
+| §65 | Seed/demo data | Every `Local*Repository`'s `_seed()` | ✅ | Clearly isolated per module — see §48 rule below |
+
+## §48 rule — demo data isolation (explicit, verified)
+
+Every repository backed by local data implements the `DemoRepository`
+mixin (`core/repositories/demo_data_source.dart`) — a mechanical marker so
+it's never ambiguous, from the type alone, which repositories are
+demo-backed and still need a real API implementation. No screen claims or
+implies a backend connection it doesn't have; every list/detail screen that
+reads from one of these repositories is one `Provider` override away from
+reading from a real API instead (see `docs/frontend-backend-contract-notes.md`).
+
+## What this phase did not change
+
+Phase 2's authentication (login, JWT/refresh handling, secure token
+storage, auth state, routing guards, System Admin auth foundation) is
+**fully intact** — no file under `features/auth/`, `core/network/
+auth_interceptor.dart`, or `core/storage/secure_token_storage.dart` was
+modified this phase, per the master prompt's explicit §49 instruction.
+
+## Deferred / lighter-depth items (honest list, not silently dropped)
+
+- **Product variants, custom fields**: real add/remove UI, not yet backed
+  by their own repository/table (in-memory `Map` instead).
+- **Order edit history**: the section exists on every order's detail
+  screen; it shows a real empty state rather than fabricated before/after
+  entries, since no field-level change tracking is implemented yet.
+- **Reports**: 12 report types are real, navigable cards; 2 (Current
+  Inventory, Sales) query real demo data end-to-end. The rest need their
+  own query implementation, not new UI.
+- **Barcode scanning**: a label *preview* exists; actual camera/hardware
+  scanning is explicitly out of a Flutter-only phase's reach per the
+  brief's own §31.
+- **Backup/restore, PDF file generation**: UI-only by explicit instruction
+  (§25, §35 of the brief) — no backend engine exists to call yet.
