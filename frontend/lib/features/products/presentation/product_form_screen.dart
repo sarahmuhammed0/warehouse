@@ -9,7 +9,6 @@ import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/forms/app_select_field.dart';
 import '../../../shared/forms/app_text_field.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../../categories/data/category_providers.dart';
@@ -219,16 +218,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (_loadingExisting) {
       return PageScaffold(
         title: l10n.edit,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.products,
         body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
       );
     }
 
     return PageScaffold(
       title: _isEditing ? '${l10n.edit} — ${_name.text}' : '${l10n.add} ${l10n.navProducts}',
-      breadcrumbs: [
-        BreadcrumbItem(l10n.navProducts, onTap: () => context.go(AppRoutes.products)),
-        BreadcrumbItem(_isEditing ? l10n.edit : l10n.create),
-      ],
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.products,
       body: Form(
         key: _formKey,
         child: Column(

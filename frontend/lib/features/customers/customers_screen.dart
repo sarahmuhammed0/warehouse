@@ -54,6 +54,8 @@ class CustomersScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navCustomers,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navCustomers}', icon: Icons.add, onPressed: () => showCustomerFormDialog(context)),
       searchBar: SizedBox(
         width: 280,

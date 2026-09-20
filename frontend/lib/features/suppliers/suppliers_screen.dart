@@ -49,6 +49,8 @@ class SuppliersScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navSuppliers,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navSuppliers}', icon: Icons.add, onPressed: () => showSupplierFormDialog(context)),
       searchBar: SizedBox(
         width: 280,

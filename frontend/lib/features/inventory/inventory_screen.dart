@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/cards/app_card.dart';
 import '../../shared/forms/app_text_field.dart';
@@ -43,6 +44,8 @@ class _InventoryScreenState extends State<InventoryScreen> with SingleTickerProv
     final l10n = AppLocalizations.of(context)!;
     return PageScaffold(
       title: l10n.navInventory,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,

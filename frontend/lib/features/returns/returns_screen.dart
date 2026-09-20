@@ -50,6 +50,8 @@ class ReturnsPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navReturns,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navReturns}', icon: Icons.add, onPressed: () => context.push(AppRoutes.returnNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(

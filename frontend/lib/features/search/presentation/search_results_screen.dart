@@ -62,6 +62,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 
     return PageScaffold(
       title: '${l10n.search}: "${widget.query}"',
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       body: FutureBuilder<_SearchResults>(
         future: _future,
         builder: (context, snapshot) {

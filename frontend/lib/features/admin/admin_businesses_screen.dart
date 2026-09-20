@@ -46,6 +46,8 @@ class AdminBusinessesScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.adminNavBusinesses,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.adminDashboard,
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       filterBar: SizedBox(
         width: 200,

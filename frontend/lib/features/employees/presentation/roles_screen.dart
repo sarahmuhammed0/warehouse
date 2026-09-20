@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
 import '../../../shared/cards/app_card.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
@@ -35,7 +33,8 @@ class _RolesScreenState extends ConsumerState<RolesScreen> {
 
     return PageScaffold(
       title: l10n.fieldRole,
-      breadcrumbs: [BreadcrumbItem(l10n.navEmployees, onTap: () => context.go(AppRoutes.employees)), BreadcrumbItem(l10n.fieldRole)],
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.employees,
       body: rolesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => Center(child: Text(l10n.unableToLoad)),

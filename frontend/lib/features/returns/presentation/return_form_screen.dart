@@ -9,7 +9,6 @@ import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/forms/app_select_field.dart';
 import '../../../shared/forms/app_text_field.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../orders/data/order_models.dart';
 import '../../orders/data/order_providers.dart';
@@ -100,7 +99,8 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
 
     return PageScaffold(
       title: '${l10n.add} ${l10n.navReturns}',
-      breadcrumbs: [BreadcrumbItem(l10n.navReturns, onTap: () => context.go(AppRoutes.returns)), BreadcrumbItem(l10n.create)],
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.returns,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,

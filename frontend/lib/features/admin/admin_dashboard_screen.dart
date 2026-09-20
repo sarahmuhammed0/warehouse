@@ -36,6 +36,8 @@ class AdminDashboardScreen extends ConsumerWidget {
     return PageScaffold(
       title: l10n.adminNavDashboard,
       subtitle: l10n.demoDataNotice,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.adminDashboard,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.lg,

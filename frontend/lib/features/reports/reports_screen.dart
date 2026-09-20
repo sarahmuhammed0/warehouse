@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
 import '../../shared/cards/app_card.dart';
@@ -48,6 +49,8 @@ class _ReportsPlaceholderScreenState extends State<ReportsPlaceholderScreen> wit
 
     return PageScaffold(
       title: l10n.navReports,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.lg,

@@ -83,6 +83,8 @@ class _SettingsPlaceholderScreenState extends ConsumerState<SettingsPlaceholderS
 
     return PageScaffold(
       title: l10n.navSettings,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       body: ResponsiveLayout(
         mobile: (context) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

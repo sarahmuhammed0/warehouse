@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/providers/auth_controller.dart';
+import '../../features/auth/presentation/providers/auth_state.dart';
 import '../../features/auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
@@ -40,6 +42,13 @@ class ProductsScreen extends ConsumerWidget {
     final canEdit = hasPermission(permissions, 'products', 'edit');
     final canDelete = hasPermission(permissions, 'products', 'delete');
     final canViewFinancial = hasPermission(permissions, 'financial', 'view');
+    // This screen is reachable from both shells (business sidebar, and a
+    // System Admin session drilling in via the admin dashboard's Products
+    // card — see app_router.dart's `_isAdminBrowsableRoute`), so the back
+    // button's fallback (used only when there's nothing left to pop) has
+    // to match whichever one is actually viewing it.
+    final authState = ref.watch(authControllerProvider);
+    final isAdminSession = authState is AuthAuthenticated && authState.business == null;
 
     final activeFilters = <FilterChipData>[
       if (state.query.filters['stock'] == 'low')
@@ -109,13 +118,8 @@ class ProductsScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navProducts,
-      // Only shown when there's really something to pop back to — normal
-      // sidebar navigation lands here via `go` (nothing to pop); the
-      // System Admin dashboard's Products card reaches this same screen
-      // via `push` (see app_router.dart's `_isAdminBrowsableRoute`), where
-      // popping correctly returns to the admin dashboard.
-      showBackButton: context.canPop(),
-      backFallbackRoute: AppRoutes.adminDashboard,
+      showBackButton: true,
+      backFallbackRoute: isAdminSession ? AppRoutes.adminDashboard : AppRoutes.dashboard,
       primaryAction: canCreate
           ? AppButton(
               label: '${l10n.add} ${l10n.navProducts}',

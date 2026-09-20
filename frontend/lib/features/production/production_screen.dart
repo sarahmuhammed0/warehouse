@@ -42,6 +42,8 @@ class ProductionPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navProduction,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navProduction}', icon: Icons.add, onPressed: () => context.push(AppRoutes.productionNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(

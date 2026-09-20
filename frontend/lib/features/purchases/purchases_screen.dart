@@ -41,6 +41,8 @@ class PurchasesPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navPurchases,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navPurchases}', icon: Icons.add, onPressed: () => context.push(AppRoutes.purchaseNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(

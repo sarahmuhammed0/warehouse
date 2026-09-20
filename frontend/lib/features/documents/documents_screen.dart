@@ -32,6 +32,8 @@ class DocumentsPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navDocuments,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       secondaryActions: [
         AppButton(label: l10n.pdfTemplateBuilderLabel, icon: Icons.tune, variant: AppButtonVariant.outline, onPressed: () => context.go(AppRoutes.settings)),
       ],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
 import '../../shared/feedback/confirm_dialog.dart';
@@ -54,6 +55,8 @@ class CategoriesScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navCategories,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: canCreate
           ? AppButton(
               label: '${l10n.add} ${l10n.navCategories}',

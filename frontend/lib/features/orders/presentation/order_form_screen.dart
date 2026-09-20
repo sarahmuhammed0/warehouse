@@ -9,7 +9,6 @@ import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/forms/app_select_field.dart';
 import '../../../shared/forms/app_text_field.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../../customers/data/customer_providers.dart';
@@ -123,10 +122,8 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
 
     return PageScaffold(
       title: '${l10n.add} $title',
-      breadcrumbs: [
-        BreadcrumbItem(title, onTap: () => context.go(isQuickSale ? AppRoutes.sales : AppRoutes.orders)),
-        BreadcrumbItem(l10n.create),
-      ],
+      showBackButton: true,
+      backFallbackRoute: isQuickSale ? AppRoutes.sales : AppRoutes.orders,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,

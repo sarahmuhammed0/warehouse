@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../auth/presentation/providers/auth_controller.dart';
+import '../auth/presentation/providers/auth_state.dart';
 import '../auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
@@ -32,6 +34,9 @@ class EmployeesPlaceholderScreen extends ConsumerWidget {
     final permissions = ref.watch(currentPermissionsProvider);
     final canCreate = hasPermission(permissions, 'users', 'create');
     final canEdit = hasPermission(permissions, 'users', 'edit');
+    // See ProductsScreen's identical comment — reachable from both shells.
+    final authState = ref.watch(authControllerProvider);
+    final isAdminSession = authState is AuthAuthenticated && authState.business == null;
 
     final columns = <AppTableColumn<Employee>>[
       AppTableColumn(label: l10n.fieldName, cellBuilder: (context, item) => Text(item.name)),
@@ -48,11 +53,8 @@ class EmployeesPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navEmployees,
-      // See ProductsScreen's identical showBackButton comment — only
-      // visible when reached via a push (e.g. the admin dashboard's
-      // Employee card), never on normal sidebar navigation.
-      showBackButton: context.canPop(),
-      backFallbackRoute: AppRoutes.adminDashboard,
+      showBackButton: true,
+      backFallbackRoute: isAdminSession ? AppRoutes.adminDashboard : AppRoutes.dashboard,
       primaryAction: canCreate ? AppButton(label: '${l10n.add} ${l10n.navEmployees}', icon: Icons.add, onPressed: () => showEmployeeFormDialog(context)) : null,
       secondaryActions: [
         if (canEdit)

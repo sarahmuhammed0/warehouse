@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../../routing/app_routes.dart';
 import '../../shared/forms/app_text_field.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/pagination/pagination_bar.dart';
@@ -33,6 +34,8 @@ class ActivityHistoryPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navActivityHistory,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

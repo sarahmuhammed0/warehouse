@@ -42,6 +42,8 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
     return PageScaffold(
       title: l10n.navDashboard,
       subtitle: l10n.demoDataNotice,
+      showBackButton: true,
+      backFallbackRoute: AppRoutes.dashboard,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.lg,
