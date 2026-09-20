@@ -54,6 +54,53 @@ class LocalProductionRepository with DemoRepository implements ProductionReposit
         createdAt: DateTime.now().subtract(const Duration(days: 5)),
       ),
     );
+    _items.add(
+      ProductionOrder(
+        id: 'prodn-${_nextId++}',
+        productionNumber: 'PRDN-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        productId: 'prod-12',
+        productName: 'Bookshelf — 5 Tier',
+        quantityPlanned: 8,
+        quantityProduced: 3,
+        batchNumber: 'B-2026-002',
+        materials: _bomTemplates['prod-12']!,
+        cost: 210,
+        status: ProductionStatus.inProgress,
+        assignedTo: 'Production Team B',
+        startedAt: DateTime.now().subtract(const Duration(days: 1)),
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+    );
+    _items.add(
+      ProductionOrder(
+        id: 'prodn-${_nextId++}',
+        productionNumber: 'PRDN-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        productId: 'prod-1',
+        productName: '3-Seat Sofa — Charcoal',
+        quantityPlanned: 6,
+        quantityProduced: 0,
+        materials: _bomTemplates['prod-1']!,
+        cost: 0,
+        status: ProductionStatus.planned,
+        assignedTo: 'Production Team A',
+        createdAt: DateTime.now().subtract(const Duration(hours: 6)),
+      ),
+    );
+    _items.add(
+      ProductionOrder(
+        id: 'prodn-${_nextId++}',
+        productionNumber: 'PRDN-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        productId: 'prod-12',
+        productName: 'Bookshelf — 5 Tier',
+        quantityPlanned: 4,
+        quantityProduced: 0,
+        materials: _bomTemplates['prod-12']!,
+        cost: 0,
+        status: ProductionStatus.cancelled,
+        assignedTo: 'Production Team B',
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
+      ),
+    );
   }
 
   @override

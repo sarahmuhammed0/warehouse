@@ -8,7 +8,6 @@ import '../navigation/app_sidebar.dart';
 import '../navigation/app_topbar.dart';
 import '../navigation/nav_items.dart';
 import '../navigation/sidebar_controller.dart';
-import 'responsive/app_breakpoints.dart';
 import 'responsive/responsive_layout.dart';
 
 /// The persistent application shell (§6) every route in a `ShellRoute`
@@ -25,11 +24,18 @@ class AppShell extends ConsumerWidget {
     required this.navItems,
     required this.brandLabel,
     required this.child,
+    this.showSearch = true,
   });
 
   final List<NavItem> navItems;
   final String brandLabel;
   final Widget child;
+
+  /// The topbar's global search (business modules only — there's nothing
+  /// for it to search in the System Admin area, which has its own
+  /// per-screen search, e.g. `AdminBusinessesScreen`'s business-list
+  /// search bar).
+  final bool showSearch;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,6 +55,7 @@ class AppShell extends ConsumerWidget {
         brandLabel: brandLabel,
         currentPath: currentPath,
         pageContext: pageContext,
+        showSearch: showSearch,
         child: child,
       ),
       tablet: (context) => _CompactShell(
@@ -56,6 +63,7 @@ class AppShell extends ConsumerWidget {
         brandLabel: brandLabel,
         currentPath: currentPath,
         pageContext: pageContext,
+        showSearch: showSearch,
         child: child,
       ),
       mobile: (context) => _CompactShell(
@@ -63,6 +71,7 @@ class AppShell extends ConsumerWidget {
         brandLabel: brandLabel,
         currentPath: currentPath,
         pageContext: pageContext,
+        showSearch: showSearch,
         child: child,
       ),
     );
@@ -76,6 +85,7 @@ class _DesktopShell extends ConsumerWidget {
     required this.currentPath,
     required this.pageContext,
     required this.child,
+    required this.showSearch,
   });
 
   final List<NavItem> navItems;
@@ -83,6 +93,7 @@ class _DesktopShell extends ConsumerWidget {
   final String currentPath;
   final String pageContext;
   final Widget child;
+  final bool showSearch;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,7 +117,7 @@ class _DesktopShell extends ConsumerWidget {
           Expanded(
             child: Column(
               children: [
-                AppTopBar(pageContext: pageContext),
+                AppTopBar(pageContext: pageContext, showSearch: showSearch),
                 Divider(height: 1, color: colors.border),
                 Expanded(child: child),
               ],
@@ -130,6 +141,7 @@ class _CompactShell extends StatefulWidget {
     required this.currentPath,
     required this.pageContext,
     required this.child,
+    required this.showSearch,
   });
 
   final List<NavItem> navItems;
@@ -137,6 +149,7 @@ class _CompactShell extends StatefulWidget {
   final String currentPath;
   final String pageContext;
   final Widget child;
+  final bool showSearch;
 
   @override
   State<_CompactShell> createState() => _CompactShellState();
@@ -147,19 +160,32 @@ class _CompactShellState extends State<_CompactShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Capped, not a flat 80% of the mobile breakpoint (480px) — on a
+    // viewport narrower than that (e.g. a docked panel), that math let the
+    // drawer swallow almost the entire screen with no way to see the page
+    // behind it.
+    final drawerWidth = MediaQuery.sizeOf(context).width * 0.8 < 280
+        ? MediaQuery.sizeOf(context).width * 0.8
+        : 280.0;
+
     return Scaffold(
       key: _scaffoldKey,
       drawer: Drawer(
-        width: AppBreakpoints.mobile * 0.8,
+        width: drawerWidth,
         child: AppSidebar(
           items: widget.navItems,
           currentPath: widget.currentPath,
           brandLabel: widget.brandLabel,
+          // Reuses the same chevron control desktop uses to collapse the
+          // sidebar — here it closes the drawer instead, since a temporary
+          // overlay has no "collapsed" state of its own, just open/closed.
+          onCollapseToggle: () => _scaffoldKey.currentState?.closeDrawer(),
         ),
       ),
       appBar: AppTopBar(
         pageContext: widget.pageContext,
         onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+        showSearch: widget.showSearch,
       ),
       body: widget.child,
     );

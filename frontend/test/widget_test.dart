@@ -698,23 +698,6 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('Dashboard customization dialog toggles a widget off', (tester) async {
-      final container = authenticatedContainer();
-      addTearDown(container.dispose);
-      await pumpDesktop(tester, container);
-
-      await tester.tap(find.widgetWithText(AppButton, 'Customize'));
-      await tester.pumpAndSettle();
-      expect(find.text('Customize'), findsWidgets); // dialog title + button both read "Customize"
-
-      await tester.tap(find.text('lowStock').first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Low Stock'), findsNothing);
-    });
-
     testWidgets('Settings: switching to the Security section shows password-policy fields', (tester) async {
       final container = authenticatedContainer();
       addTearDown(container.dispose);

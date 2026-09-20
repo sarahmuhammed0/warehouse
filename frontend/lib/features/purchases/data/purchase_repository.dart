@@ -37,6 +37,54 @@ class LocalPurchaseRepository with DemoRepository implements PurchaseRepository 
         createdAt: now.subtract(const Duration(days: 5)),
       ),
     );
+    _items.add(
+      Purchase(
+        id: 'pur-${_nextId++}',
+        purchaseNumber: 'PUR-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        supplierId: 'sup-2',
+        supplierName: 'Sulaymaniyah Hardware Co.',
+        items: const [
+          PurchaseLineItem(productId: 'prod-11', productName: 'Metal Table Legs (set of 4)', quantity: 40, unitCost: 12, tax: 24),
+        ],
+        paidAmount: 0,
+        paymentMethod: 'Cash',
+        status: PurchaseStatus.pending,
+        createdBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+    );
+    _items.add(
+      Purchase(
+        id: 'pur-${_nextId++}',
+        purchaseNumber: 'PUR-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        supplierId: 'sup-1',
+        supplierName: 'Erbil Timber Supply',
+        items: const [
+          PurchaseLineItem(productId: 'prod-9', productName: 'Upholstery Fabric (roll)', quantity: 20, unitCost: 6, tax: 6),
+        ],
+        paidAmount: 126,
+        paymentMethod: 'Cash',
+        status: PurchaseStatus.completed,
+        createdBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 10)),
+      ),
+    );
+    _items.add(
+      Purchase(
+        id: 'pur-${_nextId++}',
+        purchaseNumber: 'PUR-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        supplierId: 'sup-2',
+        supplierName: 'Sulaymaniyah Hardware Co.',
+        items: const [
+          PurchaseLineItem(productId: 'prod-10', productName: 'Wood Screws 4x40mm (box)', quantity: 30, unitCost: 3, tax: 4.5),
+        ],
+        paidAmount: 0,
+        paymentMethod: 'Bank transfer',
+        status: PurchaseStatus.cancelled,
+        createdBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 7)),
+      ),
+    );
   }
 
   @override

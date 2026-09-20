@@ -10,8 +10,6 @@ import '../../shared/dashboard/dashboard_containers.dart';
 import '../../shared/dashboard/metric_cards.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/layout/responsive/responsive_layout.dart';
-import '../../shared/overlays/app_dialog.dart';
-import '../../shared/forms/selection_controls.dart';
 import '../../theme/app_spacing.dart';
 import '../customers/data/customer_providers.dart';
 import '../inventory/data/inventory_providers.dart';
@@ -44,14 +42,6 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
     return PageScaffold(
       title: l10n.navDashboard,
       subtitle: l10n.demoDataNotice,
-      secondaryActions: [
-        AppButton(
-          label: l10n.customizeDashboard,
-          icon: Icons.tune,
-          variant: AppButtonVariant.outline,
-          onPressed: () => _openWidgetPicker(context, ref),
-        ),
-      ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.lg,
@@ -116,35 +106,6 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
     );
   }
 
-  void _openWidgetPicker(BuildContext context, WidgetRef ref) {
-    showAppDialog<void>(
-      context,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final visible = ref.watch(dashboardWidgetsProvider);
-          final l10n = AppLocalizations.of(context)!;
-          return AlertDialog(
-            title: Text(l10n.customizeDashboard),
-            content: SizedBox(
-              width: 360,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final widget in DashboardWidget.values)
-                    AppCheckbox(
-                      label: widget.name,
-                      value: visible.contains(widget),
-                      onChanged: (_) => ref.read(dashboardWidgetsProvider.notifier).toggle(widget),
-                    ),
-                ],
-              ),
-            ),
-            actions: [AppButton(label: l10n.close, onPressed: () => Navigator.of(context).pop())],
-          );
-        },
-      ),
-    );
-  }
 }
 
 class _RecentMovements extends StatelessWidget {

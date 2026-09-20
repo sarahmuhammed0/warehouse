@@ -148,7 +148,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       ShellRoute(
         builder: (context, state, child) =>
-            AppShell(navItems: adminNavItems, brandLabel: 'System Admin', child: child),
+            AppShell(navItems: adminNavItems, brandLabel: 'System Admin', showSearch: false, child: child),
         routes: [
           GoRoute(path: AppRoutes.adminDashboard, builder: (context, state) => const AdminDashboardScreen()),
           GoRoute(path: AppRoutes.adminBusinesses, builder: (context, state) => const AdminBusinessesScreen()),

@@ -87,6 +87,7 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     add(name: 'Wood Screws 4x40mm (box)', code: 'HDW-SCR-440', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 180, reorder: 50, maxStock: 500, unit: 'Box', cost: 3, price: null, type: ProductType.rawMaterial);
     add(name: 'Metal Table Legs (set of 4)', code: 'HDW-LEG-01', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 60, reorder: 20, maxStock: 200, unit: 'Set', cost: 12, price: null, type: ProductType.component, material: 'Steel');
     add(name: 'Bookshelf — 5 Tier', code: 'SHELF-5T', categoryId: 'cat-1', categoryName: 'Living Room', qty: 3, reorder: 5, maxStock: 20, unit: 'Piece', cost: 45, price: 95);
+    add(name: 'MDF Board 18mm (sheet)', code: 'RAW-MDF-18', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 260, reorder: 40, maxStock: 150, unit: 'Sheet', cost: 14, price: null, type: ProductType.rawMaterial, material: 'MDF');
   }
 
   @override

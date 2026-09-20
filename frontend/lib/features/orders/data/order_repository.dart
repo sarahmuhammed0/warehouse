@@ -75,6 +75,38 @@ class LocalOrderRepository with DemoRepository implements OrderRepository {
         createdBy: 'Demo Admin',
         createdAt: now.subtract(const Duration(hours: 20)),
       ),
+      Order(
+        id: 'ord-${_nextId++}',
+        orderNumber: _newOrderNumber(OrderType.standard),
+        orderType: OrderType.standard,
+        customerId: 'cust-2',
+        customerName: 'Sara Hassan',
+        items: const [
+          OrderLineItem(productId: 'prod-7', productName: 'Queen Bed Frame', quantity: 1, unitPrice: 260, tax: 13),
+        ],
+        extraCharges: 0,
+        paidAmount: 0,
+        paymentMethod: PaymentMethod.other,
+        status: OrderStatus.cancelled,
+        createdBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 4)),
+      ),
+      Order(
+        id: 'ord-${_nextId++}',
+        orderNumber: _newOrderNumber(OrderType.quickSale),
+        orderType: OrderType.quickSale,
+        customerId: null,
+        customerName: null,
+        items: const [
+          OrderLineItem(productId: 'prod-3', productName: 'Coffee Table — Oak', quantity: 1, unitPrice: 120, tax: 6),
+        ],
+        extraCharges: 0,
+        paidAmount: 126,
+        paymentMethod: PaymentMethod.cash,
+        status: OrderStatus.returned,
+        createdBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
     ]);
   }
 

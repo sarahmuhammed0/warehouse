@@ -85,6 +85,45 @@ class LocalInventoryRepository with DemoRepository implements InventoryRepositor
         createdAt: now.subtract(const Duration(days: 2)),
       ),
     );
+    _transfers.add(
+      StockTransfer(
+        id: 'tr-${_transferId++}',
+        transferNumber: 'TRF-2026-000002',
+        fromWarehouse: 'Main Warehouse',
+        toWarehouse: 'Production Floor',
+        productName: products.length > 1 ? products[1].name : 'Sample product',
+        quantity: 6,
+        status: TransferStatus.pending,
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(hours: 5)),
+      ),
+    );
+    _transfers.add(
+      StockTransfer(
+        id: 'tr-${_transferId++}',
+        transferNumber: 'TRF-2026-000003',
+        fromWarehouse: 'Production Floor',
+        toWarehouse: 'Showroom',
+        productName: products.length > 2 ? products[2].name : 'Sample product',
+        quantity: 3,
+        status: TransferStatus.inTransit,
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(hours: 20)),
+      ),
+    );
+    _transfers.add(
+      StockTransfer(
+        id: 'tr-${_transferId++}',
+        transferNumber: 'TRF-2026-000004',
+        fromWarehouse: 'Showroom',
+        toWarehouse: 'Main Warehouse',
+        productName: products.length > 3 ? products[3].name : 'Sample product',
+        quantity: 2,
+        status: TransferStatus.cancelled,
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 6)),
+      ),
+    );
   }
 
   @override
