@@ -9,6 +9,14 @@ abstract class AdminRepository {
   Future<AdminBusiness> getBusinessById(String id);
   Future<void> setBusinessStatus(String id, BusinessAccountStatus status);
   Future<List<SystemActivityEntry>> recentActivity();
+
+  /// Spec §57's "Edit" control — updates the business profile in place.
+  Future<AdminBusiness> updateBusiness(String id, AdminBusinessDraft draft);
+
+  /// Spec §57's "Reset password" control. Returns the updated record so the
+  /// caller can show when the reset happened; see
+  /// [AdminBusiness.lastPasswordResetAt] for why no password is stored.
+  Future<AdminBusiness> resetBusinessPassword(String id);
 }
 
 class LocalAdminRepository with DemoRepository implements AdminRepository {
@@ -66,20 +74,45 @@ class LocalAdminRepository with DemoRepository implements AdminRepository {
   @override
   Future<void> setBusinessStatus(String id, BusinessAccountStatus status) async {
     await simulatedLatency();
+    _replace(id, (existing) => existing.copyWith(status: status));
+  }
+
+  @override
+  Future<AdminBusiness> updateBusiness(String id, AdminBusinessDraft draft) async {
+    await simulatedLatency();
+    // Built explicitly rather than through `copyWith`: email and address are
+    // optional, and the admin clearing one must actually clear it —
+    // `copyWith`'s `?? this.email` would silently keep the old value and
+    // make a field impossible to blank out once set.
+    return _replace(
+      id,
+      (existing) => AdminBusiness(
+        id: existing.id,
+        name: draft.name,
+        businessType: draft.businessType,
+        logoUrl: existing.logoUrl,
+        phone: draft.phone,
+        email: draft.email,
+        address: draft.address,
+        status: existing.status,
+        createdAt: existing.createdAt,
+        lastPasswordResetAt: existing.lastPasswordResetAt,
+      ),
+    );
+  }
+
+  @override
+  Future<AdminBusiness> resetBusinessPassword(String id) async {
+    await simulatedLatency();
+    return _replace(id, (existing) => existing.copyWith(lastPasswordResetAt: DateTime.now()));
+  }
+
+  AdminBusiness _replace(String id, AdminBusiness Function(AdminBusiness) update) {
     final index = _items.indexWhere((b) => b.id == id);
     if (index == -1) throw StateError('Business not found');
-    final existing = _items[index];
-    _items[index] = AdminBusiness(
-      id: existing.id,
-      name: existing.name,
-      businessType: existing.businessType,
-      logoUrl: existing.logoUrl,
-      phone: existing.phone,
-      email: existing.email,
-      address: existing.address,
-      status: status,
-      createdAt: existing.createdAt,
-    );
+    final updated = update(_items[index]);
+    _items[index] = updated;
+    return updated;
   }
 
   @override

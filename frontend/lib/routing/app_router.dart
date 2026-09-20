@@ -6,7 +6,9 @@ import '../features/activity_history/activity_history_screen.dart';
 import '../features/admin/admin_businesses_screen.dart';
 import '../features/admin/admin_dashboard_screen.dart';
 import '../features/admin/presentation/admin_business_detail_screen.dart';
+import '../features/admin/presentation/admin_business_form_screen.dart';
 import '../features/admin/presentation/admin_business_records_screen.dart';
+import '../features/admin/presentation/admin_business_reports_screen.dart';
 import '../features/admin/presentation/admin_metric.dart';
 import '../features/admin/presentation/admin_overview_screen.dart';
 import '../features/admin/presentation/admin_record_detail_screen.dart';
@@ -160,6 +162,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/admin/businesses/:id',
             builder: (context, state) => AdminBusinessDetailScreen(businessId: state.pathParameters['id']!),
+          ),
+          // §57's Edit and View reports controls. Both carry the business id
+          // in the path, so the screen they open can only ever act on the
+          // business the admin was looking at — there is no ambient
+          // "selected business" state that could point somewhere else.
+          GoRoute(
+            path: '/admin/businesses/:id/edit',
+            builder: (context, state) => AdminBusinessFormScreen(businessId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/admin/businesses/:id/reports',
+            builder: (context, state) => AdminBusinessReportsScreen(businessId: state.pathParameters['id']!),
           ),
           // The three-level drill-down, one identical branch per metric:
           // overview (all businesses) → one business's records → one record.

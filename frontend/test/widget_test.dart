@@ -20,7 +20,10 @@ import 'package:warehouse_os_app/features/admin/data/admin_business_models.dart'
 import 'package:warehouse_os_app/features/admin/data/admin_metrics.dart';
 import 'package:warehouse_os_app/features/admin/data/admin_providers.dart';
 import 'package:warehouse_os_app/features/admin/presentation/admin_business_detail_screen.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_business_form_screen.dart';
 import 'package:warehouse_os_app/features/admin/presentation/admin_business_records_screen.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_business_reports_screen.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_reset_password_dialog.dart';
 import 'package:warehouse_os_app/features/admin/presentation/admin_overview_screen.dart';
 import 'package:warehouse_os_app/features/admin/presentation/admin_record_detail_screen.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_models.dart';
@@ -60,6 +63,7 @@ import 'package:warehouse_os_app/features/settings/data/business_type_config.dar
 import 'package:warehouse_os_app/routing/app_router.dart';
 import 'package:warehouse_os_app/routing/app_routes.dart';
 import 'package:warehouse_os_app/shared/badges/status_badge.dart';
+import 'package:warehouse_os_app/shared/dashboard/dashboard_cards.dart';
 import 'package:warehouse_os_app/shared/dashboard/metric_cards.dart';
 import 'package:warehouse_os_app/shared/navigation/nav_items.dart';
 import 'package:warehouse_os_app/shared/buttons/app_button.dart';
@@ -1109,6 +1113,318 @@ void main() {
       expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Products')).value, '${metrics.totalProducts}');
       expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Orders')).value, '${metrics.totalOrders}');
       expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Sales')).value, metrics.totalSalesAmount.toStringAsFixed(0));
+    });
+  });
+
+  group('System Admin business controls (spec §57 — no dead buttons)', () {
+    ProviderContainer adminContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAdminAuthenticatedController.new)]);
+
+    const karwan = 'Karwan Furniture Factory'; // seeded active
+    const northern = 'Northern Distribution Center'; // seeded disabled
+
+    /// Walks the real path — admin shell → Businesses → tap a row — so the
+    /// detail screen sits on a genuine navigation stack and `pop()` has
+    /// somewhere to go, exactly as it does for a user.
+    Future<void> openDetail(WidgetTester tester, ProviderContainer container, String name) async {
+      tester.view.physicalSize = const Size(1400, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+      container.read(routerProvider).go(AppRoutes.adminBusinesses);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(name));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+    }
+
+    Future<void> tapControl(WidgetTester tester, String keyValue) async {
+      final finder = find.byKey(ValueKey(keyValue));
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    /// Scoped to the detail screen, and upper-cased because that's what
+    /// `StatusBadge` actually renders.
+    Finder detailStatus(String label) => find.descendant(
+          of: find.byType(AdminBusinessDetailScreen),
+          matching: find.widgetWithText(StatusBadge, label.toUpperCase()),
+        );
+
+    /// The confirmation dialog's own button, not the page action behind it
+    /// that happens to carry the same label.
+    Finder dialogButton(String label) =>
+        find.descendant(of: find.byType(AlertDialog), matching: find.widgetWithText(AppButton, label));
+
+    testWidgets('The section is titled Controls (§57), not Permission', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      expect(find.widgetWithText(SectionCard, 'Controls'), findsOneWidget);
+      expect(find.widgetWithText(SectionCard, 'Permission'), findsNothing);
+    });
+
+    testWidgets('Not one control is a no-op — every button has a real callback', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      // The four in the Controls card...
+      final controls = find.descendant(of: find.widgetWithText(SectionCard, 'Controls'), matching: find.byType(AppButton));
+      expect(controls, findsNWidgets(4));
+      for (final button in tester.widgetList<AppButton>(controls)) {
+        expect(button.onPressed, isNotNull, reason: '"${button.label}" is a dead button');
+      }
+      // ...plus the status control in the page actions. Six §57 controls are
+      // represented: Edit, Reset password, Manage users, View reports, and
+      // whichever of Disable/Activate the current status calls for.
+      expect(tester.widget<AppButton>(find.byKey(const ValueKey('adminDisableBusiness'))).onPressed, isNotNull);
+    });
+
+    testWidgets('Edit opens THIS business prefilled, and Save updates it everywhere', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminEditBusiness');
+      expect(find.byType(AdminBusinessFormScreen), findsOneWidget);
+
+      // Prefilled with the selected business, not a blank form.
+      expect(find.widgetWithText(AppTextField, karwan), findsOneWidget);
+      expect(find.widgetWithText(AppTextField, '+9647701112233'), findsOneWidget);
+
+      await tester.enterText(find.widgetWithText(AppTextField, karwan), 'Karwan Furniture Works');
+      await tapControl(tester, 'adminBusinessSave');
+
+      // Back on the detail page, showing the new value — real local state,
+      // not a toast over unchanged data.
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+      expect(find.text('Karwan Furniture Works'), findsWidgets);
+
+      // ...and the Businesses table behind it agrees.
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      expect(find.text('Karwan Furniture Works'), findsOneWidget);
+      expect(find.text(karwan), findsNothing);
+    });
+
+    testWidgets('Edit → Cancel returns to Business Details and changes nothing', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminEditBusiness');
+      await tester.enterText(find.widgetWithText(AppTextField, karwan), 'Discarded name');
+      await tapControl(tester, 'adminBusinessCancel');
+
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+      expect(find.text(karwan), findsWidgets);
+      expect(find.text('Discarded name'), findsNothing);
+    });
+
+    testWidgets('Edit → Back returns to Business Details', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminEditBusiness');
+      expect(find.byType(AdminBusinessFormScreen), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('Disable confirms by name, and cancelling leaves the business active', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminDisableBusiness');
+      expect(find.text('Disable $karwan?'), findsOneWidget);
+
+      await tester.tap(dialogButton('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('adminDisableBusiness')), findsOneWidget); // still the active-state control
+      expect(detailStatus('Active'), findsOneWidget);
+    });
+
+    testWidgets('Confirming Disable sets the status to Disabled and swaps the control to Activate', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      expect(detailStatus('Active'), findsOneWidget);
+
+      await tapControl(tester, 'adminDisableBusiness');
+      await tester.tap(dialogButton('Deactivate'));
+      await tester.pumpAndSettle();
+
+      expect(detailStatus('Disabled'), findsOneWidget);
+      // §3 of the brief: never both at once — the offered action must match
+      // the current status.
+      expect(find.byKey(const ValueKey('adminActivateBusiness')), findsOneWidget);
+      expect(find.byKey(const ValueKey('adminDisableBusiness')), findsNothing);
+    });
+
+    testWidgets('A disabled business offers Activate, not Disable, and confirming re-activates it', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, northern);
+
+      expect(detailStatus('Disabled'), findsOneWidget);
+      expect(find.byKey(const ValueKey('adminActivateBusiness')), findsOneWidget);
+      expect(find.byKey(const ValueKey('adminDisableBusiness')), findsNothing);
+
+      await tapControl(tester, 'adminActivateBusiness');
+      expect(find.text('Activate $northern?'), findsOneWidget);
+
+      await tester.tap(dialogButton('Activate'));
+      await tester.pumpAndSettle();
+
+      expect(detailStatus('Active'), findsOneWidget);
+      expect(find.byKey(const ValueKey('adminDisableBusiness')), findsOneWidget);
+      expect(find.byKey(const ValueKey('adminActivateBusiness')), findsNothing);
+    });
+
+    testWidgets('Reset password validates required / length / match, then records the reset', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      expect(find.text('Password last reset'), findsNothing); // nothing recorded yet
+
+      await tapControl(tester, 'adminResetPassword');
+      expect(find.byType(AdminResetPasswordDialog), findsOneWidget);
+      // It says on screen that no real password changes — the control is
+      // honest about being demo behaviour rather than silently pretending.
+      expect(find.textContaining('no real password is stored or changed'), findsOneWidget);
+
+      // Required.
+      await tester.tap(find.byKey(const ValueKey('adminResetPasswordConfirm')));
+      await tester.pumpAndSettle();
+      expect(find.text('Password is required.'), findsWidgets);
+      expect(find.byType(AdminResetPasswordDialog), findsOneWidget); // not dismissed
+
+      // Too short, per the app's own configured policy (8).
+      await tester.enterText(find.byKey(const ValueKey('adminNewPassword')), 'abc');
+      await tester.enterText(find.byKey(const ValueKey('adminConfirmPassword')), 'abc');
+      await tester.tap(find.byKey(const ValueKey('adminResetPasswordConfirm')));
+      await tester.pumpAndSettle();
+      expect(find.text('Password must be at least 8 characters.'), findsOneWidget);
+
+      // Mismatched.
+      await tester.enterText(find.byKey(const ValueKey('adminNewPassword')), 'a-good-password');
+      await tester.enterText(find.byKey(const ValueKey('adminConfirmPassword')), 'a-different-one');
+      await tester.tap(find.byKey(const ValueKey('adminResetPasswordConfirm')));
+      await tester.pumpAndSettle();
+      expect(find.text('Passwords do not match.'), findsOneWidget);
+
+      // Valid — the dialog closes and the reset becomes visible state.
+      await tester.enterText(find.byKey(const ValueKey('adminConfirmPassword')), 'a-good-password');
+      await tester.tap(find.byKey(const ValueKey('adminResetPasswordConfirm')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminResetPasswordDialog), findsNothing);
+      expect(find.text('Password last reset'), findsOneWidget);
+    });
+
+    testWidgets("Manage users opens THIS business's employees, and Back returns", (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminManageUsers');
+
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+      expect(find.text(karwan), findsWidgets); // the page names the business
+      expect(find.text('Demo Owner'), findsOneWidget); // Karwan's staff
+      expect(find.text('Karzan Tahir'), findsNothing); // Erbil's — not this business
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('View reports opens reports scoped to THIS business, and Back returns', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminViewReports');
+
+      expect(find.byType(AdminBusinessReportsScreen), findsOneWidget);
+      expect(find.text(karwan), findsWidgets);
+      // Karwan's own products are reported; another tenant's are not.
+      expect(find.text('3-Seat Sofa — Charcoal'), findsOneWidget);
+      expect(find.text('Office Desk — Standard'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+    });
+
+    // §11: the controls have to stay usable on a phone and a tablet, not
+    // just the desktop width every other test here uses. Both sizes exercise
+    // the real breakpoints (`ResponsiveLayout`), including the mobile shell
+    // with a drawer instead of a sidebar.
+    for (final (label, size) in [('tablet', Size(900, 1400)), ('mobile', Size(420, 1000))]) {
+      testWidgets('Controls are reachable and functional at $label width', (tester) async {
+        final container = adminContainer();
+        addTearDown(container.dispose);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+        await tester.pumpAndSettle();
+        container.read(routerProvider).go(AppRoutes.adminBusinessDetail(kDemoBusinessKarwan));
+        await tester.pumpAndSettle();
+        expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+
+        // All four Controls buttons render and are live at this width...
+        final controls = find.descendant(of: find.widgetWithText(SectionCard, 'Controls'), matching: find.byType(AppButton));
+        expect(controls, findsNWidgets(4));
+        for (final button in tester.widgetList<AppButton>(controls)) {
+          expect(button.onPressed, isNotNull);
+        }
+
+        // ...and one really works end to end, dialog included — the reset
+        // dialog is the widest thing the controls open, so it's the one
+        // most likely to overflow a narrow screen.
+        await tapControl(tester, 'adminResetPassword');
+        expect(find.byType(AdminResetPasswordDialog), findsOneWidget);
+        await tester.enterText(find.byKey(const ValueKey('adminNewPassword')), 'a-good-password');
+        await tester.enterText(find.byKey(const ValueKey('adminConfirmPassword')), 'a-good-password');
+        await tester.tap(find.byKey(const ValueKey('adminResetPasswordConfirm')));
+        await tester.pumpAndSettle();
+        expect(find.byType(AdminResetPasswordDialog), findsNothing);
+        expect(find.text('Password last reset'), findsOneWidget);
+      });
+    }
+
+    testWidgets('Reports figures are that business\'s own, not the platform totals', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      final metrics = await container.read(adminMetricsProvider.future);
+      await openDetail(tester, container, karwan);
+
+      await tapControl(tester, 'adminViewReports');
+
+      final karwanRow = metrics.forBusiness(kDemoBusinessKarwan);
+      expect(karwanRow.productCount, lessThan(metrics.totalProducts), reason: 'otherwise this test proves nothing');
+      expect(
+        tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total products')).value,
+        '${karwanRow.productCount}',
+      );
     });
   });
 

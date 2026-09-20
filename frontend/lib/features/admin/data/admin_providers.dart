@@ -25,7 +25,30 @@ class AdminBusinessListController extends PagedListController<AdminBusiness> {
 
   Future<void> setStatus(String id, BusinessAccountStatus status) async {
     await ref.read(adminRepositoryProvider).setBusinessStatus(id, status);
+    await _refresh(id);
+  }
+
+  /// Spec §57's Edit control.
+  Future<void> updateBusiness(String id, AdminBusinessDraft draft) async {
+    await ref.read(adminRepositoryProvider).updateBusiness(id, draft);
+    await _refresh(id);
+  }
+
+  /// Spec §57's Reset password control — see
+  /// [AdminBusiness.lastPasswordResetAt] for what this does and does not do.
+  Future<void> resetPassword(String id) async {
+    await ref.read(adminRepositoryProvider).resetBusinessPassword(id);
+    await _refresh(id);
+  }
+
+  /// One place that re-reads everything a business mutation can affect, so
+  /// no call site can forget half of it: the Businesses table this
+  /// controller backs, and the by-id provider the detail screen and every
+  /// drill-down title read. (The dashboard's Active/Disabled counts are
+  /// folded from this controller's own items, so they follow for free.)
+  Future<void> _refresh(String id) async {
     await reload();
+    ref.invalidate(adminBusinessByIdProvider(id));
   }
 }
 

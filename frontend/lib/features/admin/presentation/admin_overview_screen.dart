@@ -51,7 +51,7 @@ class AdminOverviewScreen extends ConsumerWidget {
           final businesses = businessesState.items;
           final columns = <AppTableColumn<AdminBusiness>>[
             AppTableColumn(label: l10n.fieldBusiness, cellBuilder: (context, item) => Text(item.name)),
-            AppTableColumn(label: l10n.fieldModule, cellBuilder: (context, item) => Text(item.businessType)),
+            AppTableColumn(label: l10n.fieldBusinessType, cellBuilder: (context, item) => Text(item.businessType)),
             AppTableColumn(
               label: l10n.fieldStatus,
               cellBuilder: (context, item) => StatusBadge(

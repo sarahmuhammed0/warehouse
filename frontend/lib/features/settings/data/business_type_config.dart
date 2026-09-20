@@ -24,6 +24,21 @@ const Map<BusinessType, Set<String>> businessTypeModules = {
   BusinessType.custom: {'dashboard', 'products', 'categories', 'inventory', 'sales', 'orders', 'customers', 'suppliers', 'purchases', 'returns', 'production', 'employees', 'reports', 'documents', 'activityHistory', 'settings'},
 };
 
+/// The exact labels spec §50 lists for the seven types the System Admin can
+/// assign. Kept here beside [businessTypeModules] so the label a business
+/// record stores and the key that decides its modules can't drift apart —
+/// `LocalAdminRepository`'s demo tenants and the System Admin's Edit form
+/// both spell a type through this function, never as a loose string.
+String businessTypeLabel(BusinessType type) => switch (type) {
+      BusinessType.furnitureFactory => 'Furniture Factory',
+      BusinessType.generalFactory => 'General Factory',
+      BusinessType.warehouse => 'Warehouse',
+      BusinessType.storageStore => 'Storage Store',
+      BusinessType.wholesaleStore => 'Wholesale Store',
+      BusinessType.distributionCenter => 'Distribution Center',
+      BusinessType.custom => 'Custom',
+    };
+
 /// Which type the *demo* business is — a real deployment reads this from
 /// the authenticated business's own record (set once at System Admin
 /// creation time, §3); there is no such record in this frontend-only

@@ -229,7 +229,7 @@ npm run test:integration  # login flow, session lifecycle, mandatory tenant-isol
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 74 tests — app shell, RTL/localization, routing guards,
+flutter test           # 88 tests — app shell, RTL/localization, routing guards,
                          # data table states, pagination, dialogs/overlays, the full
                          # login-screen suite (Phase 2), this phase's business-module
                          # suite: product list/detail/create validation, category
@@ -245,6 +245,12 @@ flutter test           # 74 tests — app shell, RTL/localization, routing guard
                          # a platform statistic never opens a business's own table),
                          # admin total consistency (every card's number is derived
                          # from real records and equals the rows behind it),
+                         # all six §57 business controls (Edit prefills and really
+                         # saves, Disable/Activate confirm by name and swap so only
+                         # the action matching the current status is offered, Reset
+                         # password validates and records, Manage users and View
+                         # reports open the selected business — verified at desktop,
+                         # tablet and mobile width, and that no control is a no-op),
                          # the Active/Disabled filter matching its card's own count,
                          # and global detail-page back navigation (a real Navigator
                          # pop — not a fresh route — returning to the exact previous
@@ -315,7 +321,7 @@ warehouse-os/
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                   74 tests total
+│       └── widget_test.dart                   88 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,

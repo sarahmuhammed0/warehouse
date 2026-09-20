@@ -75,6 +75,14 @@ class AppRoutes {
   static const adminBusinesses = '/admin/businesses';
   static String adminBusinessDetail(String id) => '/admin/businesses/$id';
 
+  // Spec §57's business controls. Edit and Reports are screens of their own
+  // so the back arrow returns to the business they were opened from;
+  // Disable/Activate and Reset password are dialogs over the detail screen
+  // (they act on it rather than navigating away from it), and Manage users
+  // reuses the drill-down's own per-business Employees route.
+  static String adminBusinessEdit(String id) => '/admin/businesses/$id/edit';
+  static String adminBusinessReports(String id) => '/admin/businesses/$id/reports';
+
   // System Admin drill-down: dashboard stat → per-business overview →
   // that business's records → one record. Every level is a real route, so
   // each step is an ordinary router push and the back arrow pops one level

@@ -83,7 +83,7 @@ authentication is untouched and still fully functional.
 | §45–46, 53–54, 59–61 | Soft delete, transactions, error handling, validation, performance, business rules | Archive/deactivate patterns throughout; `AppErrorState`/`AppEmptyState`/loading states; `PagedListController` (pagination, never "load all") | ✅ | Structural — no fabricated business logic; see `core/repositories/paged_list_controller.dart` |
 | §51 | Custom fields | Settings → Custom Fields section | 🔶 | Add/remove field-name UI works; not yet attached to any entity's actual form |
 | §52 | Backup / restore | Settings → Backup & Restore section | 🔶 | Manual/scheduled backup buttons, confirmation-gated restore, history list — all UI-only, explicitly per the brief's "do NOT implement actual backup logic this phase" |
-| §56–57 | System Admin dashboard, business detail | `features/admin/*` | ✅ | Previously deferred (Phase 2 built no System Admin UI) — now real, cross-tenant aggregate stats + per-business detail/disable/activate, plus the three-level drill-down below |
+| §56–57 | System Admin dashboard, business detail | `features/admin/*` | ✅ | Previously deferred (Phase 2 built no System Admin UI) — now real: cross-tenant aggregate stats, the three-level drill-down below, and all six §57 business controls wired to real actions (see the §57 section below) |
 | §65 | Seed/demo data | Every `Local*Repository`'s `_seed()` | ✅ | Clearly isolated per module — see §48 rule below |
 
 ## System Admin drill-down (aggregate → business → records → record)
@@ -122,6 +122,55 @@ that line.
 Levels 3 and 4 are read-only. A platform admin oversees a tenant's records
 rather than operating them; the tenant's own staff do that in the business
 shell under their own permissions (`docs/roles-and-permissions.md`).
+
+## §57 business controls — what each one does (and what the PDF does not say)
+
+§57 lists six controls on a System Admin's business-details page: **Edit,
+Disable, Activate, Reset password, Manage users, View reports**. It lists
+them by name and says *nothing at all* about what any of them should do
+when clicked — no form spec, no dialog spec, no destination. The behaviours
+below are therefore this frontend's interpretation, recorded here as
+interpretation rather than presented as requirement. None of them is a
+no-op; a widget test asserts every control on that page has a live callback.
+
+| Control | Does | Demo behaviour |
+|---|---|---|
+| **Edit** | Pushes `/admin/businesses/:id/edit` — form prefilled from that business | Save writes through `AdminRepository.updateBusiness`; the Businesses table, dashboard and every drill-down title show the new value. Cancel/Back pop without writing. |
+| **Disable** | Confirmation naming the business → sets status Disabled | Real repository write; the dashboard's Active/Disabled counts follow, since they're folded from the same list. |
+| **Activate** | Same, in reverse | Offered **only** when the business is disabled — the page shows one status action, never both. |
+| **Reset password** | Dialog: new + confirm password, validated against the app's own `minPasswordLength` policy | Records `lastPasswordResetAt`, shown back on the detail page. See below. |
+| **Manage users** | Pushes the drill-down's own `/admin/employees/:businessId` | That business's staff only — one screen for "this business's users" rather than two that could disagree. |
+| **View reports** | Pushes `/admin/businesses/:id/reports` | Inventory, Sales and Users reports computed from that business's own records. |
+
+Each control carries the business id in the route or acts on the record the
+screen already loaded, so none of them can operate on a tenant other than
+the one on screen.
+
+**Reset password is the honest exception.** `DemoAuthRepository` holds no
+per-account password at all — its `login` ignores the password argument and
+its `changePassword` is a no-op — so there is nothing a frontend reset could
+truthfully change. Leaving the button dead was the defect being fixed;
+showing a success toast for an action that changed nothing would have been
+worse. Instead it validates the input, records a real timestamp the detail
+page displays, and states on screen that no real password was stored or
+changed. §38 lists no admin reset endpoint; when one exists this becomes a
+call to it and the notice goes away.
+
+**Per-business reports are scoped to what the demo data can honestly
+support.** §26 defines nine-odd report categories; only products, orders and
+employees carry a `businessId` (see `core/repositories/demo_businesses.dart`),
+so Inventory, Sales and Users are reported per business and Purchases,
+Returns and Production are not. The screen says so rather than splitting
+records that have no split.
+
+Not built, and deliberately: §57's **Activity** block (recent logins, sales,
+changes, errors) — nothing in the frontend records those events yet. The
+**Logo** field is absent from both the profile and the Edit form because no
+upload pipeline exists and `AdminBusiness.logoUrl` is never populated. §3's
+wider create-time field set (city, country, website, tax/registration
+number, currency, language, time zone) is not in the frontend's business
+model, and inputs for fields nothing stores would be a form that lies about
+what it saves.
 
 ## §48 rule — demo data isolation (explicit, verified)
 
