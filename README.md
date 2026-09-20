@@ -229,16 +229,21 @@ npm run test:integration  # login flow, session lifecycle, mandatory tenant-isol
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 45 tests — app shell, RTL/localization, routing guards,
+flutter test           # 62 tests — app shell, RTL/localization, routing guards,
                          # data table states, pagination, dialogs/overlays, the full
                          # login-screen suite (Phase 2), this phase's business-module
                          # suite: product list/detail/create validation, category
-                         # creation, dashboard stat/customization, settings section
-                         # switching, System Admin business list, global search,
-                         # factory-type module filtering, and the demo/backend mode
-                         # selection suite (buildAuthRepository, DemoAuthRepository,
-                         # full business-demo and System-Admin-demo login → dashboard
-                         # → logout → re-login flows, all with the backend off)
+                         # creation, dashboard stat cards, settings section switching,
+                         # System Admin business list, global search, factory-type
+                         # module filtering, the demo/backend mode selection suite
+                         # (buildAuthRepository, DemoAuthRepository, full business-demo
+                         # and System-Admin-demo login → dashboard → logout → re-login
+                         # flows, all with the backend off), the admin dashboard's
+                         # interactive stat-card navigation (including the Active/
+                         # Disabled filter actually matching the card's own count),
+                         # and global detail-page back navigation (a real Navigator
+                         # pop — not a fresh route — returning to the exact previous
+                         # list/search/filtered state, verified for both LTR and RTL)
 flutter build web --release   # confirms the release build still succeeds
 ```
 
@@ -305,7 +310,7 @@ warehouse-os/
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                   45 tests total
+│       └── widget_test.dart                   62 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,
