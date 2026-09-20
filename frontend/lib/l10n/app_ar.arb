@@ -253,5 +253,14 @@
   "demoModeLoginBanner": "لا حاجة لخادم — جرّب التطبيق فورًا ببيانات تجريبية.",
   "continueAsBusinessDemo": "شركة (تجريبي)",
   "continueAsSystemAdminDemo": "مشرف نظام (تجريبي)",
-  "demoModeOrDivider": "أو سجّل الدخول بحساب حقيقي"
+  "demoModeOrDivider": "أو سجّل الدخول بحساب حقيقي",
+  "demoRolesToggleShow": "جرّب دورًا آخر (تجريبي)",
+  "demoRolesToggleHide": "إخفاء الأدوار الأخرى",
+  "demoRoleManager": "مدير",
+  "demoRoleWarehouseManager": "مدير مستودع",
+  "demoRoleSalesStaff": "موظف مبيعات",
+  "demoRoleInventoryStaff": "موظف مخزون",
+  "demoRoleProductionManager": "مدير إنتاج",
+  "demoRoleAccountant": "محاسب",
+  "demoRoleViewer": "مشاهد فقط"
 }

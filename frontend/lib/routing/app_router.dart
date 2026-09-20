@@ -9,6 +9,7 @@ import '../features/admin/presentation/admin_business_detail_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/providers/auth_controller.dart';
 import '../features/auth/presentation/providers/auth_state.dart';
+import '../features/auth/presentation/providers/permission_providers.dart';
 import '../features/categories/categories_screen.dart' show CategoriesScreen;
 import '../features/customers/customers_screen.dart';
 import '../features/customers/presentation/customer_detail_screen.dart';
@@ -184,7 +185,25 @@ String _businessBrandLabel(Ref ref) {
 List<NavItem> _enabledBusinessNavItems(Ref ref) {
   final type = ref.watch(businessTypeProvider);
   final enabled = businessTypeModules[type] ?? const <String>{};
-  return businessNavItems.where((item) => item.moduleKey == null || enabled.contains(item.moduleKey)).toList();
+  // Two independent filters, both narrowing-only, safe to AND together:
+  // moduleKey (is this module relevant to this business TYPE at all —
+  // spec §33) and permissionKey (can THIS USER view it — spec §24). A
+  // `null` permission set (no linked demo Employee — see
+  // permission_providers.dart) never hides anything on its own.
+  final permissions = ref.watch(currentPermissionsProvider);
+  return businessNavItems.where((item) {
+    final moduleAllowed = item.moduleKey == null || enabled.contains(item.moduleKey);
+    final permissionAllowed = item.permissionKey == null || _hasNavPermission(permissions, item.permissionKey!);
+    return moduleAllowed && permissionAllowed;
+  }).toList();
+}
+
+/// `NavItem.permissionKey` is already a full `"module.action"` string
+/// (e.g. `"products.view"`), not separate module/action parts, so this
+/// splits it once rather than reusing `hasPermission`'s two-argument form.
+bool _hasNavPermission(Set<String>? permissions, String permissionKey) {
+  if (permissions == null) return true;
+  return permissions.contains(permissionKey);
 }
 
 String? _redirect(Ref ref, GoRouterState state) {

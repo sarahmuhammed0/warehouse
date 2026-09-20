@@ -264,5 +264,14 @@
   "demoModeLoginBanner": "Backend not required — try the app instantly with demo data.",
   "continueAsBusinessDemo": "Business (Demo)",
   "continueAsSystemAdminDemo": "System Admin (Demo)",
-  "demoModeOrDivider": "or sign in with a real account"
+  "demoModeOrDivider": "or sign in with a real account",
+  "demoRolesToggleShow": "Try another role (demo)",
+  "demoRolesToggleHide": "Hide other roles",
+  "demoRoleManager": "Manager",
+  "demoRoleWarehouseManager": "Warehouse Manager",
+  "demoRoleSalesStaff": "Sales Staff",
+  "demoRoleInventoryStaff": "Inventory Staff",
+  "demoRoleProductionManager": "Production Manager",
+  "demoRoleAccountant": "Accountant",
+  "demoRoleViewer": "Viewer"
 }

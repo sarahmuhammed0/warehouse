@@ -57,12 +57,16 @@ class Role {
 class PermissionCatalog {
   PermissionCatalog._();
 
-  static const modules = ['products', 'categories', 'inventory', 'sales', 'orders', 'customers', 'suppliers', 'purchases', 'returns', 'production', 'reports', 'users', 'settings'];
+  static const modules = ['products', 'categories', 'inventory', 'sales', 'orders', 'customers', 'suppliers', 'purchases', 'returns', 'production', 'reports', 'users', 'settings', 'financial'];
   static const actions = ['view', 'create', 'edit', 'delete', 'approve', 'export'];
 
   /// Not every module supports every action — mirrors the architecture's
-  /// "Reports has no delete" example.
+  /// "Reports has no delete" example. `financial` (spec §24's standalone
+  /// "View Financial Information") is view-only by nature — there's nothing
+  /// to create/edit/delete/approve/export, it's a visibility flag for
+  /// cost/margin/balance figures other modules already show.
   static bool supports(String module, String action) {
+    if (module == 'financial') return action == 'view';
     if (action == 'approve') return module == 'returns' || module == 'purchases';
     if (action == 'export') return module == 'reports';
     if (action == 'delete') return module != 'reports' && module != 'settings';

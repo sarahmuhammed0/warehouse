@@ -70,7 +70,7 @@ authentication is untouched and still fully functional.
 | §20 | Purchases | `features/purchases/*` | ✅ | Create, list, detail, pending→completed/cancelled |
 | §21–22 | Production, BOM, production history | `features/production/*` | ✅ | BOM auto-loads per finished product, scales with batch qty, Planned→In Progress→Completed/Cancelled |
 | §23 | Employees / Users | `features/employees/employees_screen.dart` | ✅ | List, create/edit, activate/deactivate, role assignment |
-| §24, 9 | Permission system | `features/employees/presentation/roles_screen.dart` | ✅ | Real module×action matrix, editable, backing `Role.permissions` — data, not hard-coded `if (role == ...)` |
+| §23–24, 9 | Permission system — model, editor, AND enforcement | `features/employees/presentation/roles_screen.dart`, `features/auth/presentation/providers/permission_providers.dart` | ✅ | Real module×action matrix (unchanged from before), now actually *consulted*: sidebar nav, and create/edit/delete/export/financial-visibility controls on Products/Categories/Employees/Reports/Customers, are gated by the signed-in demo identity's resolved role. Nine demo identities (System Admin + one per business role) prove it changes per role. Full model, defaults, test matrix, and exactly which modules got action-level (not just nav-level) wiring: **[`docs/roles-and-permissions.md`](roles-and-permissions.md)** |
 | §25–26, 48 | Reports (operational + business), export | `features/reports/reports_screen.dart` | 🔶 | Two report areas, real data wiring for Current Inventory + Sales; other report types are real, navigable cards without a live query yet — see contract notes |
 | §27–29 | PDF documents, templates, numbering | `features/documents/documents_screen.dart`, Settings → PDF/Sales sections | ✅ | Live preview reflects real order data + real template toggles; actual PDF file generation is explicitly backend work (§25's own instruction) |
 | §30, 55 | Audit log | `features/activity_history/*` | ✅ | Same shape as the backend's real Phase 2 `audit_logs` table/writer |
@@ -119,3 +119,17 @@ modified this phase, per the master prompt's explicit §49 instruction.
   brief's own §31.
 - **Backup/restore, PDF file generation**: UI-only by explicit instruction
   (§25, §35 of the brief) — no backend engine exists to call yet.
+- **Permission enforcement's action-level coverage**: every module's nav
+  visibility is gated (all 15 business sidebar items). Action-level
+  (create/edit/delete/export/financial-visibility) gating is fully wired
+  on Products, Categories, Employees, Reports (export), and Customers
+  (financial figures) — the modules the roles-and-permissions brief's own
+  worked examples and test matrix center on. Sales, Orders, Inventory,
+  Purchases, Returns, Production, and Settings are reachable-or-not exactly
+  per role (nav-level, and System Admin's four browsable routes are
+  unaffected either way), but their individual buttons don't yet check
+  `hasPermission` the way Products' do — same reusable pattern
+  (`ref.watch(currentPermissionsProvider)` + `hasPermission(...)`), not
+  wired into every remaining screen in this pass. See
+  `docs/roles-and-permissions.md`'s permission test matrix for the full
+  default grant list this would extend to.

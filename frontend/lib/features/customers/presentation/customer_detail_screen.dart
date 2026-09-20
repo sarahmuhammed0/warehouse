@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/presentation/providers/permission_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
 import '../../../shared/badges/status_badge.dart';
@@ -50,8 +51,13 @@ class CustomerDetailScreen extends ConsumerWidget {
               spacing: 16,
               runSpacing: 16,
               children: [
-                SizedBox(width: 220, child: StatCard(label: l10n.fieldTotalPurchases, value: customer.totalPurchases.toStringAsFixed(2), icon: Icons.payments_outlined)),
-                SizedBox(width: 220, child: StatCard(label: l10n.fieldOutstandingBalance, value: customer.outstandingBalance.toStringAsFixed(2), icon: Icons.account_balance_wallet_outlined)),
+                // Monetary figures — gated behind the standalone "View
+                // Financial Information" permission (spec §24), same as
+                // Products' Purchase Cost column.
+                if (hasPermission(ref.watch(currentPermissionsProvider), 'financial', 'view')) ...[
+                  SizedBox(width: 220, child: StatCard(label: l10n.fieldTotalPurchases, value: customer.totalPurchases.toStringAsFixed(2), icon: Icons.payments_outlined)),
+                  SizedBox(width: 220, child: StatCard(label: l10n.fieldOutstandingBalance, value: customer.outstandingBalance.toStringAsFixed(2), icon: Icons.account_balance_wallet_outlined)),
+                ],
                 SizedBox(width: 220, child: StatCard(label: l10n.navOrders, value: '${customer.orderCount}', icon: Icons.receipt_long_outlined)),
               ],
             ),

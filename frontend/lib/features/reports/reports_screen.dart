@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
@@ -126,6 +127,7 @@ class _CurrentInventoryReport extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final productsAsync = ref.watch(productPickerOptionsProvider);
+    final canExport = hasPermission(ref.watch(currentPermissionsProvider), 'reports', 'export');
     final columns = <AppTableColumn<Product>>[
       AppTableColumn(label: l10n.fieldName, cellBuilder: (context, item) => Text(item.name)),
       AppTableColumn(label: l10n.fieldCategory, cellBuilder: (context, item) => Text(item.categoryName)),
@@ -136,7 +138,8 @@ class _CurrentInventoryReport extends ConsumerWidget {
       title: '${l10n.navReports} — ${l10n.navInventory}',
       secondaryActions: [
         AppButton(label: l10n.back, variant: AppButtonVariant.text, onPressed: onBack),
-        AppButton(label: l10n.export, icon: Icons.download, variant: AppButtonVariant.outline, onPressed: () {}),
+        if (canExport)
+          AppButton(label: l10n.export, icon: Icons.download, variant: AppButtonVariant.outline, onPressed: () {}),
       ],
       body: productsAsync.when(
         data: (products) => AppDataTable<Product>(columns: columns, rows: products, idOf: (p) => p.id, emptyTitle: l10n.emptyStateDefaultTitle),
@@ -155,6 +158,7 @@ class _SalesReport extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(orderListControllerProvider);
+    final canExport = hasPermission(ref.watch(currentPermissionsProvider), 'reports', 'export');
     final columns = <AppTableColumn<Order>>[
       AppTableColumn(label: l10n.fieldOrderNumber, cellBuilder: (context, item) => Text(item.orderNumber)),
       AppTableColumn(label: l10n.fieldDate, cellBuilder: (context, item) => Text(item.createdAt.toString().split(' ').first)),
@@ -167,7 +171,8 @@ class _SalesReport extends ConsumerWidget {
       subtitle: '${l10n.fieldGrandTotal}: ${total.toStringAsFixed(2)}',
       secondaryActions: [
         AppButton(label: l10n.back, variant: AppButtonVariant.text, onPressed: onBack),
-        AppButton(label: l10n.export, icon: Icons.download, variant: AppButtonVariant.outline, onPressed: () {}),
+        if (canExport)
+          AppButton(label: l10n.export, icon: Icons.download, variant: AppButtonVariant.outline, onPressed: () {}),
       ],
       body: AppDataTable<Order>(columns: columns, rows: state.items, idOf: (o) => o.id, loading: state.loading, emptyTitle: l10n.emptyStateDefaultTitle),
     );

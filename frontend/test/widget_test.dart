@@ -27,6 +27,7 @@ import 'package:warehouse_os_app/features/categories/categories_screen.dart';
 import 'package:warehouse_os_app/features/customers/customers_screen.dart';
 import 'package:warehouse_os_app/features/customers/presentation/customer_detail_screen.dart';
 import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
+import 'package:warehouse_os_app/features/employees/data/employee_repository.dart';
 import 'package:warehouse_os_app/features/employees/employees_screen.dart';
 import 'package:warehouse_os_app/features/orders/orders_screen.dart';
 import 'package:warehouse_os_app/features/orders/presentation/order_detail_screen.dart';
@@ -1154,6 +1155,131 @@ void main() {
     });
   });
 
+  group('Roles & permissions (frontend-only role/permission verification)', () {
+    // `AuthController.login()` (the real one — these tests exercise the
+    // actual demo-login button, not a fake auth state) reads
+    // `secureTokenStorageProvider` directly, so this must be overridden in
+    // the SAME container `authControllerProvider` resolves against —
+    // nesting a second `ProviderScope` with the override inside this
+    // container's widget tree does NOT work, since `AuthController` itself
+    // is built in (and its `ref` scoped to) the outer container.
+    ProviderContainer container() => ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(FakeUnauthenticatedController.new),
+        secureTokenStorageProvider.overrideWithValue(InMemoryTokenStorage()),
+      ],
+    );
+
+    Future<void> pumpApp(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+    }
+
+    /// Logs in through the REAL login screen (never a fake auth
+    /// controller) — taps "Try another role (demo)" to reveal the seven
+    /// non-primary business roles, then the named one. Proves the actual
+    /// demo login → role-resolution path works end to end, the same path
+    /// a person testing the app by hand would use.
+    Future<void> loginAsDemoRole(WidgetTester tester, String roleLabel) async {
+      expect(find.byType(LoginScreen), findsOneWidget);
+      await tester.tap(find.text('Try another role (demo)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(AppButton, roleLabel));
+      await tester.pumpAndSettle();
+    }
+
+    // Split into two single-container tests deliberately — pumping a
+    // second widget tree (a second `pumpWidget`/container) inside one test
+    // makes Riverpod schedule a disposal task for the outgoing tree via a
+    // zero-duration Timer that can still be pending when the test's own
+    // teardown checks for one, tripping flutter_test's "Timer still
+    // pending after dispose" guard. Found by actually running it, not a
+    // hypothetical concern — every other test in this file already sticks
+    // to one container/one pump for the same reason.
+    testWidgets('Owner demo sees "Add Products" on the Products screen', (tester) async {
+      final ownerContainer = container();
+      addTearDown(ownerContainer.dispose);
+      await pumpApp(tester, ownerContainer);
+      await tester.tap(find.widgetWithText(AppButton, 'Business (Demo)'));
+      await tester.pumpAndSettle();
+      ownerContainer.read(routerProvider).go(AppRoutes.products);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppButton, 'Add Products'), findsOneWidget);
+    });
+
+    testWidgets('Viewer demo (read-only, spec §23) does not see "Add Products", but still sees the seeded rows', (tester) async {
+      final viewerContainer = container();
+      addTearDown(viewerContainer.dispose);
+      await pumpApp(tester, viewerContainer);
+      await loginAsDemoRole(tester, 'Viewer');
+      viewerContainer.read(routerProvider).go(AppRoutes.products);
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductsScreen), findsOneWidget);
+      expect(find.widgetWithText(AppButton, 'Add Products'), findsNothing);
+      // Read access itself is untouched — Viewer still sees the seeded rows.
+      expect(find.text('3-Seat Sofa — Charcoal'), findsOneWidget);
+    });
+
+    testWidgets('Sales Staff demo sidebar shows Sales/Customers but not Inventory/Production/Settings', (tester) async {
+      final demoContainer = container();
+      addTearDown(demoContainer.dispose);
+      await pumpApp(tester, demoContainer);
+      await loginAsDemoRole(tester, 'Sales Staff');
+
+      expect(find.text('Sales'), findsWidgets); // nav item (+ possibly a card label)
+      expect(find.text('Customers'), findsOneWidget);
+      expect(find.text('Inventory'), findsNothing);
+      expect(find.text('Production'), findsNothing);
+      expect(find.text('Settings'), findsNothing);
+    });
+
+    testWidgets('Warehouse Manager demo sidebar shows Inventory but not Production/Settings', (tester) async {
+      final demoContainer = container();
+      addTearDown(demoContainer.dispose);
+      await pumpApp(tester, demoContainer);
+      await loginAsDemoRole(tester, 'Warehouse Manager');
+
+      expect(find.text('Inventory'), findsOneWidget);
+      // Warehouse Manager's role (spec §23: "Inventory, products, transfers,
+      // stock") also grants view-only Sales/Orders visibility in the seeded
+      // permission set — so Sales isn't asserted absent here, unlike Sales
+      // Staff's own test above. Production and Settings are the two this
+      // role genuinely has no grant for.
+      expect(find.text('Production'), findsNothing);
+      expect(find.text('Settings'), findsNothing);
+    });
+
+    testWidgets('Accountant demo sees the Purchase Cost column on Products (financial.view)', (tester) async {
+      final accountantContainer = container();
+      addTearDown(accountantContainer.dispose);
+      await pumpApp(tester, accountantContainer);
+      await loginAsDemoRole(tester, 'Accountant');
+      // Accountant's role grants no `products.*` (spec §23: "Financial
+      // records and reports" only) — reach the screen directly (a sidebar
+      // link wouldn't exist) to check the financial-visibility flag in
+      // isolation from the products.view nav gate.
+      accountantContainer.read(routerProvider).go(AppRoutes.products);
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductsScreen), findsOneWidget);
+      expect(find.text('Purchase cost'), findsOneWidget); // has financial.view
+    });
+
+    testWidgets('Sales Staff demo does not see the Purchase Cost column on Products (no financial.view)', (tester) async {
+      final salesContainer = container();
+      addTearDown(salesContainer.dispose);
+      await pumpApp(tester, salesContainer);
+      await loginAsDemoRole(tester, 'Sales Staff');
+      salesContainer.read(routerProvider).go(AppRoutes.products);
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductsScreen), findsOneWidget);
+      expect(find.text('Purchase cost'), findsNothing); // no financial.view grant
+    });
+  });
+
   test('Factory type configuration: Storage Store excludes Production, Furniture Factory includes it', () {
     final storageStoreModules = businessTypeModules[BusinessType.storageStore]!;
     final furnitureFactoryModules = businessTypeModules[BusinessType.furnitureFactory]!;
@@ -1195,6 +1321,44 @@ void main() {
       final identity = await repo.me();
       expect(identity.business, isNull); // still the admin identity after refresh
       expect(refreshed.accessToken, isNotEmpty);
+    });
+
+    test('All 9 demo identities (System Admin + one per business role) resolve to a distinct account and role', () async {
+      final repo = DemoAuthRepository();
+      final employees = LocalEmployeeRepository();
+
+      const expected = {
+        kDemoBusinessPhone: ('Demo Owner', 'role-owner'),
+        kDemoManagerPhone: ('Zana Hussein', 'role-manager'),
+        kDemoWarehouseManagerPhone: ('Rezan Ali', 'role-warehouse'),
+        kDemoSalesStaffPhone: ('Dilan Omar', 'role-sales'),
+        kDemoInventoryStaffPhone: ('Ary Karim', 'role-inventory'),
+        kDemoProductionManagerPhone: ('Soran Najat', 'role-production'),
+        kDemoAccountantPhone: ('Lana Faraj', 'role-accountant'),
+        kDemoViewerPhone: ('Hero Salih', 'role-viewer'),
+      };
+
+      final seenNames = <String>{};
+      for (final entry in expected.entries) {
+        final (name, roleId) = entry.value;
+        final session = await repo.login(phone: entry.key, password: kDemoPassword);
+        expect(session.account.name, name, reason: 'login for ${entry.key}');
+        expect(session.business, isNotNull, reason: 'every business role stays inside the same demo business');
+        seenNames.add(session.account.name);
+
+        // The link permission_providers.dart relies on: this exact phone
+        // must resolve to the exact role the demo login claims.
+        final role = employees.roleForPhoneSync(entry.key);
+        expect(role, isNotNull, reason: 'no seeded Employee for ${entry.key}');
+        expect(role!.id, roleId);
+      }
+      expect(seenNames, hasLength(8)); // 8 distinct business identities, no collisions
+
+      final adminSession = await repo.login(phone: kDemoAdminPhone, password: kDemoPassword);
+      expect(adminSession.account.name, 'Demo System Admin');
+      expect(adminSession.business, isNull);
+      // System Admin is not a business role — no Employee/Role to resolve.
+      expect(employees.roleForPhoneSync(kDemoAdminPhone), isNull);
     });
 
     testWidgets('Default mode (no dart-define) is demo — the app never calls a real backend to reach the dashboard', (tester) async {

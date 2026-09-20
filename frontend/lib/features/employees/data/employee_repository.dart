@@ -9,6 +9,11 @@ abstract class EmployeeRepository {
   Future<Employee> update(String id, EmployeeDraft draft);
   Future<void> setStatus(String id, EmployeeStatus status);
 
+  /// The link `permission_providers.dart` uses to resolve a signed-in
+  /// account's role/permissions — a demo login's phone (see
+  /// `demo_auth_repository.dart`) matches an `Employee.phone` seeded here.
+  Future<Employee?> getByPhone(String phone);
+
   Future<List<Role>> listRoles();
   Future<Role> updateRolePermissions(String roleId, Set<String> permissions);
 }
@@ -23,6 +28,34 @@ class LocalEmployeeRepository with DemoRepository implements EmployeeRepository 
   final List<Role> _roles = [];
   int _nextId = 1;
 
+  /// A synchronous counterpart to [getByPhone] + [listRoles], for
+  /// `permission_providers.dart`'s `currentRoleProvider` only — that
+  /// provider is watched from inside `routing/app_router.dart`'s
+  /// `_enabledBusinessNavItems`, which runs as part of building the
+  /// `GoRouter` itself. An async (`FutureProvider`) round trip there is
+  /// genuinely dangerous, not just slower: `routerProvider`'s first
+  /// Loading→Data transition after a fresh navigation makes it rebuild,
+  /// which constructs a **brand new `GoRouter`** — discarding whatever
+  /// route was just pushed and resetting to `initialLocation`. Found by
+  /// actually testing the admin dashboard's Products/Orders/Sales/Employee
+  /// cards (§ admin stat cards), which push into a business route the
+  /// router had never rendered before — the exact case that triggered it.
+  /// `_seedRoles()`/`_seedEmployees()` already run fully synchronously in
+  /// the constructor above, so this has real data available immediately;
+  /// only the OTHER interface methods add `simulatedLatency()` to mimic a
+  /// real API for screens that actually fetch/paginate.
+  Role? roleForPhoneSync(String phone) {
+    for (final employee in _items) {
+      if (employee.phone == phone) {
+        for (final role in _roles) {
+          if (role.id == employee.roleId) return role;
+        }
+        return null;
+      }
+    }
+    return null;
+  }
+
   void _seedRoles() {
     Set<String> allFor(List<String> modules, List<String> actions) => {
           for (final m in modules)
@@ -30,25 +63,42 @@ class LocalEmployeeRepository with DemoRepository implements EmployeeRepository 
               if (PermissionCatalog.supports(m, a)) PermissionCatalog.key(m, a),
         };
 
+    // Every role gets these three regardless of business-module access
+    // (spec §23/§24 never ties Dashboard/Documents/Activity History
+    // visibility to a specific role) — kept as one named set so it's
+    // obvious at a glance which grants are "implicit for everyone" versus
+    // the deliberately role-specific ones below.
+    const implicitForEveryone = {'dashboard.view', 'documents.view', 'audit.view'};
+
     _roles.addAll([
-      Role(id: 'role-owner', name: 'Business Owner/Admin', isSystemRole: true, permissions: allFor(PermissionCatalog.modules, PermissionCatalog.actions)),
-      Role(id: 'role-manager', name: 'Manager', isSystemRole: true, permissions: allFor(['products', 'inventory', 'sales', 'orders', 'customers', 'suppliers', 'purchases', 'reports'], ['view', 'create', 'edit'])),
-      Role(id: 'role-warehouse', name: 'Warehouse Manager', isSystemRole: true, permissions: allFor(['products', 'inventory'], ['view', 'create', 'edit', 'delete']).union(allFor(['sales', 'orders'], ['view']))),
-      Role(id: 'role-sales', name: 'Sales Staff', isSystemRole: true, permissions: allFor(['sales', 'orders'], ['view', 'create', 'edit']).union(allFor(['customers', 'products'], ['view']))),
-      Role(id: 'role-inventory', name: 'Inventory Staff', isSystemRole: true, permissions: allFor(['inventory'], ['view', 'edit']).union(allFor(['products'], ['view']))),
-      Role(id: 'role-production', name: 'Production Manager', isSystemRole: true, permissions: allFor(['production'], ['view', 'create', 'edit', 'delete']).union(allFor(['inventory'], ['view']))),
-      Role(id: 'role-accountant', name: 'Accountant', isSystemRole: true, permissions: allFor(['reports'], ['view', 'export']).union(allFor(['purchases'], ['view', 'approve']))),
-      Role(id: 'role-viewer', name: 'Viewer', isSystemRole: true, permissions: allFor(PermissionCatalog.modules, ['view'])),
+      Role(id: 'role-owner', name: 'Business Owner/Admin', isSystemRole: true, permissions: allFor(PermissionCatalog.modules, PermissionCatalog.actions).union(implicitForEveryone)),
+      Role(id: 'role-manager', name: 'Manager', isSystemRole: true, permissions: allFor(['products', 'inventory', 'sales', 'orders', 'customers', 'suppliers', 'purchases', 'reports'], ['view', 'create', 'edit']).union(implicitForEveryone)),
+      Role(id: 'role-warehouse', name: 'Warehouse Manager', isSystemRole: true, permissions: allFor(['products', 'inventory'], ['view', 'create', 'edit', 'delete']).union(allFor(['sales', 'orders'], ['view'])).union(implicitForEveryone)),
+      Role(id: 'role-sales', name: 'Sales Staff', isSystemRole: true, permissions: allFor(['sales', 'orders'], ['view', 'create', 'edit']).union(allFor(['customers', 'products'], ['view'])).union(implicitForEveryone)),
+      Role(id: 'role-inventory', name: 'Inventory Staff', isSystemRole: true, permissions: allFor(['inventory'], ['view', 'edit']).union(allFor(['products'], ['view'])).union(implicitForEveryone)),
+      Role(id: 'role-production', name: 'Production Manager', isSystemRole: true, permissions: allFor(['production'], ['view', 'create', 'edit', 'delete']).union(allFor(['inventory'], ['view'])).union(implicitForEveryone)),
+      Role(id: 'role-accountant', name: 'Accountant', isSystemRole: true, permissions: allFor(['reports'], ['view', 'export']).union(allFor(['purchases'], ['view', 'approve'])).union(allFor(['financial'], ['view'])).union(implicitForEveryone)),
+      Role(id: 'role-viewer', name: 'Viewer', isSystemRole: true, permissions: allFor(PermissionCatalog.modules.where((m) => m != 'financial').toList(), ['view']).union(implicitForEveryone)),
     ]);
   }
 
   void _seedEmployees() {
     final now = DateTime.now();
+    // Phone numbers deliberately match the demo-mode login identities
+    // (`demo_auth_repository.dart`'s kDemoRolePhones) — see
+    // `permission_providers.dart`'s doc comment for why: it's the link
+    // between "who's signed in" and "what Role/permissions they have".
+    // Never real E.164 numbers, same reasoning as the original two demo
+    // identities.
     final seed = [
-      ('Demo Admin', '+9647701112233', 'role-owner'),
-      ('Zana Hussein', '+9647709998877', 'role-manager'),
-      ('Rezan Ali', '+9647701234500', 'role-warehouse'),
-      ('Dilan Omar', '+9647705556677', 'role-sales'),
+      ('Demo Owner', '+9647000000001', 'role-owner'),
+      ('Zana Hussein', '+9647000000003', 'role-manager'),
+      ('Rezan Ali', '+9647000000004', 'role-warehouse'),
+      ('Dilan Omar', '+9647000000005', 'role-sales'),
+      ('Ary Karim', '+9647000000006', 'role-inventory'),
+      ('Soran Najat', '+9647000000007', 'role-production'),
+      ('Lana Faraj', '+9647000000008', 'role-accountant'),
+      ('Hero Salih', '+9647000000009', 'role-viewer'),
     ];
     for (final (name, phone, roleId) in seed) {
       _items.add(
@@ -93,6 +143,15 @@ class LocalEmployeeRepository with DemoRepository implements EmployeeRepository 
     final updated = Employee(id: existing.id, name: draft.name, phone: draft.phone, email: draft.email, roleId: role.id, roleName: role.name, status: draft.status, lastLoginAt: existing.lastLoginAt, createdAt: existing.createdAt);
     _items[index] = updated;
     return updated;
+  }
+
+  @override
+  Future<Employee?> getByPhone(String phone) async {
+    await simulatedLatency();
+    for (final e in _items) {
+      if (e.phone == phone) return e;
+    }
+    return null;
   }
 
   @override

@@ -253,5 +253,14 @@
   "demoModeLoginBanner": "پێویستی بە سێرڤەر نییە — ئەپەکە بە داتای نموونەیی تاقی بکەوە.",
   "continueAsBusinessDemo": "بازرگانی (نموونەیی)",
   "continueAsSystemAdminDemo": "بەڕێوەبەری سیستەم (نموونەیی)",
-  "demoModeOrDivider": "یان بچۆ ژوورەوە بە هەژمارێکی ڕاستەقینە"
+  "demoModeOrDivider": "یان بچۆ ژوورەوە بە هەژمارێکی ڕاستەقینە",
+  "demoRolesToggleShow": "ڕۆلێکی تر تاقی بکەوە (نموونەیی)",
+  "demoRolesToggleHide": "ڕۆلەکانی تر بشارەوە",
+  "demoRoleManager": "بەڕێوەبەر",
+  "demoRoleWarehouseManager": "بەڕێوەبەری کۆگا",
+  "demoRoleSalesStaff": "کارمەندی فرۆشتن",
+  "demoRoleInventoryStaff": "کارمەندی کۆگا",
+  "demoRoleProductionManager": "بەڕێوەبەری بەرهەمهێنان",
+  "demoRoleAccountant": "ژمێریار",
+  "demoRoleViewer": "تەنها بینین"
 }

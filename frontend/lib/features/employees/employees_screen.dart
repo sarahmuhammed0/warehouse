@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
@@ -28,6 +29,9 @@ class EmployeesPlaceholderScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(employeeListControllerProvider);
     final controller = ref.read(employeeListControllerProvider.notifier);
+    final permissions = ref.watch(currentPermissionsProvider);
+    final canCreate = hasPermission(permissions, 'users', 'create');
+    final canEdit = hasPermission(permissions, 'users', 'edit');
 
     final columns = <AppTableColumn<Employee>>[
       AppTableColumn(label: l10n.fieldName, cellBuilder: (context, item) => Text(item.name)),
@@ -49,9 +53,10 @@ class EmployeesPlaceholderScreen extends ConsumerWidget {
       // Employee card), never on normal sidebar navigation.
       showBackButton: context.canPop(),
       backFallbackRoute: AppRoutes.adminDashboard,
-      primaryAction: AppButton(label: '${l10n.add} ${l10n.navEmployees}', icon: Icons.add, onPressed: () => showEmployeeFormDialog(context)),
+      primaryAction: canCreate ? AppButton(label: '${l10n.add} ${l10n.navEmployees}', icon: Icons.add, onPressed: () => showEmployeeFormDialog(context)) : null,
       secondaryActions: [
-        AppButton(label: l10n.fieldRole, icon: Icons.admin_panel_settings_outlined, variant: AppButtonVariant.outline, onPressed: () => context.push(AppRoutes.roles)),
+        if (canEdit)
+          AppButton(label: l10n.fieldRole, icon: Icons.admin_panel_settings_outlined, variant: AppButtonVariant.outline, onPressed: () => context.push(AppRoutes.roles)),
       ],
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(
@@ -68,11 +73,13 @@ class EmployeesPlaceholderScreen extends ConsumerWidget {
             emptyTitle: l10n.emptyStateDefaultTitle,
             rowActionsBuilder: (context, item) => TableRowActions(
               actions: [
-                RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => showEmployeeFormDialog(context, editing: item)),
-                if (item.status == EmployeeStatus.active)
-                  RowAction(label: l10n.deactivate, icon: Icons.visibility_off_outlined, onTap: () => controller.setStatus(item.id, EmployeeStatus.inactive))
-                else
-                  RowAction(label: l10n.activate, icon: Icons.visibility_outlined, onTap: () => controller.setStatus(item.id, EmployeeStatus.active)),
+                if (canEdit)
+                  RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => showEmployeeFormDialog(context, editing: item)),
+                if (canEdit)
+                  if (item.status == EmployeeStatus.active)
+                    RowAction(label: l10n.deactivate, icon: Icons.visibility_off_outlined, onTap: () => controller.setStatus(item.id, EmployeeStatus.inactive))
+                  else
+                    RowAction(label: l10n.activate, icon: Icons.visibility_outlined, onTap: () => controller.setStatus(item.id, EmployeeStatus.active)),
               ],
             ),
           ),

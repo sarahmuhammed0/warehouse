@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 
-/// One sidebar entry. `permissionKey` is deliberately present but unused in
-/// Phase 1 — architecture §8/§9: the backend is the only authority on what
-/// a user may see, and the UI must never be the security boundary. Phase 2
-/// wires a permission-aware sidebar by filtering this list against the
-/// signed-in user's granted permissions; nothing about the sidebar widget
-/// itself needs to change when that happens — see `AppSidebar`.
+/// One sidebar entry. `permissionKey` was originally present but unused —
+/// see `routing/app_router.dart`'s `_enabledBusinessNavItems` and
+/// `features/auth/presentation/providers/permission_providers.dart` for
+/// where it's now consulted. Still only a UI convenience, never the
+/// security boundary (architecture §8/§9): the backend is the only real
+/// authority on what a user may do; this only controls what the UI shows.
 @immutable
 class NavItem {
   const NavItem({
@@ -23,8 +23,8 @@ class NavItem {
   final IconData icon;
   final String Function(AppLocalizations l10n) labelBuilder;
 
-  /// e.g. "products.view" (architecture §9's `{module}.{action}` shape).
-  /// Not checked against anything yet — see class doc.
+  /// e.g. "products.view" (architecture §9's `{module}.{action}` shape,
+  /// matching `PermissionCatalog.key`) — see class doc for where it's used.
   final String? permissionKey;
 
   /// Key into `businessTypeModules` (spec §33's factory-type module
@@ -145,7 +145,7 @@ final List<NavItem> businessNavItems = [
     route: AppRoutes.settings,
     icon: Icons.settings_outlined,
     labelBuilder: (l10n) => l10n.navSettings,
-    permissionKey: 'settings.manage',
+    permissionKey: 'settings.edit',
     moduleKey: 'settings',
   ),
 ];

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
@@ -27,6 +28,10 @@ class CategoriesScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(categoryListControllerProvider);
     final controller = ref.read(categoryListControllerProvider.notifier);
+    final permissions = ref.watch(currentPermissionsProvider);
+    final canCreate = hasPermission(permissions, 'categories', 'create');
+    final canEdit = hasPermission(permissions, 'categories', 'edit');
+    final canDelete = hasPermission(permissions, 'categories', 'delete');
 
     final columns = <AppTableColumn<Category>>[
       AppTableColumn(
@@ -49,11 +54,13 @@ class CategoriesScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navCategories,
-      primaryAction: AppButton(
-        label: '${l10n.add} ${l10n.navCategories}',
-        icon: Icons.add,
-        onPressed: () => showCategoryFormDialog(context),
-      ),
+      primaryAction: canCreate
+          ? AppButton(
+              label: '${l10n.add} ${l10n.navCategories}',
+              icon: Icons.add,
+              onPressed: () => showCategoryFormDialog(context),
+            )
+          : null,
       searchBar: SizedBox(
         width: 280,
         child: AppTextField(
@@ -77,35 +84,38 @@ class CategoriesScreen extends ConsumerWidget {
             emptyDescription: l10n.emptyStateDefaultDescription,
             rowActionsBuilder: (context, item) => TableRowActions(
               actions: [
-                RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => showCategoryFormDialog(context, editing: item)),
-                if (item.status == CategoryStatus.active)
+                if (canEdit)
+                  RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => showCategoryFormDialog(context, editing: item)),
+                if (canEdit)
+                  if (item.status == CategoryStatus.active)
+                    RowAction(
+                      label: l10n.deactivate,
+                      icon: Icons.visibility_off_outlined,
+                      onTap: () => controller.setStatus(item.id, CategoryStatus.inactive),
+                    )
+                  else
+                    RowAction(
+                      label: l10n.activate,
+                      icon: Icons.visibility_outlined,
+                      onTap: () => controller.setStatus(item.id, CategoryStatus.active),
+                    ),
+                if (canDelete)
                   RowAction(
-                    label: l10n.deactivate,
-                    icon: Icons.visibility_off_outlined,
-                    onTap: () => controller.setStatus(item.id, CategoryStatus.inactive),
-                  )
-                else
-                  RowAction(
-                    label: l10n.activate,
-                    icon: Icons.visibility_outlined,
-                    onTap: () => controller.setStatus(item.id, CategoryStatus.active),
+                    label: l10n.archive,
+                    icon: Icons.archive_outlined,
+                    destructive: true,
+                    onTap: () async {
+                      final confirmed = await confirmAction(
+                        context,
+                        title: l10n.archiveConfirmTitle,
+                        description: l10n.archiveConfirmDescription,
+                        confirmLabel: l10n.archive,
+                        cancelLabel: l10n.cancel,
+                        isDestructive: true,
+                      );
+                      if (confirmed ?? false) controller.setStatus(item.id, CategoryStatus.inactive);
+                    },
                   ),
-                RowAction(
-                  label: l10n.archive,
-                  icon: Icons.archive_outlined,
-                  destructive: true,
-                  onTap: () async {
-                    final confirmed = await confirmAction(
-                      context,
-                      title: l10n.archiveConfirmTitle,
-                      description: l10n.archiveConfirmDescription,
-                      confirmLabel: l10n.archive,
-                      cancelLabel: l10n.cancel,
-                      isDestructive: true,
-                    );
-                    if (confirmed ?? false) controller.setStatus(item.id, CategoryStatus.inactive);
-                  },
-                ),
               ],
             ),
           ),

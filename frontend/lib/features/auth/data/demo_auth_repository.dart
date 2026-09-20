@@ -1,15 +1,30 @@
 import 'auth_models.dart';
 import 'auth_repository.dart';
 
-/// One-click demo credentials the login screen's two demo buttons pass to
+/// One-click demo credentials the login screen's demo buttons pass to
 /// `AuthController.login()` — recognized only inside this file, never
 /// exposed as a real account anywhere else. Not secret (this is a local
 /// frontend-testing feature, not a security boundary) — the phone strings
 /// are deliberately implausible (`0000000`) so they can never collide with
 /// a real E.164 number, and the manual login form still accepts them if
 /// typed by hand.
+///
+/// Nine identities total: System Admin, plus one per business role (spec
+/// §23) — `kDemoBusinessPhone` (the original Business Owner/Admin demo)
+/// through `kDemoViewerPhone`. Each business-role phone matches an
+/// `Employee.phone` seeded in `employee_repository.dart`, which is how
+/// `permission_providers.dart` resolves a real, distinct role/permission
+/// set per identity rather than every demo login getting owner-level
+/// access (see docs/roles-and-permissions.md §I).
 const String kDemoBusinessPhone = '+9647000000001';
 const String kDemoAdminPhone = '+9647000000002';
+const String kDemoManagerPhone = '+9647000000003';
+const String kDemoWarehouseManagerPhone = '+9647000000004';
+const String kDemoSalesStaffPhone = '+9647000000005';
+const String kDemoInventoryStaffPhone = '+9647000000006';
+const String kDemoProductionManagerPhone = '+9647000000007';
+const String kDemoAccountantPhone = '+9647000000008';
+const String kDemoViewerPhone = '+9647000000009';
 const String kDemoPassword = 'demo';
 
 /// Frontend-only demo authentication (see docs/frontend-demo-mode.md) —
@@ -24,11 +39,7 @@ const String kDemoPassword = 'demo';
 /// `pumpAndSettle`-safety reason documented there — never a real `Timer`.
 class DemoAuthRepository implements AuthRepository {
   AccountType _currentType = AccountType.businessUser;
-
-  static const _businessAccessToken = 'demo-access-token-business';
-  static const _businessRefreshToken = 'demo-refresh-token-business';
-  static const _adminAccessToken = 'demo-access-token-admin';
-  static const _adminRefreshToken = 'demo-refresh-token-admin';
+  String _currentBusinessPhone = kDemoBusinessPhone;
 
   static const businessAccount = AuthAccount(id: -1, name: 'Demo Owner', phone: kDemoBusinessPhone);
   static const businessBusiness = AuthBusiness(
@@ -43,6 +54,20 @@ class DemoAuthRepository implements AuthRepository {
   );
   static const adminAccount = AuthAccount(id: -2, name: 'Demo System Admin', phone: kDemoAdminPhone);
 
+  /// One account per business role, same demo business (`businessBusiness`)
+  /// — a role is a property of the *person*, not the business, so these
+  /// deliberately don't get separate `AuthBusiness` records.
+  static const Map<String, AuthAccount> _businessAccountsByPhone = {
+    kDemoBusinessPhone: businessAccount,
+    kDemoManagerPhone: AuthAccount(id: -3, name: 'Zana Hussein', phone: kDemoManagerPhone),
+    kDemoWarehouseManagerPhone: AuthAccount(id: -4, name: 'Rezan Ali', phone: kDemoWarehouseManagerPhone),
+    kDemoSalesStaffPhone: AuthAccount(id: -5, name: 'Dilan Omar', phone: kDemoSalesStaffPhone),
+    kDemoInventoryStaffPhone: AuthAccount(id: -6, name: 'Ary Karim', phone: kDemoInventoryStaffPhone),
+    kDemoProductionManagerPhone: AuthAccount(id: -7, name: 'Soran Najat', phone: kDemoProductionManagerPhone),
+    kDemoAccountantPhone: AuthAccount(id: -8, name: 'Lana Faraj', phone: kDemoAccountantPhone),
+    kDemoViewerPhone: AuthAccount(id: -9, name: 'Hero Salih', phone: kDemoViewerPhone),
+  };
+
   Future<void> _settle() async {
     for (var i = 0; i < 6; i++) {
       await Future<void>.value();
@@ -51,29 +76,44 @@ class DemoAuthRepository implements AuthRepository {
 
   bool _isAdminPhone(String phone) => phone.trim() == kDemoAdminPhone;
 
+  String _accessTokenFor(String phone) => 'demo-access-token-$phone';
+  String _refreshTokenFor(String phone) => 'demo-refresh-token-$phone';
+
   @override
   Future<AuthSession> login({required String phone, required String password}) async {
     await _settle();
-    final isAdmin = _isAdminPhone(phone);
-    _currentType = isAdmin ? AccountType.systemAdmin : AccountType.businessUser;
-    return isAdmin
-        ? const AuthSession(accessToken: _adminAccessToken, refreshToken: _adminRefreshToken, account: adminAccount)
-        : const AuthSession(
-            accessToken: _businessAccessToken,
-            refreshToken: _businessRefreshToken,
-            account: businessAccount,
-            business: businessBusiness,
-          );
+    final trimmed = phone.trim();
+    if (_isAdminPhone(trimmed)) {
+      _currentType = AccountType.systemAdmin;
+      return AuthSession(accessToken: _accessTokenFor(kDemoAdminPhone), refreshToken: _refreshTokenFor(kDemoAdminPhone), account: adminAccount);
+    }
+    _currentType = AccountType.businessUser;
+    // An unrecognized phone (e.g. typed by hand into the real form while in
+    // demo mode) still succeeds, as it always has — falls back to the
+    // original Business Owner/Admin identity rather than rejecting it.
+    _currentBusinessPhone = _businessAccountsByPhone.containsKey(trimmed) ? trimmed : kDemoBusinessPhone;
+    return AuthSession(
+      accessToken: _accessTokenFor(_currentBusinessPhone),
+      refreshToken: _refreshTokenFor(_currentBusinessPhone),
+      account: _businessAccountsByPhone[_currentBusinessPhone]!,
+      business: businessBusiness,
+    );
   }
 
   @override
   Future<RefreshedTokens> refresh(String refreshToken) async {
     await _settle();
-    final isAdmin = refreshToken == _adminRefreshToken;
-    _currentType = isAdmin ? AccountType.systemAdmin : AccountType.businessUser;
-    return isAdmin
-        ? const RefreshedTokens(accessToken: _adminAccessToken, refreshToken: _adminRefreshToken)
-        : const RefreshedTokens(accessToken: _businessAccessToken, refreshToken: _businessRefreshToken);
+    if (refreshToken == _refreshTokenFor(kDemoAdminPhone)) {
+      _currentType = AccountType.systemAdmin;
+      return RefreshedTokens(accessToken: _accessTokenFor(kDemoAdminPhone), refreshToken: _refreshTokenFor(kDemoAdminPhone));
+    }
+    _currentType = AccountType.businessUser;
+    final matchedPhone = _businessAccountsByPhone.keys.firstWhere(
+      (phone) => refreshToken == _refreshTokenFor(phone),
+      orElse: () => kDemoBusinessPhone,
+    );
+    _currentBusinessPhone = matchedPhone;
+    return RefreshedTokens(accessToken: _accessTokenFor(matchedPhone), refreshToken: _refreshTokenFor(matchedPhone));
   }
 
   @override
@@ -84,7 +124,7 @@ class DemoAuthRepository implements AuthRepository {
     await _settle();
     return _currentType == AccountType.systemAdmin
         ? const AuthIdentity(account: adminAccount)
-        : const AuthIdentity(account: businessAccount, business: businessBusiness);
+        : AuthIdentity(account: _businessAccountsByPhone[_currentBusinessPhone]!, business: businessBusiness);
   }
 
   @override

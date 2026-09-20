@@ -143,12 +143,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// The two one-click demo paths (§2/§6 of the frontend-demo-mode brief) —
-/// only rendered when `AppModeConfig.isDemo`, never in backend mode. Both
-/// buttons call the exact same `AuthController.login()` the real form uses;
-/// `DemoAuthRepository` is what makes that call resolve locally instead of
-/// hitting Dio — this widget has no auth logic of its own.
-class _DemoModeCard extends StatelessWidget {
+/// The demo entry points (§2/§6 of the frontend-demo-mode brief; §16/§17 of
+/// the roles-and-permissions brief) — only rendered when `AppModeConfig.
+/// isDemo`, never in backend mode. Every button here calls the exact same
+/// `AuthController.login()` the real form uses; `DemoAuthRepository` is
+/// what makes that call resolve locally instead of hitting Dio — this
+/// widget has no auth logic of its own.
+///
+/// Business Owner and System Admin stay the two primary, always-visible
+/// buttons (unchanged from before this pass — this is a development/demo
+/// tool, not production UI, and keeping the two most-used entry points
+/// prominent matters more here than exposing all nine at once). The other
+/// seven business roles (§23) sit behind a "Try another role" toggle,
+/// specifically so a reviewer can prove the UI actually changes per role
+/// (docs/roles-and-permissions.md §I) without cluttering the default view.
+class _DemoModeCard extends StatefulWidget {
   const _DemoModeCard({required this.l10n, required this.isAuthenticating, required this.onContinue});
 
   final AppLocalizations l10n;
@@ -156,8 +165,35 @@ class _DemoModeCard extends StatelessWidget {
   final void Function(String phone) onContinue;
 
   @override
+  State<_DemoModeCard> createState() => _DemoModeCardState();
+}
+
+class _DemoModeCardState extends State<_DemoModeCard> {
+  bool _showMoreRoles = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = widget.l10n;
+    final otherRoles = <(String, IconData)>[
+      (l10n.demoRoleManager, Icons.manage_accounts_outlined),
+      (l10n.demoRoleWarehouseManager, Icons.warehouse_outlined),
+      (l10n.demoRoleSalesStaff, Icons.point_of_sale_outlined),
+      (l10n.demoRoleInventoryStaff, Icons.inventory_2_outlined),
+      (l10n.demoRoleProductionManager, Icons.precision_manufacturing_outlined),
+      (l10n.demoRoleAccountant, Icons.receipt_long_outlined),
+      (l10n.demoRoleViewer, Icons.visibility_outlined),
+    ];
+    final otherRolePhones = [
+      kDemoManagerPhone,
+      kDemoWarehouseManagerPhone,
+      kDemoSalesStaffPhone,
+      kDemoInventoryStaffPhone,
+      kDemoProductionManagerPhone,
+      kDemoAccountantPhone,
+      kDemoViewerPhone,
+    ];
+
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -182,15 +218,32 @@ class _DemoModeCard extends StatelessWidget {
             icon: Icons.storefront_outlined,
             variant: AppButtonVariant.secondary,
             expand: true,
-            onPressed: isAuthenticating ? null : () => onContinue(kDemoBusinessPhone),
+            onPressed: widget.isAuthenticating ? null : () => widget.onContinue(kDemoBusinessPhone),
           ),
           AppButton(
             label: l10n.continueAsSystemAdminDemo,
             icon: Icons.admin_panel_settings_outlined,
             variant: AppButtonVariant.outline,
             expand: true,
-            onPressed: isAuthenticating ? null : () => onContinue(kDemoAdminPhone),
+            onPressed: widget.isAuthenticating ? null : () => widget.onContinue(kDemoAdminPhone),
           ),
+          AppButton(
+            label: _showMoreRoles ? l10n.demoRolesToggleHide : l10n.demoRolesToggleShow,
+            icon: _showMoreRoles ? Icons.expand_less : Icons.expand_more,
+            variant: AppButtonVariant.text,
+            expand: true,
+            onPressed: () => setState(() => _showMoreRoles = !_showMoreRoles),
+          ),
+          if (_showMoreRoles)
+            for (var i = 0; i < otherRoles.length; i++)
+              AppButton(
+                label: otherRoles[i].$1,
+                icon: otherRoles[i].$2,
+                variant: AppButtonVariant.outline,
+                size: AppButtonSize.small,
+                expand: true,
+                onPressed: widget.isAuthenticating ? null : () => widget.onContinue(otherRolePhones[i]),
+              ),
         ],
       ),
     );

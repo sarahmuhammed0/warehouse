@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/providers/permission_providers.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
@@ -31,6 +32,14 @@ class ProductsScreen extends ConsumerWidget {
     final state = ref.watch(productListControllerProvider);
     final controller = ref.read(productListControllerProvider.notifier);
     final categoriesAsync = ref.watch(categoryPickerOptionsProvider);
+    // Permission-gated UI (spec §24) — see permission_providers.dart's doc
+    // comment. `null` means unrestricted (real backend-mode sessions keep
+    // today's behavior; nothing here can take capability away from them).
+    final permissions = ref.watch(currentPermissionsProvider);
+    final canCreate = hasPermission(permissions, 'products', 'create');
+    final canEdit = hasPermission(permissions, 'products', 'edit');
+    final canDelete = hasPermission(permissions, 'products', 'delete');
+    final canViewFinancial = hasPermission(permissions, 'financial', 'view');
 
     final activeFilters = <FilterChipData>[
       if (state.query.filters['stock'] == 'low')
@@ -70,11 +79,12 @@ class ProductsScreen extends ConsumerWidget {
         ),
       ),
       AppTableColumn(label: l10n.fieldLocation, cellBuilder: (context, item) => Text(item.shelfRackBin ?? '—')),
-      AppTableColumn(
-        label: l10n.fieldPurchaseCost,
-        numeric: true,
-        cellBuilder: (context, item) => Text(item.purchaseCost?.toStringAsFixed(2) ?? '—'),
-      ),
+      if (canViewFinancial)
+        AppTableColumn(
+          label: l10n.fieldPurchaseCost,
+          numeric: true,
+          cellBuilder: (context, item) => Text(item.purchaseCost?.toStringAsFixed(2) ?? '—'),
+        ),
       AppTableColumn(
         label: l10n.fieldSellingPrice,
         numeric: true,
@@ -106,11 +116,13 @@ class ProductsScreen extends ConsumerWidget {
       // popping correctly returns to the admin dashboard.
       showBackButton: context.canPop(),
       backFallbackRoute: AppRoutes.adminDashboard,
-      primaryAction: AppButton(
-        label: '${l10n.add} ${l10n.navProducts}',
-        icon: Icons.add,
-        onPressed: () => context.push(AppRoutes.productNew),
-      ),
+      primaryAction: canCreate
+          ? AppButton(
+              label: '${l10n.add} ${l10n.navProducts}',
+              icon: Icons.add,
+              onPressed: () => context.push(AppRoutes.productNew),
+            )
+          : null,
       searchBar: SizedBox(
         width: 280,
         child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search),
@@ -158,27 +170,30 @@ class ProductsScreen extends ConsumerWidget {
             rowActionsBuilder: (context, item) => TableRowActions(
               actions: [
                 RowAction(label: l10n.view, icon: Icons.visibility_outlined, onTap: () => context.push(AppRoutes.productDetail(item.id))),
-                RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => context.push(AppRoutes.productEdit(item.id))),
-                if (item.status == ProductStatus.active)
-                  RowAction(label: l10n.deactivate, icon: Icons.visibility_off_outlined, onTap: () => controller.setStatus(item.id, ProductStatus.inactive))
-                else
-                  RowAction(label: l10n.activate, icon: Icons.visibility_outlined, onTap: () => controller.setStatus(item.id, ProductStatus.active)),
-                RowAction(
-                  label: l10n.archive,
-                  icon: Icons.archive_outlined,
-                  destructive: true,
-                  onTap: () async {
-                    final confirmed = await confirmAction(
-                      context,
-                      title: l10n.archiveConfirmTitle,
-                      description: l10n.archiveConfirmDescription,
-                      confirmLabel: l10n.archive,
-                      cancelLabel: l10n.cancel,
-                      isDestructive: true,
-                    );
-                    if (confirmed ?? false) controller.setStatus(item.id, ProductStatus.inactive);
-                  },
-                ),
+                if (canEdit)
+                  RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => context.push(AppRoutes.productEdit(item.id))),
+                if (canEdit)
+                  if (item.status == ProductStatus.active)
+                    RowAction(label: l10n.deactivate, icon: Icons.visibility_off_outlined, onTap: () => controller.setStatus(item.id, ProductStatus.inactive))
+                  else
+                    RowAction(label: l10n.activate, icon: Icons.visibility_outlined, onTap: () => controller.setStatus(item.id, ProductStatus.active)),
+                if (canDelete)
+                  RowAction(
+                    label: l10n.archive,
+                    icon: Icons.archive_outlined,
+                    destructive: true,
+                    onTap: () async {
+                      final confirmed = await confirmAction(
+                        context,
+                        title: l10n.archiveConfirmTitle,
+                        description: l10n.archiveConfirmDescription,
+                        confirmLabel: l10n.archive,
+                        cancelLabel: l10n.cancel,
+                        isDestructive: true,
+                      );
+                      if (confirmed ?? false) controller.setStatus(item.id, ProductStatus.inactive);
+                    },
+                  ),
               ],
             ),
           ),
