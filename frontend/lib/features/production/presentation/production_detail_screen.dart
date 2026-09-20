@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -8,7 +7,6 @@ import '../../../shared/badges/status_badge.dart';
 import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../data/production_models.dart';
@@ -28,11 +26,22 @@ class ProductionDetailScreen extends ConsumerWidget {
     final async = ref.watch(productionByIdProvider(productionId));
 
     return async.when(
-      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
-      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(productionByIdProvider(productionId)))),
+      loading: () => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.production,
+        body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+      ),
+      error: (_, _) => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.production,
+        body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(productionByIdProvider(productionId))),
+      ),
       data: (order) => PageScaffold(
         title: order.productionNumber,
-        breadcrumbs: [BreadcrumbItem(l10n.navProduction, onTap: () => context.go(AppRoutes.production)), BreadcrumbItem(order.productionNumber)],
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.production,
         secondaryActions: [
           if (order.status == ProductionStatus.planned) ...[
             AppButton(label: l10n.statusInProgress, onPressed: () => _update(context, ref, order.id, ProductionStatus.inProgress)),

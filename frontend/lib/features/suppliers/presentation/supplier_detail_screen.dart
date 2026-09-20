@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -10,7 +9,6 @@ import '../../../shared/cards/app_card.dart';
 import '../../../shared/dashboard/metric_cards.dart';
 import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/feedback/app_error_state.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../data/supplier_models.dart';
@@ -27,14 +25,22 @@ class SupplierDetailScreen extends ConsumerWidget {
     final async = ref.watch(supplierByIdProvider(supplierId));
 
     return async.when(
-      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
-      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(supplierByIdProvider(supplierId)))),
+      loading: () => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.suppliers,
+        body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+      ),
+      error: (_, _) => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.suppliers,
+        body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(supplierByIdProvider(supplierId))),
+      ),
       data: (supplier) => PageScaffold(
         title: supplier.name,
-        breadcrumbs: [
-          BreadcrumbItem(l10n.navSuppliers, onTap: () => context.go(AppRoutes.suppliers)),
-          BreadcrumbItem(supplier.name),
-        ],
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.suppliers,
         primaryAction: AppButton(label: l10n.edit, icon: Icons.edit_outlined, onPressed: () => showSupplierFormDialog(context, editing: supplier)),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

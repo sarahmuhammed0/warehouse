@@ -9,6 +9,7 @@ import '../../shared/dashboard/metric_cards.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/layout/responsive/responsive_layout.dart';
 import '../../theme/app_spacing.dart';
+import 'data/admin_business_models.dart';
 import 'data/admin_providers.dart';
 
 /// System Admin dashboard (spec §2/§36) — cross-tenant aggregate stats.
@@ -43,21 +44,21 @@ class AdminDashboardScreen extends ConsumerWidget {
             mobile: (context) => Column(
               spacing: AppSpacing.md,
               children: [
-                StatCard(label: l10n.adminNavBusinesses, value: '${all.length}', icon: Icons.apartment_outlined),
-                StatCard(label: l10n.statusActive, value: '$active', icon: Icons.check_circle_outline),
-                StatCard(label: l10n.statusDisabled, value: '$disabled', icon: Icons.block_outlined),
-                StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline),
+                StatCard(label: l10n.adminNavBusinesses, value: '${all.length}', icon: Icons.apartment_outlined, onTap: () => _openBusinesses(context, ref)),
+                StatCard(label: l10n.statusActive, value: '$active', icon: Icons.check_circle_outline, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.active)),
+                StatCard(label: l10n.statusDisabled, value: '$disabled', icon: Icons.block_outlined, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.disabled)),
+                StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline, onTap: () => _openBusinesses(context, ref)),
               ],
             ),
             desktop: (context) => Row(
               children: [
-                Expanded(child: StatCard(label: l10n.adminNavBusinesses, value: '${all.length}', icon: Icons.apartment_outlined)),
+                Expanded(child: StatCard(label: l10n.adminNavBusinesses, value: '${all.length}', icon: Icons.apartment_outlined, onTap: () => _openBusinesses(context, ref))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.statusActive, value: '$active', icon: Icons.check_circle_outline)),
+                Expanded(child: StatCard(label: l10n.statusActive, value: '$active', icon: Icons.check_circle_outline, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.active))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.statusDisabled, value: '$disabled', icon: Icons.block_outlined)),
+                Expanded(child: StatCard(label: l10n.statusDisabled, value: '$disabled', icon: Icons.block_outlined, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.disabled))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline)),
+                Expanded(child: StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline, onTap: () => _openBusinesses(context, ref))),
               ],
             ),
           ),
@@ -65,18 +66,18 @@ class AdminDashboardScreen extends ConsumerWidget {
             mobile: (context) => Column(
               spacing: AppSpacing.md,
               children: [
-                StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined),
-                StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined),
-                StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined),
+                StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined, onTap: () => _openBusinesses(context, ref)),
+                StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined, onTap: () => _openBusinesses(context, ref)),
+                StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined, onTap: () => _openBusinesses(context, ref)),
               ],
             ),
             desktop: (context) => Row(
               children: [
-                Expanded(child: StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined)),
+                Expanded(child: StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined, onTap: () => _openBusinesses(context, ref))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined)),
+                Expanded(child: StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined, onTap: () => _openBusinesses(context, ref))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined)),
+                Expanded(child: StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined, onTap: () => _openBusinesses(context, ref))),
               ],
             ),
           ),
@@ -90,7 +91,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           ),
           SectionCard(
             title: l10n.adminNavBusinesses,
-            actions: [TextButton(onPressed: () => context.go(AppRoutes.adminBusinesses), child: Text(l10n.view))],
+            actions: [TextButton(onPressed: () => _openBusinesses(context, ref), child: Text(l10n.view))],
             child: Column(
               children: [
                 for (final b in all.take(5))
@@ -107,5 +108,22 @@ class AdminDashboardScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Every stat card drills into the same Businesses list its number was
+  /// folded from (`adminBusinessListControllerProvider`) — Active/Disabled
+  /// additionally pre-apply the real status filter the list already
+  /// supports (`admin_repository.dart` reads `query.filters['status']`),
+  /// so the count on the card and the rows the user lands on come from the
+  /// exact same data, never a second hard-coded number. Employees/Products/
+  /// Orders/Sales are cross-tenant aggregates with no per-business session
+  /// selected in System Admin mode (see docs/frontend-demo-mode.md) — there
+  /// is no real per-tenant list to deep-link to for those, so they land on
+  /// the same Businesses list, which already breaks each of those numbers
+  /// down per business (see its Products/Employees columns and each row's
+  /// own detail screen).
+  void _openBusinesses(BuildContext context, WidgetRef ref, {BusinessAccountStatus? status}) {
+    ref.read(adminBusinessListControllerProvider.notifier).setFilters(status == null ? {} : {'status': status});
+    context.go(AppRoutes.adminBusinesses);
   }
 }

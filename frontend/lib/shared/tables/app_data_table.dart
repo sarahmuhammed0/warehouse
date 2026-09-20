@@ -140,15 +140,6 @@ class _DesktopTable<T> extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final preferredWidth = table.columns.fold<double>(
-              0,
-              (sum, c) => sum + (c.width ?? 140),
-            ) +
-            (table.rowActionsBuilder != null ? 56 : 0) +
-            (table.selectable ? 56 : 0);
-
-        final needsScroll = preferredWidth > constraints.maxWidth;
-
         final bordered = Container(
           decoration: BoxDecoration(border: Border.all(color: colors.border), borderRadius: AppRadius.mdRadius),
           clipBehavior: Clip.antiAlias,
@@ -158,9 +149,21 @@ class _DesktopTable<T> extends StatelessWidget {
           ),
         );
 
-        if (!needsScroll) return SizedBox(width: double.infinity, child: bordered);
-
-        // Horizontal scroll only when the columns genuinely don't fit (§11).
+        // Always inside a horizontal scroller (§11: "only if the columns
+        // genuinely don't fit" — found by measurement, not by guessing).
+        // This used to branch on a hand-estimated `preferredWidth` and skip
+        // the scroller when the estimate said the table would fit; running
+        // it for real (Suppliers/Purchases at desktop width) showed the
+        // estimate routinely undershoots `DataTable`'s own real column
+        // sizing (e.g. a long header like "Outstanding Balance" widens its
+        // column more than a flat per-column guess accounts for) — when
+        // that happened, `SizedBox(width: double.infinity)` gave the table
+        // a *tight* width instead of room to size itself, and `DataTable`
+        // doesn't shrink its cells' content to fit, it overflows them.
+        // `minWidth: constraints.maxWidth` (not a fixed width) keeps a
+        // narrow table stretched to fill the available space exactly as
+        // before; a wide table now sizes itself naturally and scrolls
+        // instead of being squeezed.
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(

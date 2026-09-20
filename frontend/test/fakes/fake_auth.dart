@@ -18,6 +18,7 @@ import 'package:warehouse_os_app/features/auth/presentation/providers/auth_contr
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_state.dart';
 
 const testAccount = AuthAccount(id: 1, name: 'Test User', phone: '+9647701234567');
+const testAdminAccount = AuthAccount(id: 2, name: 'Test Admin', phone: '+9647701234599');
 const testBusiness = AuthBusiness(
   id: 1,
   name: 'Test Business',
@@ -110,6 +111,15 @@ class FakeAuthenticatedController extends AuthController {
 class FakeUnauthenticatedController extends AuthController {
   @override
   AuthState build() => const AuthUnauthenticated();
+}
+
+/// `business: null` is the real signal (see `routing/app_router.dart`'s
+/// `_redirect`) that lands a session in the System Admin shell rather than
+/// the business one — same reasoning as [FakeAuthenticatedController], just
+/// for admin-scoped router/navigation tests.
+class FakeAdminAuthenticatedController extends AuthController {
+  @override
+  AuthState build() => const AuthAuthenticated(account: testAdminAccount, business: null);
 }
 
 // No typed helper functions here (Riverpod 3's override-list type isn't

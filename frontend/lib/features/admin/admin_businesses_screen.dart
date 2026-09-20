@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
+import '../../shared/forms/app_select_field.dart';
 import '../../shared/forms/app_text_field.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/pagination/pagination_bar.dart';
@@ -46,6 +47,19 @@ class AdminBusinessesScreen extends ConsumerWidget {
     return PageScaffold(
       title: l10n.adminNavBusinesses,
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
+      filterBar: SizedBox(
+        width: 200,
+        child: AppDropdownField<BusinessAccountStatus?>(
+          label: l10n.fieldStatus,
+          value: state.query.filters['status'] as BusinessAccountStatus?,
+          options: [
+            AppSelectOption<BusinessAccountStatus?>(null, l10n.allOption),
+            AppSelectOption<BusinessAccountStatus?>(BusinessAccountStatus.active, l10n.statusActive),
+            AppSelectOption<BusinessAccountStatus?>(BusinessAccountStatus.disabled, l10n.statusDisabled),
+          ],
+          onChanged: (value) => controller.setFilters({...state.query.filters, 'status': value}),
+        ),
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,

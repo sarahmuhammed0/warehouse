@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -11,7 +10,6 @@ import '../../../shared/dashboard/dashboard_cards.dart';
 import '../../../shared/dashboard/metric_cards.dart';
 import '../../../shared/feedback/app_error_state.dart';
 import '../../../shared/feedback/confirm_dialog.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../data/admin_business_models.dart';
@@ -32,11 +30,22 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
     final async = ref.watch(adminBusinessByIdProvider(businessId));
 
     return async.when(
-      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
-      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(adminBusinessByIdProvider(businessId)))),
+      loading: () => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.adminBusinesses,
+        body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+      ),
+      error: (_, _) => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.adminBusinesses,
+        body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(adminBusinessByIdProvider(businessId))),
+      ),
       data: (business) => PageScaffold(
         title: business.name,
-        breadcrumbs: [BreadcrumbItem(l10n.adminNavBusinesses, onTap: () => context.go(AppRoutes.adminBusinesses)), BreadcrumbItem(business.name)],
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.adminBusinesses,
         secondaryActions: [
           if (business.status == BusinessAccountStatus.active)
             AppButton(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -8,7 +7,6 @@ import '../../../shared/badges/status_badge.dart';
 import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../data/return_models.dart';
@@ -27,11 +25,22 @@ class ReturnDetailScreen extends ConsumerWidget {
     final async = ref.watch(returnByIdProvider(returnId));
 
     return async.when(
-      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
-      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(returnByIdProvider(returnId)))),
+      loading: () => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.returns,
+        body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+      ),
+      error: (_, _) => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.returns,
+        body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(returnByIdProvider(returnId))),
+      ),
       data: (item) => PageScaffold(
         title: item.returnNumber,
-        breadcrumbs: [BreadcrumbItem(l10n.navReturns, onTap: () => context.go(AppRoutes.returns)), BreadcrumbItem(item.returnNumber)],
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.returns,
         secondaryActions: [
           if (item.status == ReturnStatus.requested) ...[
             AppButton(label: l10n.approve, onPressed: () => _update(context, ref, item.id, ReturnStatus.approved)),

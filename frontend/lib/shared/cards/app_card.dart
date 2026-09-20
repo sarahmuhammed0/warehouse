@@ -15,19 +15,49 @@ class AppCard extends StatelessWidget {
     this.title,
     this.actions,
     this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.onTap,
     required this.child,
   });
 
   final Widget? title;
   final List<Widget>? actions;
   final EdgeInsetsGeometry padding;
+
+  /// When set, the whole card becomes a single tap target (e.g. a
+  /// clickable stat card) — hover/pressed/ripple feedback and the pointer
+  /// cursor all come from `InkWell`'s own Material defaults, kept
+  /// deliberately plain (no custom colors) to match this app's flat,
+  /// non-flashy design language.
+  final VoidCallback? onTap;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null || actions != null) ...[
+          Row(
+            children: [
+              if (title != null)
+                Expanded(
+                  child: DefaultTextStyle.merge(
+                    style: AppTypography.cardTitle.copyWith(color: colors.textPrimary),
+                    child: title!,
+                  ),
+                ),
+              ...?actions,
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        child,
+      ],
+    );
+
     return Container(
-      padding: padding,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.card,
         border: Border.all(color: colors.border),
@@ -41,27 +71,13 @@ class AppCard extends StatelessWidget {
       // Container's own background color above.
       child: Material(
         type: MaterialType.transparency,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (title != null || actions != null) ...[
-              Row(
-                children: [
-                  if (title != null)
-                    Expanded(
-                      child: DefaultTextStyle.merge(
-                        style: AppTypography.cardTitle.copyWith(color: colors.textPrimary),
-                        child: title!,
-                      ),
-                    ),
-                  ...?actions,
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-            ],
-            child,
-          ],
-        ),
+        child: onTap != null
+            ? InkWell(
+                onTap: onTap,
+                borderRadius: AppRadius.mdRadius,
+                child: Padding(padding: padding, child: content),
+              )
+            : Padding(padding: padding, child: content),
       ),
     );
   }

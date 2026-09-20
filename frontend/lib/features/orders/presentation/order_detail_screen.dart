@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -10,7 +9,6 @@ import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/feedback/app_error_state.dart';
 import '../../../shared/feedback/confirm_dialog.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../shared/layout/responsive/responsive_layout.dart';
 import '../../../theme/app_typography.dart';
@@ -34,14 +32,22 @@ class OrderDetailScreen extends ConsumerWidget {
     final isSale = async.asData?.value.orderType == OrderType.quickSale;
 
     return async.when(
-      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
-      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(orderByIdProvider(orderId)))),
+      loading: () => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: isSale ? AppRoutes.sales : AppRoutes.orders,
+        body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+      ),
+      error: (_, _) => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: isSale ? AppRoutes.sales : AppRoutes.orders,
+        body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(orderByIdProvider(orderId))),
+      ),
       data: (order) => PageScaffold(
         title: order.orderNumber,
-        breadcrumbs: [
-          BreadcrumbItem(isSale ? l10n.navSales : l10n.navOrders, onTap: () => context.go(isSale ? AppRoutes.sales : AppRoutes.orders)),
-          BreadcrumbItem(order.orderNumber),
-        ],
+        showBackButton: true,
+        backFallbackRoute: isSale ? AppRoutes.sales : AppRoutes.orders,
         secondaryActions: [
           for (final next in order.allowedNextStatuses)
             AppButton(
@@ -163,7 +169,14 @@ class OrderDetailScreen extends ConsumerWidget {
     final style = strong ? AppTypography.sectionTitle : AppTypography.body;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [Text(label, style: strong ? style : AppTypography.label), Text(value, style: style)],
+      children: [
+        Text(label, style: strong ? style : AppTypography.label),
+        // Flexible + ellipsis: a long value (e.g. a customer's full name)
+        // in this narrow sidebar column otherwise overflows instead of
+        // shrinking — same class of bug as AppButton's label, fixed the
+        // same way.
+        Flexible(child: Text(value, style: style, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end)),
+      ],
     );
   }
 

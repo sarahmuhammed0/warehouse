@@ -12,12 +12,16 @@ import '../cards/app_card.dart';
 /// see `DashboardPlaceholderScreen` for how it's used with structural
 /// placeholders instead of fabricated statistics.
 class StatCard extends StatelessWidget {
-  const StatCard({super.key, required this.label, required this.value, this.icon, this.tone});
+  const StatCard({super.key, required this.label, required this.value, this.icon, this.tone, this.onTap});
 
   final String label;
   final String value;
   final IconData? icon;
   final Color? tone;
+
+  /// When set, the entire card is tappable — e.g. the System Admin
+  /// dashboard's cards drilling into the list they summarize.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +29,7 @@ class StatCard extends StatelessWidget {
     final accent = tone ?? colors.primary;
 
     return AppCard(
+      onTap: onTap,
       child: Row(
         children: [
           if (icon != null) ...[

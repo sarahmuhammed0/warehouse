@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -19,6 +20,8 @@ class PageScaffold extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.breadcrumbs,
+    this.showBackButton = false,
+    this.backFallbackRoute,
     this.primaryAction,
     this.secondaryActions,
     this.searchBar,
@@ -29,6 +32,18 @@ class PageScaffold extends StatelessWidget {
   final String title;
   final String? subtitle;
   final List<BreadcrumbItem>? breadcrumbs;
+
+  /// Detail pages (§ global back-navigation rule) pass this instead of
+  /// [breadcrumbs] — pops the real navigation stack (preserving whatever
+  /// state the previous list/search screen had) rather than replacing the
+  /// location, which is what a breadcrumb's `context.go` back to a bare
+  /// list route would otherwise reset.
+  final bool showBackButton;
+
+  /// Only consulted when [showBackButton] is true and there's nothing left
+  /// to pop (e.g. a deep link straight to this detail page) — go_router's
+  /// `context.pop()` cannot recover from an empty stack on its own.
+  final String? backFallbackRoute;
   final Widget? primaryAction;
   final List<Widget>? secondaryActions;
   final Widget? searchBar;
@@ -50,6 +65,8 @@ class PageScaffold extends StatelessWidget {
           _HeaderRow(
             title: title,
             subtitle: subtitle,
+            showBackButton: showBackButton,
+            backFallbackRoute: backFallbackRoute,
             primaryAction: primaryAction,
             secondaryActions: secondaryActions,
             colors: colors,
@@ -72,6 +89,8 @@ class _HeaderRow extends StatelessWidget {
   const _HeaderRow({
     required this.title,
     required this.subtitle,
+    required this.showBackButton,
+    required this.backFallbackRoute,
     required this.primaryAction,
     required this.secondaryActions,
     required this.colors,
@@ -79,13 +98,15 @@ class _HeaderRow extends StatelessWidget {
 
   final String title;
   final String? subtitle;
+  final bool showBackButton;
+  final String? backFallbackRoute;
   final Widget? primaryAction;
   final List<Widget>? secondaryActions;
   final AppColors colors;
 
   @override
   Widget build(BuildContext context) {
-    final titleBlock = Column(
+    final titleText = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -96,6 +117,18 @@ class _HeaderRow extends StatelessWidget {
         ],
       ],
     );
+
+    final titleBlock = showBackButton
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _BackButton(fallbackRoute: backFallbackRoute),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(child: titleText),
+            ],
+          )
+        : titleText;
 
     final actions = [...?secondaryActions, ?primaryAction];
 
@@ -119,6 +152,40 @@ class _HeaderRow extends StatelessWidget {
         if (actions.isNotEmpty)
           Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.sm, children: actions),
       ],
+    );
+  }
+}
+
+/// The global detail-page back control (replaces per-screen breadcrumb
+/// "parent > page" trails). Pops the real Navigator stack so the previous
+/// list/search screen reappears exactly as it was — filters, pagination,
+/// scroll position — since it was never rebuilt, only covered. `context.go`
+/// cannot do this: it replaces the location with a fresh instance of the
+/// target route, discarding that state, which is exactly the bug this
+/// button exists to avoid. Manually flips the glyph for RTL rather than
+/// relying on it being auto-mirrored, matching `AppSidebar`'s
+/// `_CollapseToggle` (`Icons.arrow_back`/`arrow_forward` are literal glyphs,
+/// not directional-aware by themselves).
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.fallbackRoute});
+
+  final String? fallbackRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final icon = isRtl ? Icons.arrow_forward : Icons.arrow_back;
+
+    return IconButton(
+      icon: Icon(icon),
+      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+      onPressed: () {
+        if (context.canPop()) {
+          context.pop();
+        } else if (fallbackRoute != null) {
+          context.go(fallbackRoute!);
+        }
+      },
     );
   }
 }

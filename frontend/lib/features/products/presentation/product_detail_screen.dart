@@ -9,7 +9,6 @@ import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/feedback/app_error_state.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../shared/layout/responsive/responsive_layout.dart';
 import '../../../theme/app_colors.dart';
@@ -38,10 +37,14 @@ class ProductDetailScreen extends ConsumerWidget {
     return async.when(
       loading: () => PageScaffold(
         title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.products,
         body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
       ),
       error: (_, _) => PageScaffold(
         title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.products,
         body: AppErrorState(
           message: l10n.unableToLoad,
           onRetry: () => ref.invalidate(productByIdProvider(productId)),
@@ -49,10 +52,8 @@ class ProductDetailScreen extends ConsumerWidget {
       ),
       data: (product) => PageScaffold(
         title: product.name,
-        breadcrumbs: [
-          BreadcrumbItem(l10n.navProducts, onTap: () => context.go(AppRoutes.products)),
-          BreadcrumbItem(product.name),
-        ],
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.products,
         primaryAction: AppButton(
           label: l10n.edit,
           icon: Icons.edit_outlined,

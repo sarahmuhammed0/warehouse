@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -8,7 +7,6 @@ import '../../../shared/badges/status_badge.dart';
 import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
-import '../../../shared/layout/breadcrumbs.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../data/purchase_models.dart';
@@ -24,11 +22,22 @@ class PurchaseDetailScreen extends ConsumerWidget {
     final async = ref.watch(purchaseByIdProvider(purchaseId));
 
     return async.when(
-      loading: () => PageScaffold(title: l10n.details, body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
-      error: (_, _) => PageScaffold(title: l10n.details, body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(purchaseByIdProvider(purchaseId)))),
+      loading: () => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.purchases,
+        body: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+      ),
+      error: (_, _) => PageScaffold(
+        title: l10n.details,
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.purchases,
+        body: AppErrorState(message: l10n.unableToLoad, onRetry: () => ref.invalidate(purchaseByIdProvider(purchaseId))),
+      ),
       data: (purchase) => PageScaffold(
         title: purchase.purchaseNumber,
-        breadcrumbs: [BreadcrumbItem(l10n.navPurchases, onTap: () => context.go(AppRoutes.purchases)), BreadcrumbItem(purchase.purchaseNumber)],
+        showBackButton: true,
+        backFallbackRoute: AppRoutes.purchases,
         secondaryActions: [
           if (purchase.status == PurchaseStatus.pending) ...[
             AppButton(

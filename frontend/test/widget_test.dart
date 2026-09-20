@@ -14,6 +14,9 @@ import 'package:warehouse_os_app/core/error/failure.dart';
 import 'package:warehouse_os_app/core/network/api_client.dart';
 import 'package:warehouse_os_app/features/admin/admin_businesses_screen.dart';
 import 'package:warehouse_os_app/features/admin/admin_dashboard_screen.dart';
+import 'package:warehouse_os_app/features/admin/data/admin_business_models.dart';
+import 'package:warehouse_os_app/features/admin/data/admin_providers.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_business_detail_screen.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_models.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_repository.dart';
 import 'package:warehouse_os_app/features/auth/data/demo_auth_repository.dart';
@@ -21,9 +24,23 @@ import 'package:warehouse_os_app/features/auth/presentation/login_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_controller.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:warehouse_os_app/features/categories/categories_screen.dart';
+import 'package:warehouse_os_app/features/customers/customers_screen.dart';
+import 'package:warehouse_os_app/features/customers/presentation/customer_detail_screen.dart';
 import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
+import 'package:warehouse_os_app/features/orders/orders_screen.dart';
+import 'package:warehouse_os_app/features/orders/presentation/order_detail_screen.dart';
+import 'package:warehouse_os_app/features/production/presentation/production_detail_screen.dart';
+import 'package:warehouse_os_app/features/production/production_screen.dart';
 import 'package:warehouse_os_app/features/products/presentation/product_detail_screen.dart';
 import 'package:warehouse_os_app/features/products/presentation/product_form_screen.dart';
+import 'package:warehouse_os_app/features/products/products_screen.dart';
+import 'package:warehouse_os_app/features/purchases/presentation/purchase_detail_screen.dart';
+import 'package:warehouse_os_app/features/purchases/purchases_screen.dart';
+import 'package:warehouse_os_app/features/returns/presentation/return_detail_screen.dart';
+import 'package:warehouse_os_app/features/returns/returns_screen.dart';
+import 'package:warehouse_os_app/features/search/presentation/search_results_screen.dart';
+import 'package:warehouse_os_app/features/suppliers/presentation/supplier_detail_screen.dart';
+import 'package:warehouse_os_app/features/suppliers/suppliers_screen.dart';
 import 'package:warehouse_os_app/l10n/generated/app_localizations.dart';
 import 'package:warehouse_os_app/localization/app_locales.dart';
 import 'package:warehouse_os_app/localization/locale_controller.dart';
@@ -31,6 +48,7 @@ import 'package:warehouse_os_app/features/settings/data/business_type_config.dar
 import 'package:warehouse_os_app/routing/app_router.dart';
 import 'package:warehouse_os_app/routing/app_routes.dart';
 import 'package:warehouse_os_app/shared/badges/status_badge.dart';
+import 'package:warehouse_os_app/shared/dashboard/metric_cards.dart';
 import 'package:warehouse_os_app/shared/navigation/nav_items.dart';
 import 'package:warehouse_os_app/shared/buttons/app_button.dart';
 import 'package:warehouse_os_app/shared/feedback/app_empty_state.dart';
@@ -748,6 +766,362 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ergonomic Office Chair'), findsOneWidget);
+    });
+  });
+
+  group('Admin dashboard stat cards (interactive navigation verification)', () {
+    ProviderContainer adminContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAdminAuthenticatedController.new)]);
+
+    Future<void> pumpAdminDesktop(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+    }
+
+    // Seed data (admin_repository.dart): 4 businesses, 3 active + 1
+    // disabled ("Northern Distribution Center") — chosen so Active/Disabled
+    // have real, distinguishable results to filter to, not an always-empty
+    // filter.
+    const activeOnly = ['Karwan Furniture Factory', 'Erbil Central Warehouse', 'City Storage Store'];
+    const disabledOnly = 'Northern Distribution Center';
+
+    testWidgets('Businesses card navigates to the Businesses list (all 4, no filter)', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      await tester.tap(find.widgetWithText(StatCard, 'Businesses'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      for (final name in activeOnly) {
+        expect(find.text(name), findsOneWidget);
+      }
+      expect(find.text(disabledOnly), findsOneWidget);
+    });
+
+    testWidgets('Active card navigates to Businesses with the Active filter applied — same data as the card count', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      expect(find.widgetWithText(StatCard, '3'), findsOneWidget); // the Active card's own count
+
+      await tester.tap(find.widgetWithText(StatCard, 'Active'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      for (final name in activeOnly) {
+        expect(find.text(name), findsOneWidget);
+      }
+      expect(find.text(disabledOnly), findsNothing); // filtered out — proves the filter, not just navigation
+    });
+
+    testWidgets('Disabled card navigates to Businesses with the Disabled filter applied — same data as the card count', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      expect(find.widgetWithText(StatCard, '1'), findsOneWidget); // the Disabled card's own count
+
+      await tester.tap(find.widgetWithText(StatCard, 'Disabled'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      expect(find.text(disabledOnly), findsOneWidget);
+      for (final name in activeOnly) {
+        expect(find.text(name), findsNothing);
+      }
+    });
+
+    testWidgets('Employees card navigates to the Businesses list (no cross-tenant Employees screen exists)', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      await tester.tap(find.widgetWithText(StatCard, 'Employee'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+    });
+
+    testWidgets('Products card navigates to the Businesses list, which breaks the total down per business', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      await tester.tap(find.widgetWithText(StatCard, 'Products'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+    });
+
+    testWidgets('Orders card navigates to the Businesses list', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      await tester.tap(find.widgetWithText(StatCard, 'Orders'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+    });
+
+    testWidgets('Sales card navigates to the Businesses list', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      await tester.tap(find.widgetWithText(StatCard, 'Sales'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+    });
+  });
+
+  group('Global back navigation (detail pages return to the real previous page)', () {
+    ProviderContainer businessContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAuthenticatedController.new)]);
+    ProviderContainer adminContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAdminAuthenticatedController.new)]);
+
+    Future<void> pumpApp(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+    }
+
+    /// Pops via the real back arrow `PageScaffold(showBackButton: true)`
+    /// renders — never `context.go(...)` — so this only passes if the
+    /// Navigator stack is genuinely popped, not just re-navigated.
+    Future<void> tapBack(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+    }
+
+    /// One flow, reused for every "list → detail → back → same list" case:
+    /// pushes into a detail screen by tapping a real seeded row, then proves
+    /// the back arrow returns to the exact previous screen (by type) with
+    /// that same row still visible — i.e. a genuine stack pop, not a fresh
+    /// navigation to the list's bare route.
+    Future<void> verifyListDetailBack(
+      WidgetTester tester,
+      ProviderContainer container, {
+      required String listRoute,
+      required Type listScreenType,
+      required String rowText,
+      required Type detailScreenType,
+    }) async {
+      container.read(routerProvider).go(listRoute);
+      await tester.pumpAndSettle();
+      expect(find.byType(listScreenType), findsOneWidget);
+
+      await tester.tap(find.text(rowText).first);
+      await tester.pumpAndSettle();
+      expect(find.byType(detailScreenType), findsOneWidget);
+      expect(find.byType(listScreenType), findsNothing);
+
+      await tapBack(tester);
+
+      expect(find.byType(detailScreenType), findsNothing);
+      expect(find.byType(listScreenType), findsOneWidget);
+      // findsWidgets, not findsOneWidget: some seeded demo rows share a
+      // display name (e.g. a product name used by two production runs) —
+      // presence, not uniqueness, is what proves this is the same list
+      // instance rather than a fresh empty one.
+      expect(find.text(rowText), findsWidgets);
+    }
+
+    testWidgets('Products → Product Details → Back → Products', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.products,
+        listScreenType: ProductsScreen,
+        rowText: '3-Seat Sofa — Charcoal',
+        detailScreenType: ProductDetailScreen,
+      );
+    });
+
+    testWidgets('Orders → Order Details → Back → Orders', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.orders,
+        listScreenType: OrdersScreen,
+        rowText: 'Karwan Furniture Retail',
+        detailScreenType: OrderDetailScreen,
+      );
+    });
+
+    testWidgets('Customers → Customer Details → Back → Customers', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.customers,
+        listScreenType: CustomersScreen,
+        rowText: 'Karwan Furniture Retail',
+        detailScreenType: CustomerDetailScreen,
+      );
+    });
+
+    testWidgets('Suppliers → Supplier Details → Back → Suppliers', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.suppliers,
+        listScreenType: SuppliersScreen,
+        rowText: 'Erbil Timber Supply',
+        detailScreenType: SupplierDetailScreen,
+      );
+    });
+
+    testWidgets('Purchases → Purchase Details → Back → Purchases', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.purchases,
+        listScreenType: PurchasesPlaceholderScreen,
+        rowText: 'Erbil Timber Supply',
+        detailScreenType: PurchaseDetailScreen,
+      );
+    });
+
+    testWidgets('Returns → Return Details → Back → Returns', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.returns,
+        listScreenType: ReturnsPlaceholderScreen,
+        rowText: 'Karwan Furniture Retail',
+        detailScreenType: ReturnDetailScreen,
+      );
+    });
+
+    testWidgets('Production → Production Details → Back → Production', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.production,
+        listScreenType: ProductionPlaceholderScreen,
+        rowText: '3-Seat Sofa — Charcoal',
+        detailScreenType: ProductionDetailScreen,
+      );
+    });
+
+    testWidgets('System Admin Businesses → Business Details → Back → Businesses', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+      await verifyListDetailBack(
+        tester,
+        container,
+        listRoute: AppRoutes.adminBusinesses,
+        listScreenType: AdminBusinessesScreen,
+        rowText: 'Karwan Furniture Factory',
+        detailScreenType: AdminBusinessDetailScreen,
+      );
+    });
+
+    testWidgets('A detail page opened from search returns to search results', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+
+      container.read(routerProvider).go('${AppRoutes.search}?q=Ergonomic');
+      await tester.pumpAndSettle();
+      expect(find.byType(SearchResultsScreen), findsOneWidget);
+
+      await tester.tap(find.text('Ergonomic Office Chair'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductDetailScreen), findsOneWidget);
+
+      await tapBack(tester);
+
+      expect(find.byType(SearchResultsScreen), findsOneWidget);
+      expect(find.text('Ergonomic Office Chair'), findsOneWidget); // the same results, query not lost
+    });
+
+    testWidgets('A detail page opened from a filtered list returns to that SAME filtered list', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+
+      // Apply the Active filter directly (same mechanism the dashboard's
+      // Active card uses), then confirm it survives a push+pop round trip.
+      container.read(adminBusinessListControllerProvider.notifier).setFilters({'status': BusinessAccountStatus.active});
+      container.read(routerProvider).go(AppRoutes.adminBusinesses);
+      await tester.pumpAndSettle();
+      expect(find.text('Northern Distribution Center'), findsNothing); // disabled business filtered out
+
+      await tester.tap(find.text('Karwan Furniture Factory'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessDetailScreen), findsOneWidget);
+
+      await tapBack(tester);
+
+      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      expect(find.text('Karwan Furniture Factory'), findsOneWidget);
+      // The filter is still applied — not reset by the round trip.
+      expect(find.text('Northern Distribution Center'), findsNothing);
+    });
+
+    testWidgets('The back arrow flips direction under an RTL locale instead of always pointing left', (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          authControllerProvider.overrideWith(FakeAuthenticatedController.new),
+          localeProvider.overrideWith(() => _FixedLocaleController(const Locale('ar'))),
+        ],
+      );
+      addTearDown(container.dispose);
+      await pumpApp(tester, container);
+
+      container.read(routerProvider).go(AppRoutes.products);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('3-Seat Sofa — Charcoal').first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductDetailScreen), findsOneWidget);
+      // RTL: the back arrow points the opposite way from LTR's
+      // Icons.arrow_back — same manual-flip convention as AppSidebar's
+      // collapse toggle (arrow_back is a literal glyph, not
+      // Directionality-aware on its own).
+      expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back), findsNothing);
+
+      // Not the shared `tapBack` helper — it looks for the LTR glyph.
+      await tester.tap(find.byIcon(Icons.arrow_forward));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductDetailScreen), findsNothing);
+      expect(find.byType(ProductsScreen), findsOneWidget);
     });
   });
 

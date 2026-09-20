@@ -33,7 +33,10 @@ class LocalAdminRepository with DemoRepository implements AdminRepository {
           name: name,
           businessType: type,
           phone: phone,
-          status: BusinessAccountStatus.active,
+          // 3 active + 1 disabled — real status variety, so the dashboard's
+          // Active/Disabled stat cards (and the filter they apply) have
+          // something real to show rather than an always-empty filter.
+          status: name == 'Northern Distribution Center' ? BusinessAccountStatus.disabled : BusinessAccountStatus.active,
           productCount: products,
           orderCount: orders,
           salesTotal: sales,

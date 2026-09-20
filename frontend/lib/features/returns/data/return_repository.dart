@@ -11,9 +11,72 @@ abstract class ReturnRepository {
 }
 
 class LocalReturnRepository with DemoRepository implements ReturnRepository {
+  LocalReturnRepository() {
+    _seed();
+  }
+
   final List<ProductReturn> _items = [];
   int _nextNumber = 1;
   int _nextId = 1;
+
+  void _seed() {
+    final now = DateTime.now();
+    _items.addAll([
+      ProductReturn(
+        id: 'ret-${_nextId++}',
+        returnNumber: 'RET-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        orderId: 'ord-1',
+        orderNumber: 'ORD-2026-000001',
+        customerName: 'Ahmed Al-Rashid',
+        items: const [ReturnLineItem(productId: 'prod-2', productName: '3-Seat Sofa — Beige', quantity: 1, condition: ItemCondition.damaged)],
+        reason: 'Wrong color delivered',
+        refundAmount: 420,
+        status: ReturnStatus.requested,
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(hours: 6)),
+      ),
+      ProductReturn(
+        id: 'ret-${_nextId++}',
+        returnNumber: 'RET-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        orderId: 'ord-3',
+        orderNumber: 'ORD-2026-000003',
+        customerName: 'Karwan Furniture Retail',
+        items: const [ReturnLineItem(productId: 'prod-5', productName: 'Office Desk — Standard', quantity: 2, condition: ItemCondition.sellable)],
+        reason: 'Customer changed mind',
+        refundAmount: 290,
+        status: ReturnStatus.approved,
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 1)),
+      ),
+      ProductReturn(
+        id: 'ret-${_nextId++}',
+        returnNumber: 'RET-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        orderId: 'ord-2',
+        orderNumber: 'SALE-2026-000001',
+        customerName: null,
+        items: const [ReturnLineItem(productId: 'prod-6', productName: 'Ergonomic Office Chair', quantity: 1, condition: ItemCondition.sellable)],
+        reason: 'Defective part',
+        refundAmount: 110,
+        status: ReturnStatus.completed,
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 3)),
+      ),
+      ProductReturn(
+        id: 'ret-${_nextId++}',
+        returnNumber: 'RET-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
+        orderId: 'ord-1',
+        orderNumber: 'ORD-2026-000001',
+        customerName: 'Ahmed Al-Rashid',
+        items: const [ReturnLineItem(productId: 'prod-1', productName: '3-Seat Sofa — Charcoal', quantity: 1, condition: ItemCondition.damaged)],
+        reason: 'Damaged in transit',
+        refundAmount: 420,
+        status: ReturnStatus.rejected,
+        notes: 'Damage occurred after delivery, outside return policy',
+        requestedBy: 'Demo Admin',
+        createdAt: now.subtract(const Duration(days: 5)),
+      ),
+    ]);
+  }
 
   @override
   Future<PaginatedResult<ProductReturn>> list(PagedQuery query) async {
