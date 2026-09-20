@@ -12,6 +12,7 @@ enum ProductStatus { active, inactive, discontinued }
 class Product {
   const Product({
     required this.id,
+    required this.businessId,
     required this.name,
     required this.code,
     this.sku,
@@ -58,6 +59,11 @@ class Product {
   });
 
   final String id;
+
+  /// Owning tenant (spec §36's `business_id`) — the System Admin's
+  /// cross-tenant views group and filter by this; the business-side app
+  /// never filters on it in demo mode (docs/frontend-demo-mode.md).
+  final String businessId;
   final String name;
   final String code;
   final String? sku;

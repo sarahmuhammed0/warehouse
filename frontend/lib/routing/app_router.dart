@@ -6,6 +6,10 @@ import '../features/activity_history/activity_history_screen.dart';
 import '../features/admin/admin_businesses_screen.dart';
 import '../features/admin/admin_dashboard_screen.dart';
 import '../features/admin/presentation/admin_business_detail_screen.dart';
+import '../features/admin/presentation/admin_business_records_screen.dart';
+import '../features/admin/presentation/admin_metric.dart';
+import '../features/admin/presentation/admin_overview_screen.dart';
+import '../features/admin/presentation/admin_record_detail_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/providers/auth_controller.dart';
 import '../features/auth/presentation/providers/auth_state.dart';
@@ -157,6 +161,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/admin/businesses/:id',
             builder: (context, state) => AdminBusinessDetailScreen(businessId: state.pathParameters['id']!),
           ),
+          // The three-level drill-down, one identical branch per metric:
+          // overview (all businesses) → one business's records → one record.
+          // Each level is its own route so every step is a real push and the
+          // back arrow pops exactly one level.
+          ..._adminMetricRoutes(),
         ],
       ),
     ],
@@ -165,6 +174,34 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+/// The System Admin drill-down's routes, generated from [AdminMetric] so
+/// Employees/Products/Orders/Sales cannot drift apart: each metric gets the
+/// same three levels, pointing at the same three generic screens. Adding a
+/// fifth drillable statistic later means adding an enum value, not four
+/// more route blocks.
+List<GoRoute> _adminMetricRoutes() {
+  return [
+    for (final metric in AdminMetric.values) ...[
+      GoRoute(
+        path: metric.overviewRoute,
+        builder: (context, state) => AdminOverviewScreen(metric: metric),
+      ),
+      GoRoute(
+        path: '${metric.overviewRoute}/:businessId',
+        builder: (context, state) => AdminBusinessRecordsScreen(metric: metric, businessId: state.pathParameters['businessId']!),
+      ),
+      GoRoute(
+        path: '${metric.overviewRoute}/:businessId/:recordId',
+        builder: (context, state) => AdminRecordDetailScreen(
+          metric: metric,
+          businessId: state.pathParameters['businessId']!,
+          recordId: state.pathParameters['recordId']!,
+        ),
+      ),
+    ],
+  ];
+}
 
 /// §24: once authenticated, the shell re-brands itself with the real
 /// business's name instead of the generic product name — the "future
@@ -237,26 +274,16 @@ String? _redirect(Ref ref, GoRouterState state) {
     return isAdminSession ? AppRoutes.adminDashboard : AppRoutes.dashboard;
   }
   if (isAdminRoute && !isAdminSession) return AppRoutes.dashboard;
-  if (!isAdminRoute && isAdminSession && !_isAdminBrowsableRoute(location)) return AppRoutes.adminDashboard;
+  // A System Admin session stays inside the admin shell, with no exceptions.
+  // An earlier revision whitelisted /products, /orders, /sales and
+  // /employees so the dashboard's stat cards could open the business app's
+  // own operational tables — that is exactly what the three-level drill-down
+  // replaces: the admin now reaches those records through
+  // `/admin/<metric>/<businessId>`, having explicitly chosen a business, and
+  // never lands in a warehouse's operational table by tapping a platform
+  // statistic.
+  if (!isAdminRoute && isAdminSession) return AppRoutes.adminDashboard;
   return null;
-}
-
-/// The System Admin dashboard's Employees/Products/Orders/Sales stat cards
-/// (§ admin dashboard card mapping) open these real business-module screens
-/// directly — by explicit instruction, not the Businesses list, even though
-/// System Admin has no single selected business/tenant. There's genuinely
-/// no per-business session to scope these to in this phase, so what an
-/// admin sees here is the same demo data any business session would (the
-/// `Local*Repository`s aren't session-scoped) — an accepted, documented
-/// limitation (docs/frontend-demo-mode.md), not a masked bug. Narrow
-/// on purpose: this does not open the rest of the business app (Categories,
-/// Inventory, Customers, etc.) to admin sessions, only the four routes the
-/// dashboard's cards actually link to.
-bool _isAdminBrowsableRoute(String location) {
-  return location.startsWith(AppRoutes.products) ||
-      location.startsWith(AppRoutes.orders) ||
-      location.startsWith(AppRoutes.sales) ||
-      location.startsWith(AppRoutes.employees);
 }
 
 /// Bridges Riverpod state changes into the `Listenable` go_router expects

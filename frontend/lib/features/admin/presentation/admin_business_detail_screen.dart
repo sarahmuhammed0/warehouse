@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -13,7 +14,9 @@ import '../../../shared/feedback/confirm_dialog.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../data/admin_business_models.dart';
+import '../data/admin_metrics.dart';
 import '../data/admin_providers.dart';
+import 'admin_metric.dart';
 
 /// System Admin business detail (spec §37) — profile, per-business stats,
 /// recent activity, and platform-level controls (Disable/Activate here;
@@ -28,6 +31,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final async = ref.watch(adminBusinessByIdProvider(businessId));
+    final metrics = ref.watch(adminMetricsProvider).asData?.value;
 
     return async.when(
       loading: () => PageScaffold(
@@ -94,14 +98,29 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            // The same derived numbers the drill-down shows, and the same
+            // destination: a business is already chosen here, so each card
+            // opens that business's records directly (drill-down level 3) —
+            // no second business-selection step, and still never the
+            // business app's own operational table.
             Wrap(
               spacing: 16,
               runSpacing: 16,
               children: [
-                SizedBox(width: 200, child: StatCard(label: l10n.navProducts, value: '${business.productCount}', icon: Icons.inventory_2_outlined)),
-                SizedBox(width: 200, child: StatCard(label: l10n.navOrders, value: '${business.orderCount}', icon: Icons.receipt_long_outlined)),
-                SizedBox(width: 200, child: StatCard(label: l10n.navSales, value: business.salesTotal.toStringAsFixed(0), icon: Icons.point_of_sale_outlined)),
-                SizedBox(width: 200, child: StatCard(label: l10n.fieldEmployee, value: '${business.userCount}', icon: Icons.people_outline)),
+                for (final metric in AdminMetric.values)
+                  SizedBox(
+                    width: 200,
+                    child: StatCard(
+                      label: metric.label(l10n),
+                      value: metrics == null
+                          ? '—'
+                          : metric == AdminMetric.sales
+                              ? metrics.forBusiness(business.id).salesTotal.toStringAsFixed(0)
+                              : '${metric.countFor(metrics.forBusiness(business.id))}',
+                      icon: metric.icon,
+                      onTap: () => context.push(metric.recordsRoute(business.id)),
+                    ),
+                  ),
               ],
             ),
             SectionCard(

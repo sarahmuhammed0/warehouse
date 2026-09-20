@@ -16,10 +16,6 @@ class AdminBusiness {
     this.email,
     this.address,
     required this.status,
-    required this.productCount,
-    required this.orderCount,
-    required this.salesTotal,
-    required this.userCount,
     required this.createdAt,
   });
 
@@ -31,11 +27,12 @@ class AdminBusiness {
   final String? email;
   final String? address;
   final BusinessAccountStatus status;
-  final int productCount;
-  final int orderCount;
-  final double salesTotal;
-  final int userCount;
   final DateTime createdAt;
+
+  // NOTE: no productCount/orderCount/salesTotal/userCount here on purpose.
+  // Those are derived from the real demo records in `admin_metrics.dart` —
+  // storing them again on the business row would give the System Admin's
+  // cards a number that silently disagrees with the rows behind them.
 }
 
 class SystemActivityEntry {

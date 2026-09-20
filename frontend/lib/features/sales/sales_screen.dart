@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../auth/presentation/providers/auth_controller.dart';
-import '../auth/presentation/providers/auth_state.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
@@ -31,8 +29,6 @@ class SalesPlaceholderScreen extends ConsumerWidget {
     final controller = ref.read(orderListControllerProvider.notifier);
     final rows = state.items.where((o) => o.orderType == OrderType.quickSale).toList();
     // See ProductsScreen's identical comment — reachable from both shells.
-    final authState = ref.watch(authControllerProvider);
-    final isAdminSession = authState is AuthAuthenticated && authState.business == null;
 
     final columns = <AppTableColumn<Order>>[
       AppTableColumn(label: l10n.fieldInvoiceNumber, cellBuilder: (context, item) => Text(item.orderNumber)),
@@ -59,7 +55,7 @@ class SalesPlaceholderScreen extends ConsumerWidget {
     return PageScaffold(
       title: l10n.navSales,
       showBackButton: true,
-      backFallbackRoute: isAdminSession ? AppRoutes.adminDashboard : AppRoutes.dashboard,
+      backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navSales}', icon: Icons.point_of_sale_outlined, onPressed: () => context.push(AppRoutes.saleNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(

@@ -1,4 +1,5 @@
 import '../../../core/network/paginated_result.dart';
+import '../../../core/repositories/demo_businesses.dart';
 import '../../../core/repositories/demo_data_source.dart';
 import '../../../core/repositories/paged_query.dart';
 import 'product_models.dart';
@@ -13,6 +14,12 @@ abstract class ProductRepository {
   /// Unpaginated, active products only — for pickers in Sales/Orders/
   /// Purchases/Production line-item editors.
   Future<List<Product>> allForPicker();
+
+  /// Every product owned by one tenant — the System Admin's per-business
+  /// drill-down (spec §56/§57) and the aggregates its overview sums are
+  /// derived from. Deliberately not exposed to business-side screens,
+  /// which are single-tenant in demo mode.
+  Future<List<Product>> listForBusiness(String businessId);
 }
 
 class LocalProductRepository with DemoRepository implements ProductRepository {
@@ -26,6 +33,7 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
   void _seed() {
     final now = DateTime.now();
     void add({
+      required String businessId,
       required String name,
       required String code,
       required String categoryId,
@@ -43,6 +51,7 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
       _items.add(
         Product(
           id: 'prod-${_nextId++}',
+          businessId: businessId,
           name: name,
           code: code,
           sku: 'SKU-${code.toUpperCase()}',
@@ -75,19 +84,32 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
       );
     }
 
-    add(name: '3-Seat Sofa — Charcoal', code: 'SOFA-3S-CH', categoryId: 'cat-6', categoryName: 'Sofas', qty: 8, reorder: 3, maxStock: 30, unit: 'Piece', cost: 220, price: 420, color: 'Charcoal', material: 'Fabric');
-    add(name: '3-Seat Sofa — Beige', code: 'SOFA-3S-BG', categoryId: 'cat-6', categoryName: 'Sofas', qty: 2, reorder: 3, maxStock: 30, unit: 'Piece', cost: 220, price: 420, color: 'Beige', material: 'Fabric');
-    add(name: 'Coffee Table — Oak', code: 'CTB-OAK', categoryId: 'cat-7', categoryName: 'Coffee Tables', qty: 14, reorder: 5, maxStock: 40, unit: 'Piece', cost: 60, price: 120, material: 'Oak wood');
-    add(name: 'TV Unit — Walnut 180cm', code: 'TVU-WAL-180', categoryId: 'cat-8', categoryName: 'TV Units', qty: 0, reorder: 4, maxStock: 20, unit: 'Piece', cost: 95, price: 190, material: 'Walnut veneer');
-    add(name: 'Office Desk — Standard', code: 'DESK-STD', categoryId: 'cat-3', categoryName: 'Office Furniture', qty: 22, reorder: 6, maxStock: 50, unit: 'Piece', cost: 70, price: 145);
-    add(name: 'Ergonomic Office Chair', code: 'CHAIR-ERG', categoryId: 'cat-3', categoryName: 'Office Furniture', qty: 31, reorder: 10, maxStock: 60, unit: 'Piece', cost: 55, price: 110);
-    add(name: 'Queen Bed Frame', code: 'BED-Q', categoryId: 'cat-2', categoryName: 'Bedroom', qty: 6, reorder: 4, maxStock: 25, unit: 'Piece', cost: 130, price: 260);
-    add(name: 'Solid Pine Timber (2m)', code: 'RAW-PINE-2M', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 420, reorder: 100, maxStock: 1000, unit: 'Piece', cost: 8, price: null, type: ProductType.rawMaterial, material: 'Pine');
-    add(name: 'Upholstery Fabric (roll)', code: 'RAW-FAB-01', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 35, reorder: 15, maxStock: 200, unit: 'Meter', cost: 6, price: null, type: ProductType.rawMaterial, material: 'Cotton blend');
-    add(name: 'Wood Screws 4x40mm (box)', code: 'HDW-SCR-440', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 180, reorder: 50, maxStock: 500, unit: 'Box', cost: 3, price: null, type: ProductType.rawMaterial);
-    add(name: 'Metal Table Legs (set of 4)', code: 'HDW-LEG-01', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 60, reorder: 20, maxStock: 200, unit: 'Set', cost: 12, price: null, type: ProductType.component, material: 'Steel');
-    add(name: 'Bookshelf — 5 Tier', code: 'SHELF-5T', categoryId: 'cat-1', categoryName: 'Living Room', qty: 3, reorder: 5, maxStock: 20, unit: 'Piece', cost: 45, price: 95);
-    add(name: 'MDF Board 18mm (sheet)', code: 'RAW-MDF-18', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 260, reorder: 40, maxStock: 150, unit: 'Sheet', cost: 14, price: null, type: ProductType.rawMaterial, material: 'MDF');
+    // Karwan Furniture Factory — finished furniture plus the raw materials
+    // it manufactures from (10 products).
+    add(businessId: kDemoBusinessKarwan, name: '3-Seat Sofa — Charcoal', code: 'SOFA-3S-CH', categoryId: 'cat-6', categoryName: 'Sofas', qty: 8, reorder: 3, maxStock: 30, unit: 'Piece', cost: 220, price: 420, color: 'Charcoal', material: 'Fabric');
+    add(businessId: kDemoBusinessKarwan, name: '3-Seat Sofa — Beige', code: 'SOFA-3S-BG', categoryId: 'cat-6', categoryName: 'Sofas', qty: 2, reorder: 3, maxStock: 30, unit: 'Piece', cost: 220, price: 420, color: 'Beige', material: 'Fabric');
+    add(businessId: kDemoBusinessKarwan, name: 'Coffee Table — Oak', code: 'CTB-OAK', categoryId: 'cat-7', categoryName: 'Coffee Tables', qty: 14, reorder: 5, maxStock: 40, unit: 'Piece', cost: 60, price: 120, material: 'Oak wood');
+    add(businessId: kDemoBusinessKarwan, name: 'TV Unit — Walnut 180cm', code: 'TVU-WAL-180', categoryId: 'cat-8', categoryName: 'TV Units', qty: 0, reorder: 4, maxStock: 20, unit: 'Piece', cost: 95, price: 190, material: 'Walnut veneer');
+    add(businessId: kDemoBusinessKarwan, name: 'Bookshelf — 5 Tier', code: 'SHELF-5T', categoryId: 'cat-1', categoryName: 'Living Room', qty: 3, reorder: 5, maxStock: 20, unit: 'Piece', cost: 45, price: 95);
+    add(businessId: kDemoBusinessKarwan, name: 'Solid Pine Timber (2m)', code: 'RAW-PINE-2M', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 420, reorder: 100, maxStock: 1000, unit: 'Piece', cost: 8, price: null, type: ProductType.rawMaterial, material: 'Pine');
+    add(businessId: kDemoBusinessKarwan, name: 'Upholstery Fabric (roll)', code: 'RAW-FAB-01', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 35, reorder: 15, maxStock: 200, unit: 'Meter', cost: 6, price: null, type: ProductType.rawMaterial, material: 'Cotton blend');
+    add(businessId: kDemoBusinessKarwan, name: 'Wood Screws 4x40mm (box)', code: 'HDW-SCR-440', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 180, reorder: 50, maxStock: 500, unit: 'Box', cost: 3, price: null, type: ProductType.rawMaterial);
+    add(businessId: kDemoBusinessKarwan, name: 'Metal Table Legs (set of 4)', code: 'HDW-LEG-01', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 60, reorder: 20, maxStock: 200, unit: 'Set', cost: 12, price: null, type: ProductType.component, material: 'Steel');
+    add(businessId: kDemoBusinessKarwan, name: 'MDF Board 18mm (sheet)', code: 'RAW-MDF-18', categoryId: 'cat-4', categoryName: 'Raw Materials', qty: 260, reorder: 40, maxStock: 150, unit: 'Sheet', cost: 14, price: null, type: ProductType.rawMaterial, material: 'MDF');
+
+    // Erbil Central Warehouse (4 products).
+    add(businessId: kDemoBusinessErbil, name: 'Office Desk — Standard', code: 'DESK-STD', categoryId: 'cat-3', categoryName: 'Office Furniture', qty: 22, reorder: 6, maxStock: 50, unit: 'Piece', cost: 70, price: 145);
+    add(businessId: kDemoBusinessErbil, name: 'Ergonomic Office Chair', code: 'CHAIR-ERG', categoryId: 'cat-3', categoryName: 'Office Furniture', qty: 31, reorder: 10, maxStock: 60, unit: 'Piece', cost: 55, price: 110);
+    add(businessId: kDemoBusinessErbil, name: 'Storage Shelving Unit', code: 'WH-SHELF-01', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 48, reorder: 12, maxStock: 120, unit: 'Set', cost: 85, price: 160, material: 'Steel');
+    add(businessId: kDemoBusinessErbil, name: 'Pallet Rack Beam (2.7m)', code: 'WH-BEAM-27', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 9, reorder: 15, maxStock: 200, unit: 'Piece', cost: 32, price: 64, material: 'Steel');
+
+    // City Storage Store (2 products).
+    add(businessId: kDemoBusinessCityStore, name: 'Queen Bed Frame', code: 'BED-Q', categoryId: 'cat-2', categoryName: 'Bedroom', qty: 6, reorder: 4, maxStock: 25, unit: 'Piece', cost: 130, price: 260);
+    add(businessId: kDemoBusinessCityStore, name: 'Plastic Storage Bin (60L)', code: 'ST-BIN-60', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 140, reorder: 30, maxStock: 300, unit: 'Piece', cost: 7, price: 15, material: 'Polypropylene');
+
+    // Northern Distribution Center (2 products).
+    add(businessId: kDemoBusinessNorthern, name: 'Stretch Wrap Roll', code: 'DC-WRAP-01', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 0, reorder: 20, maxStock: 250, unit: 'Piece', cost: 9, price: 18);
+    add(businessId: kDemoBusinessNorthern, name: 'Shipping Carton (XL)', code: 'DC-BOX-XL', categoryId: 'cat-5', categoryName: 'Hardware & Fittings', qty: 380, reorder: 100, maxStock: 900, unit: 'Box', cost: 2, price: 5);
   }
 
   @override
@@ -128,9 +150,16 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     return _items.where((p) => p.status == ProductStatus.active).toList();
   }
 
-  Product _fromDraft(String id, ProductDraft draft, {required String categoryName, required DateTime createdAt}) {
+  @override
+  Future<List<Product>> listForBusiness(String businessId) async {
+    await simulatedLatency();
+    return _items.where((p) => p.businessId == businessId).toList()..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Product _fromDraft(String id, ProductDraft draft, {required String businessId, required String categoryName, required DateTime createdAt}) {
     return Product(
       id: id,
+      businessId: businessId,
       name: draft.name,
       code: draft.code,
       sku: draft.sku,
@@ -179,7 +208,7 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     // A real backend resolves categoryName server-side; the local repo
     // fakes the same lookup so the list/detail screens never see a blank
     // category label.
-    final created = _fromDraft('prod-${_nextId++}', draft, categoryName: _categoryNameFor(draft.categoryId), createdAt: DateTime.now());
+    final created = _fromDraft('prod-${_nextId++}', draft, businessId: kDemoBusinessForNewRecords, categoryName: _categoryNameFor(draft.categoryId), createdAt: DateTime.now());
     _items.add(created);
     return created;
   }
@@ -189,7 +218,7 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     await simulatedLatency();
     final index = _items.indexWhere((p) => p.id == id);
     if (index == -1) throw StateError('Product not found');
-    final updated = _fromDraft(id, draft, categoryName: _categoryNameFor(draft.categoryId), createdAt: _items[index].createdAt);
+    final updated = _fromDraft(id, draft, businessId: _items[index].businessId, categoryName: _categoryNameFor(draft.categoryId), createdAt: _items[index].createdAt);
     _items[index] = updated;
     return updated;
   }
@@ -203,6 +232,7 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     final draft = _draftFrom(current);
     _items[index] = _fromDraft(
       id,
+      businessId: current.businessId,
       ProductDraft(
         name: draft.name,
         code: draft.code,

@@ -12,11 +12,17 @@ import 'package:warehouse_os_app/app.dart';
 import 'package:warehouse_os_app/core/config/app_mode.dart';
 import 'package:warehouse_os_app/core/error/failure.dart';
 import 'package:warehouse_os_app/core/network/api_client.dart';
+import 'package:warehouse_os_app/core/repositories/demo_businesses.dart';
+import 'package:warehouse_os_app/core/repositories/paged_query.dart';
 import 'package:warehouse_os_app/features/admin/admin_businesses_screen.dart';
 import 'package:warehouse_os_app/features/admin/admin_dashboard_screen.dart';
 import 'package:warehouse_os_app/features/admin/data/admin_business_models.dart';
+import 'package:warehouse_os_app/features/admin/data/admin_metrics.dart';
 import 'package:warehouse_os_app/features/admin/data/admin_providers.dart';
 import 'package:warehouse_os_app/features/admin/presentation/admin_business_detail_screen.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_business_records_screen.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_overview_screen.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_record_detail_screen.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_models.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_repository.dart';
 import 'package:warehouse_os_app/features/auth/data/demo_auth_repository.dart';
@@ -27,7 +33,10 @@ import 'package:warehouse_os_app/features/categories/categories_screen.dart';
 import 'package:warehouse_os_app/features/customers/customers_screen.dart';
 import 'package:warehouse_os_app/features/customers/presentation/customer_detail_screen.dart';
 import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
+import 'package:warehouse_os_app/features/employees/data/employee_providers.dart';
 import 'package:warehouse_os_app/features/employees/data/employee_repository.dart';
+import 'package:warehouse_os_app/features/orders/data/order_providers.dart';
+import 'package:warehouse_os_app/features/products/data/product_providers.dart';
 import 'package:warehouse_os_app/features/employees/employees_screen.dart';
 import 'package:warehouse_os_app/features/orders/orders_screen.dart';
 import 'package:warehouse_os_app/features/orders/presentation/order_detail_screen.dart';
@@ -679,6 +688,11 @@ void main() {
 
       final createButton = find.widgetWithText(AppButton, 'Create');
       expect(createButton, findsOneWidget);
+      // The form is taller than the viewport, so the button is off-screen
+      // and `tap` would silently miss it — which made this test pass
+      // without ever submitting anything.
+      await tester.ensureVisible(createButton);
+      await tester.pumpAndSettle();
       await tester.tap(createButton);
       await tester.pumpAndSettle();
 
@@ -841,24 +855,61 @@ void main() {
       }
     });
 
-    testWidgets('Employees card navigates to the real Employees screen, not Businesses, and back returns to the dashboard', (tester) async {
+    // The four record metrics no longer open a business screen at all —
+    // they start the three-level drill-down. Each test below walks the
+    // whole path and then walks back out of it, so a regression at any
+    // single level fails a test rather than quietly skipping a step.
+    //
+    // Every test also asserts the NEGATIVE the brief is explicit about:
+    // tapping a platform statistic must never land the System Admin in a
+    // warehouse's own operational table.
+
+    testWidgets('Employees: dashboard → per-business overview → one business → one employee → back out', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
 
-      await tester.tap(find.widgetWithText(StatCard, 'Employee'));
+      // Level 1 → 2
+      await tester.tap(find.widgetWithText(StatCard, 'Employees'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(EmployeesPlaceholderScreen), findsOneWidget);
-      expect(find.byType(AdminBusinessesScreen), findsNothing);
-      expect(find.byType(AdminDashboardScreen), findsNothing);
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
+      expect(find.byType(EmployeesPlaceholderScreen), findsNothing); // never the business table
+      expect(find.text('Select a business to view its records'), findsOneWidget);
+      for (final name in [...activeOnly, disabledOnly]) {
+        expect(find.text(name), findsOneWidget);
+      }
+
+      // Level 2 → 3 (an explicitly chosen business)
+      await tester.tap(find.text('Erbil Central Warehouse'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+      expect(find.text('Karzan Tahir'), findsOneWidget); // Erbil's own staff
+      expect(find.text('Demo Owner'), findsNothing); // Karwan's — scoped out
+
+      // Level 3 → 4
+      await tester.tap(find.text('Karzan Tahir'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminRecordDetailScreen), findsOneWidget);
+      expect(find.text('+9647100000002'), findsOneWidget);
+
+      // ...and back out, one real pop per level.
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
       expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
 
-    testWidgets('Products card navigates to the real Products screen, not Businesses, and back returns to the dashboard', (tester) async {
+    testWidgets('Products: dashboard → per-business overview → one business → one product → back out', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -866,19 +917,37 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Products'));
       await tester.pumpAndSettle();
 
-      // Same LocalProductRepository every business screen reads — proves
-      // this is the real Products module, not a stand-in.
-      expect(find.byType(ProductsScreen), findsOneWidget);
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
+      expect(find.byType(ProductsScreen), findsNothing);
+      expect(find.text('3-Seat Sofa — Charcoal'), findsNothing); // no records before a business is chosen
+
+      await tester.tap(find.text('Karwan Furniture Factory'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
       expect(find.text('3-Seat Sofa — Charcoal'), findsOneWidget);
-      expect(find.byType(AdminBusinessesScreen), findsNothing);
-      expect(find.byType(AdminDashboardScreen), findsNothing);
+      expect(find.text('Office Desk — Standard'), findsNothing); // Erbil's — scoped out
+
+      await tester.tap(find.text('3-Seat Sofa — Charcoal'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminRecordDetailScreen), findsOneWidget);
+      expect(find.text('SOFA-3S-CH'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
       expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
 
-    testWidgets('Orders card navigates to the real Orders screen, not Businesses, and back returns to the dashboard', (tester) async {
+    testWidgets('Orders: dashboard → per-business overview → one business → one order → back out', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -886,16 +955,36 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Orders'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(OrdersScreen), findsOneWidget);
-      expect(find.byType(AdminBusinessesScreen), findsNothing);
-      expect(find.byType(AdminDashboardScreen), findsNothing);
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
+      expect(find.byType(OrdersScreen), findsNothing);
+
+      await tester.tap(find.text('Karwan Furniture Factory'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+      expect(find.text('Ahmed Al-Rashid'), findsOneWidget); // Karwan's standard order
+      expect(find.text('Karwan Furniture Retail'), findsNothing); // Erbil's/Northern's customer
+
+      await tester.tap(find.text('Ahmed Al-Rashid'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminRecordDetailScreen), findsOneWidget);
+      expect(find.text('3-Seat Sofa — Charcoal'), findsOneWidget); // its line item
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
       expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
 
-    testWidgets('Sales card navigates to the real Sales screen, not Businesses, and back returns to the dashboard', (tester) async {
+    testWidgets('Sales: dashboard → per-business overview → one business → one sale → back out', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -903,13 +992,123 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Sales'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(SalesPlaceholderScreen), findsOneWidget);
-      expect(find.byType(AdminBusinessesScreen), findsNothing);
-      expect(find.byType(AdminDashboardScreen), findsNothing);
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
+      expect(find.byType(SalesPlaceholderScreen), findsNothing);
+
+      await tester.tap(find.text('City Storage Store'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+      // Sales lists quick sales only — the same split the business-side
+      // Sales module uses, so this business's ONE standard order (Queen Bed
+      // Frame, Layla Hassan) must not appear here.
+      expect(find.text('Layla Hassan'), findsNothing);
+      expect(find.textContaining('SALE-'), findsOneWidget);
+
+      await tester.tap(find.textContaining('SALE-'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AdminRecordDetailScreen), findsOneWidget);
+      expect(find.text('Plastic Storage Bin (60L)'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminBusinessRecordsScreen), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminOverviewScreen), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
       expect(find.byType(AdminDashboardScreen), findsOneWidget);
+    });
+
+    testWidgets('A System Admin session cannot reach a business operational table by URL either', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      // The previous design whitelisted these four routes for admin
+      // sessions. They are closed again: the drill-down is the only way in,
+      // and it always goes through an explicit business choice.
+      for (final route in [AppRoutes.products, AppRoutes.orders, AppRoutes.sales, AppRoutes.employees]) {
+        container.read(routerProvider).go(route);
+        await tester.pumpAndSettle();
+        expect(find.byType(AdminDashboardScreen), findsOneWidget, reason: '$route should bounce a System Admin back to /admin');
+      }
+      expect(find.byType(ProductsScreen), findsNothing);
+      expect(find.byType(OrdersScreen), findsNothing);
+      expect(find.byType(SalesPlaceholderScreen), findsNothing);
+      expect(find.byType(EmployeesPlaceholderScreen), findsNothing);
+    });
+  });
+
+  group('Admin drill-down total consistency (no invented numbers)', () {
+    ProviderContainer adminContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAdminAuthenticatedController.new)]);
+
+    test('Every dashboard total is the sum of its per-business counts', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final metrics = await container.read(adminMetricsProvider.future);
+      final rows = metrics.byBusiness.values;
+
+      expect(metrics.totalEmployees, rows.fold<int>(0, (sum, m) => sum + m.employeeCount));
+      expect(metrics.totalProducts, rows.fold<int>(0, (sum, m) => sum + m.productCount));
+      expect(metrics.totalOrders, rows.fold<int>(0, (sum, m) => sum + m.orderCount));
+      expect(metrics.totalSalesRecords, rows.fold<int>(0, (sum, m) => sum + m.salesCount));
+      expect(metrics.totalSalesAmount, closeTo(rows.fold<double>(0, (sum, m) => sum + m.salesTotal), 0.001));
+    });
+
+    test('Those totals equal the number of records the repositories actually hold', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final metrics = await container.read(adminMetricsProvider.future);
+      const everything = PagedQuery(pageSize: 500);
+
+      final products = await container.read(productRepositoryProvider).list(everything);
+      expect(metrics.totalProducts, products.total, reason: 'a product belonging to no known business would break this');
+
+      final employees = await container.read(employeeRepositoryProvider).list(everything);
+      expect(metrics.totalEmployees, employees.total);
+
+      // Orders and Sales are one table split by type, so together they must
+      // account for every order record — no double counting, none missed.
+      final orders = await container.read(orderRepositoryProvider).list(everything);
+      expect(metrics.totalOrders + metrics.totalSalesRecords, orders.total);
+    });
+
+    test("Each business's count is exactly the records its drill-down lists", () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final metrics = await container.read(adminMetricsProvider.future);
+
+      for (final business in kDemoBusinesses) {
+        final row = metrics.forBusiness(business.id);
+        expect((await container.read(adminBusinessEmployeesProvider(business.id).future)).length, row.employeeCount, reason: business.name);
+        expect((await container.read(adminBusinessProductsProvider(business.id).future)).length, row.productCount, reason: business.name);
+        expect((await container.read(adminBusinessOrdersProvider(business.id).future)).length, row.orderCount, reason: business.name);
+        expect((await container.read(adminBusinessSalesProvider(business.id).future)).length, row.salesCount, reason: business.name);
+      }
+    });
+
+    testWidgets('The dashboard card shows that derived total, not a seeded one', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      final metrics = await container.read(adminMetricsProvider.future);
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Employees')).value, '${metrics.totalEmployees}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Products')).value, '${metrics.totalProducts}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Orders')).value, '${metrics.totalOrders}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Sales')).value, metrics.totalSalesAmount.toStringAsFixed(0));
     });
   });
 

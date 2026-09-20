@@ -262,5 +262,8 @@
   "demoRoleInventoryStaff": "کارمەندی کۆگا",
   "demoRoleProductionManager": "بەڕێوەبەری بەرهەمهێنان",
   "demoRoleAccountant": "ژمێریار",
-  "demoRoleViewer": "تەنها بینین"
+  "demoRoleViewer": "تەنها بینین",
+  "adminSelectBusiness": "کۆمپانیایەک هەڵبژێرە بۆ بینینی تۆمارەکانی",
+  "adminNoRecordsForBusiness": "ئەم کۆمپانیایە هێشتا هیچ تۆمارێکی لەم بەشەدا نییە.",
+  "fieldBusiness": "کۆمپانیا"
 }

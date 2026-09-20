@@ -25,13 +25,13 @@ class LocalProductionRepository with DemoRepository implements ProductionReposit
 
   final Map<String, List<BomLine>> _bomTemplates = {
     'prod-1': const [
-      BomLine(materialProductId: 'prod-8', materialProductName: 'Solid Pine Timber (2m)', quantityRequired: 4, unit: 'Piece'),
-      BomLine(materialProductId: 'prod-9', materialProductName: 'Upholstery Fabric (roll)', quantityRequired: 3, unit: 'Meter'),
-      BomLine(materialProductId: 'prod-10', materialProductName: 'Wood Screws 4x40mm (box)', quantityRequired: 1, unit: 'Box'),
+      BomLine(materialProductId: 'prod-6', materialProductName: 'Solid Pine Timber (2m)', quantityRequired: 4, unit: 'Piece'),
+      BomLine(materialProductId: 'prod-7', materialProductName: 'Upholstery Fabric (roll)', quantityRequired: 3, unit: 'Meter'),
+      BomLine(materialProductId: 'prod-8', materialProductName: 'Wood Screws 4x40mm (box)', quantityRequired: 1, unit: 'Box'),
     ],
-    'prod-12': const [
-      BomLine(materialProductId: 'prod-8', materialProductName: 'Solid Pine Timber (2m)', quantityRequired: 6, unit: 'Piece'),
-      BomLine(materialProductId: 'prod-11', materialProductName: 'Metal Table Legs (set of 4)', quantityRequired: 1, unit: 'Set'),
+    'prod-5': const [
+      BomLine(materialProductId: 'prod-6', materialProductName: 'Solid Pine Timber (2m)', quantityRequired: 6, unit: 'Piece'),
+      BomLine(materialProductId: 'prod-9', materialProductName: 'Metal Table Legs (set of 4)', quantityRequired: 1, unit: 'Set'),
     ],
   };
 
@@ -58,12 +58,12 @@ class LocalProductionRepository with DemoRepository implements ProductionReposit
       ProductionOrder(
         id: 'prodn-${_nextId++}',
         productionNumber: 'PRDN-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
-        productId: 'prod-12',
+        productId: 'prod-5',
         productName: 'Bookshelf — 5 Tier',
         quantityPlanned: 8,
         quantityProduced: 3,
         batchNumber: 'B-2026-002',
-        materials: _bomTemplates['prod-12']!,
+        materials: _bomTemplates['prod-5']!,
         cost: 210,
         status: ProductionStatus.inProgress,
         assignedTo: 'Production Team B',
@@ -90,11 +90,11 @@ class LocalProductionRepository with DemoRepository implements ProductionReposit
       ProductionOrder(
         id: 'prodn-${_nextId++}',
         productionNumber: 'PRDN-2026-${(_nextNumber++).toString().padLeft(6, '0')}',
-        productId: 'prod-12',
+        productId: 'prod-5',
         productName: 'Bookshelf — 5 Tier',
         quantityPlanned: 4,
         quantityProduced: 0,
-        materials: _bomTemplates['prod-12']!,
+        materials: _bomTemplates['prod-5']!,
         cost: 0,
         status: ProductionStatus.cancelled,
         assignedTo: 'Production Team B',

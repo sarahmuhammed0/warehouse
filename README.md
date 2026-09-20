@@ -229,7 +229,7 @@ npm run test:integration  # login flow, session lifecycle, mandatory tenant-isol
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 62 tests — app shell, RTL/localization, routing guards,
+flutter test           # 74 tests — app shell, RTL/localization, routing guards,
                          # data table states, pagination, dialogs/overlays, the full
                          # login-screen suite (Phase 2), this phase's business-module
                          # suite: product list/detail/create validation, category
@@ -238,9 +238,14 @@ flutter test           # 62 tests — app shell, RTL/localization, routing guard
                          # module filtering, the demo/backend mode selection suite
                          # (buildAuthRepository, DemoAuthRepository, full business-demo
                          # and System-Admin-demo login → dashboard → logout → re-login
-                         # flows, all with the backend off), the admin dashboard's
-                         # interactive stat-card navigation (including the Active/
-                         # Disabled filter actually matching the card's own count),
+                         # flows, all with the backend off), the System Admin's
+                         # three-level drill-down (dashboard stat → per-business
+                         # overview → that business's records → one record, walked
+                         # forward and back for all four metrics, plus the negative:
+                         # a platform statistic never opens a business's own table),
+                         # admin total consistency (every card's number is derived
+                         # from real records and equals the rows behind it),
+                         # the Active/Disabled filter matching its card's own count,
                          # and global detail-page back navigation (a real Navigator
                          # pop — not a fresh route — returning to the exact previous
                          # list/search/filtered state, verified for both LTR and RTL)
@@ -310,7 +315,7 @@ warehouse-os/
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                   62 tests total
+│       └── widget_test.dart                   74 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,

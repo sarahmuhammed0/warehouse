@@ -1,4 +1,5 @@
 import '../../../core/network/paginated_result.dart';
+import '../../../core/repositories/demo_businesses.dart';
 import '../../../core/repositories/demo_data_source.dart';
 import '../../../core/repositories/paged_query.dart';
 import 'admin_business_models.dart';
@@ -16,31 +17,31 @@ class LocalAdminRepository with DemoRepository implements AdminRepository {
   }
 
   final List<AdminBusiness> _items = [];
-  int _nextId = 1;
 
+  /// Identity (id/name/type) comes from `kDemoBusinesses`, the same list the
+  /// products/orders/employees repositories tag their records with — so a
+  /// business the admin can open always has records behind it, and its
+  /// counts come from `admin_metrics.dart` rather than from here.
   void _seed() {
     final now = DateTime.now();
-    final seed = [
-      ('Karwan Furniture Factory', 'Furniture Factory', '+9647701112233', 412, 1830, 284000.0, 6, 400),
-      ('Erbil Central Warehouse', 'Warehouse', '+9647709998877', 1240, 3900, 0.0, 11, 240),
-      ('City Storage Store', 'Storage Store', '+9647701234500', 88, 520, 41000.0, 3, 60),
-      ('Northern Distribution Center', 'Distribution Center', '+9647705556677', 640, 2100, 0.0, 8, 30),
-    ];
-    for (final (name, type, phone, products, orders, sales, users, daysAgo) in seed) {
+    const contacts = {
+      kDemoBusinessKarwan: ('+9647701112233', 400),
+      kDemoBusinessErbil: ('+9647709998877', 240),
+      kDemoBusinessCityStore: ('+9647701234500', 60),
+      kDemoBusinessNorthern: ('+9647705556677', 30),
+    };
+    for (final business in kDemoBusinesses) {
+      final (phone, daysAgo) = contacts[business.id]!;
       _items.add(
         AdminBusiness(
-          id: 'biz-${_nextId++}',
-          name: name,
-          businessType: type,
+          id: business.id,
+          name: business.name,
+          businessType: business.type,
           phone: phone,
           // 3 active + 1 disabled — real status variety, so the dashboard's
           // Active/Disabled stat cards (and the filter they apply) have
           // something real to show rather than an always-empty filter.
-          status: name == 'Northern Distribution Center' ? BusinessAccountStatus.disabled : BusinessAccountStatus.active,
-          productCount: products,
-          orderCount: orders,
-          salesTotal: sales,
-          userCount: users,
+          status: business.id == kDemoBusinessNorthern ? BusinessAccountStatus.disabled : BusinessAccountStatus.active,
           createdAt: now.subtract(Duration(days: daysAgo)),
         ),
       );
@@ -77,10 +78,6 @@ class LocalAdminRepository with DemoRepository implements AdminRepository {
       email: existing.email,
       address: existing.address,
       status: status,
-      productCount: existing.productCount,
-      orderCount: existing.orderCount,
-      salesTotal: existing.salesTotal,
-      userCount: existing.userCount,
       createdAt: existing.createdAt,
     );
   }

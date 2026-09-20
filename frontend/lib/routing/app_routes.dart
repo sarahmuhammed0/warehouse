@@ -75,6 +75,28 @@ class AppRoutes {
   static const adminBusinesses = '/admin/businesses';
   static String adminBusinessDetail(String id) => '/admin/businesses/$id';
 
+  // System Admin drill-down: dashboard stat → per-business overview →
+  // that business's records → one record. Every level is a real route, so
+  // each step is an ordinary router push and the back arrow pops one level
+  // (never a hard-coded "home"). A System Admin never lands on the
+  // business shell's own operational tables — these are admin-shell
+  // screens scoped to an explicitly chosen `businessId`.
+  static const adminEmployees = '/admin/employees';
+  static String adminEmployeesFor(String businessId) => '/admin/employees/$businessId';
+  static String adminEmployeeDetail(String businessId, String id) => '/admin/employees/$businessId/$id';
+
+  static const adminProducts = '/admin/products';
+  static String adminProductsFor(String businessId) => '/admin/products/$businessId';
+  static String adminProductDetail(String businessId, String id) => '/admin/products/$businessId/$id';
+
+  static const adminOrders = '/admin/orders';
+  static String adminOrdersFor(String businessId) => '/admin/orders/$businessId';
+  static String adminOrderDetail(String businessId, String id) => '/admin/orders/$businessId/$id';
+
+  static const adminSales = '/admin/sales';
+  static String adminSalesFor(String businessId) => '/admin/sales/$businessId';
+  static String adminSaleDetail(String businessId, String id) => '/admin/sales/$businessId/$id';
+
   // Retained from Phase 0 — a dev utility, not part of the business nav.
   static const systemStatus = '/system-status';
 

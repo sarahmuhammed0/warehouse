@@ -83,8 +83,45 @@ authentication is untouched and still fully functional.
 | §45–46, 53–54, 59–61 | Soft delete, transactions, error handling, validation, performance, business rules | Archive/deactivate patterns throughout; `AppErrorState`/`AppEmptyState`/loading states; `PagedListController` (pagination, never "load all") | ✅ | Structural — no fabricated business logic; see `core/repositories/paged_list_controller.dart` |
 | §51 | Custom fields | Settings → Custom Fields section | 🔶 | Add/remove field-name UI works; not yet attached to any entity's actual form |
 | §52 | Backup / restore | Settings → Backup & Restore section | 🔶 | Manual/scheduled backup buttons, confirmation-gated restore, history list — all UI-only, explicitly per the brief's "do NOT implement actual backup logic this phase" |
-| §56–57 | System Admin dashboard, business detail | `features/admin/*` | ✅ | Previously deferred (Phase 2 built no System Admin UI) — now real, cross-tenant aggregate stats + per-business detail/disable/activate |
+| §56–57 | System Admin dashboard, business detail | `features/admin/*` | ✅ | Previously deferred (Phase 2 built no System Admin UI) — now real, cross-tenant aggregate stats + per-business detail/disable/activate, plus the three-level drill-down below |
 | §65 | Seed/demo data | Every `Local*Repository`'s `_seed()` | ✅ | Clearly isolated per module — see §48 rule below |
+
+## System Admin drill-down (aggregate → business → records → record)
+
+A System Admin has no selected business, so a platform statistic can't open
+a business's operational table — there'd be no answer to "whose records?".
+Tapping **Employees / Products / Orders / Sales** on the admin dashboard
+therefore opens a per-business *overview* first:
+
+| Level | Route | Screen |
+|---|---|---|
+| 1 — platform total | `/admin` | `admin_dashboard_screen.dart` |
+| 2 — per business | `/admin/<metric>` | `presentation/admin_overview_screen.dart` |
+| 3 — that business's records | `/admin/<metric>/<businessId>` | `presentation/admin_business_records_screen.dart` |
+| 4 — one record | `/admin/<metric>/<businessId>/<recordId>` | `presentation/admin_record_detail_screen.dart` |
+
+All four metrics share those three screens, parameterised by
+`presentation/admin_metric.dart` — adding a fifth drillable statistic means
+adding an enum value, not four more screens. Each level is a real route, so
+every step is an ordinary `context.push` and the back arrow pops exactly one
+level (`context.pop()`, never a hard-coded destination).
+
+**Businesses / Active / Disabled stay direct** — they open the Businesses
+list, filtered. A *business* statistic's records are the business list, so
+there is no business left to choose.
+
+**The numbers are derived, not seeded.** `data/admin_metrics.dart` computes
+every count from the same `listForBusiness` calls level 3 uses to build its
+table, so a card's number is by construction the number of rows behind it.
+`AdminBusiness` deliberately carries no `productCount`/`orderCount`/
+`salesTotal`/`userCount` field any more — a stored count would be a second,
+silently diverging source of truth. Three tests in
+`test/widget_test.dart`'s *Admin drill-down total consistency* group hold
+that line.
+
+Levels 3 and 4 are read-only. A platform admin oversees a tenant's records
+rather than operating them; the tenant's own staff do that in the business
+shell under their own permissions (`docs/roles-and-permissions.md`).
 
 ## §48 rule — demo data isolation (explicit, verified)
 
@@ -126,8 +163,9 @@ modified this phase, per the master prompt's explicit §49 instruction.
   (financial figures) — the modules the roles-and-permissions brief's own
   worked examples and test matrix center on. Sales, Orders, Inventory,
   Purchases, Returns, Production, and Settings are reachable-or-not exactly
-  per role (nav-level, and System Admin's four browsable routes are
-  unaffected either way), but their individual buttons don't yet check
+  per role (nav-level; a System Admin session no longer reaches any
+  business route at all — see the drill-down section above), but their
+  individual buttons don't yet check
   `hasPermission` the way Products' do — same reusable pattern
   (`ref.watch(currentPermissionsProvider)` + `hasPermission(...)`), not
   wired into every remaining screen in this pass. See

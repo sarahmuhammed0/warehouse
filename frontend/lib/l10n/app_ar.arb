@@ -262,5 +262,8 @@
   "demoRoleInventoryStaff": "موظف مخزون",
   "demoRoleProductionManager": "مدير إنتاج",
   "demoRoleAccountant": "محاسب",
-  "demoRoleViewer": "مشاهد فقط"
+  "demoRoleViewer": "مشاهد فقط",
+  "adminSelectBusiness": "اختر شركة لعرض سجلاتها",
+  "adminNoRecordsForBusiness": "لا توجد سجلات لهذه الشركة في هذه الوحدة بعد.",
+  "fieldBusiness": "الشركة"
 }

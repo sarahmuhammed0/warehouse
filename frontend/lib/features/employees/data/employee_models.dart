@@ -7,6 +7,7 @@ enum EmployeeStatus { active, inactive }
 class Employee {
   const Employee({
     required this.id,
+    required this.businessId,
     required this.name,
     required this.phone,
     this.email,
@@ -18,6 +19,9 @@ class Employee {
   });
 
   final String id;
+
+  /// Owning tenant — see `Product.businessId`.
+  final String businessId;
   final String name;
   final String phone;
   final String? email;

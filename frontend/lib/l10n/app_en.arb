@@ -273,5 +273,8 @@
   "demoRoleInventoryStaff": "Inventory Staff",
   "demoRoleProductionManager": "Production Manager",
   "demoRoleAccountant": "Accountant",
-  "demoRoleViewer": "Viewer"
+  "demoRoleViewer": "Viewer",
+  "adminSelectBusiness": "Select a business to view its records",
+  "adminNoRecordsForBusiness": "This business has no records in this module yet.",
+  "fieldBusiness": "Business"
 }

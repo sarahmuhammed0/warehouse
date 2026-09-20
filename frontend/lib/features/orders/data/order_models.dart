@@ -34,6 +34,7 @@ class OrderLineItem {
 class Order {
   const Order({
     required this.id,
+    required this.businessId,
     required this.orderNumber,
     required this.orderType,
     this.customerId,
@@ -49,6 +50,9 @@ class Order {
   });
 
   final String id;
+
+  /// Owning tenant — see `Product.businessId`.
+  final String businessId;
   final String orderNumber;
   final OrderType orderType;
   final String? customerId;

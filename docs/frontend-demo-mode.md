@@ -86,6 +86,29 @@ completely independent of auth mode. Logging in via demo mode simply
 removes the one gate that was blocking you from reaching them without a
 backend; nothing about how those modules work changed.
 
+## Demo tenants, and what the demo data does *not* simulate
+
+`lib/core/repositories/demo_businesses.dart` lists the four demo tenants
+(`kDemoBusinesses`), and every seeded product, order and employee carries
+that tenant's `businessId` — the frontend half of spec §36's multi-tenancy
+tagging. That tagging exists so the System Admin's drill-down
+(`docs/frontend-coverage.md`) can show real per-business record sets rather
+than invented counts.
+
+What it deliberately does **not** do is scope the *business-side* screens.
+A demo business session still sees the whole demo dataset (all 18 products,
+not just its own 10), because the local repositories are not
+session-scoped — there is no per-tenant filtering in the frontend, and there
+should not be: in production, tenant isolation is enforced server-side on
+every query (`docs/multi-tenancy.md`), and a frontend filter would be a
+decoration over a boundary it cannot actually hold. This is a known,
+deliberate demo-mode simplification, not a bug and not a security claim.
+
+The System Admin views are the exception, and only because they are
+*supposed* to be cross-tenant: they group by `businessId` explicitly, and
+a business is always chosen by the admin rather than inferred from a
+session.
+
 ## Session persistence
 
 Demo sessions use the same `flutter_secure_storage`-backed `TokenStorage`

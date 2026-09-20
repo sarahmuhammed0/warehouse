@@ -28,7 +28,7 @@ class LocalPurchaseRepository with DemoRepository implements PurchaseRepository 
         supplierId: 'sup-1',
         supplierName: 'Erbil Timber Supply',
         items: const [
-          PurchaseLineItem(productId: 'prod-8', productName: 'Solid Pine Timber (2m)', quantity: 200, unitCost: 8, tax: 80),
+          PurchaseLineItem(productId: 'prod-6', productName: 'Solid Pine Timber (2m)', quantity: 200, unitCost: 8, tax: 80),
         ],
         paidAmount: 1200,
         paymentMethod: 'Bank transfer',
@@ -44,7 +44,7 @@ class LocalPurchaseRepository with DemoRepository implements PurchaseRepository 
         supplierId: 'sup-2',
         supplierName: 'Sulaymaniyah Hardware Co.',
         items: const [
-          PurchaseLineItem(productId: 'prod-11', productName: 'Metal Table Legs (set of 4)', quantity: 40, unitCost: 12, tax: 24),
+          PurchaseLineItem(productId: 'prod-9', productName: 'Metal Table Legs (set of 4)', quantity: 40, unitCost: 12, tax: 24),
         ],
         paidAmount: 0,
         paymentMethod: 'Cash',
@@ -60,7 +60,7 @@ class LocalPurchaseRepository with DemoRepository implements PurchaseRepository 
         supplierId: 'sup-1',
         supplierName: 'Erbil Timber Supply',
         items: const [
-          PurchaseLineItem(productId: 'prod-9', productName: 'Upholstery Fabric (roll)', quantity: 20, unitCost: 6, tax: 6),
+          PurchaseLineItem(productId: 'prod-7', productName: 'Upholstery Fabric (roll)', quantity: 20, unitCost: 6, tax: 6),
         ],
         paidAmount: 126,
         paymentMethod: 'Cash',
@@ -76,7 +76,7 @@ class LocalPurchaseRepository with DemoRepository implements PurchaseRepository 
         supplierId: 'sup-2',
         supplierName: 'Sulaymaniyah Hardware Co.',
         items: const [
-          PurchaseLineItem(productId: 'prod-10', productName: 'Wood Screws 4x40mm (box)', quantity: 30, unitCost: 3, tax: 4.5),
+          PurchaseLineItem(productId: 'prod-8', productName: 'Wood Screws 4x40mm (box)', quantity: 30, unitCost: 3, tax: 4.5),
         ],
         paidAmount: 0,
         paymentMethod: 'Bank transfer',

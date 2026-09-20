@@ -13,6 +13,7 @@ import '../../shared/tables/app_data_table.dart';
 import '../../shared/tables/table_column.dart';
 import '../../shared/tables/table_row_actions.dart';
 import 'data/admin_business_models.dart';
+import 'data/admin_metrics.dart';
 import 'data/admin_providers.dart';
 
 /// System Admin's business list (spec §2). Creation of a new business is
@@ -28,13 +29,25 @@ class AdminBusinessesScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(adminBusinessListControllerProvider);
     final controller = ref.read(adminBusinessListControllerProvider.notifier);
+    final metrics = ref.watch(adminMetricsProvider).asData?.value;
 
     final columns = <AppTableColumn<AdminBusiness>>[
       AppTableColumn(label: l10n.fieldName, cellBuilder: (context, item) => Text(item.name)),
       AppTableColumn(label: l10n.fieldModule, cellBuilder: (context, item) => Text(item.businessType)),
       AppTableColumn(label: l10n.fieldPhone, cellBuilder: (context, item) => Text(item.phone)),
-      AppTableColumn(label: l10n.navProducts, numeric: true, cellBuilder: (context, item) => Text('${item.productCount}')),
-      AppTableColumn(label: l10n.fieldEmployee, numeric: true, cellBuilder: (context, item) => Text('${item.userCount}')),
+      // Derived, like everywhere else the admin sees a count — `metrics` is
+      // null only while the aggregate is still loading, and a dash is shown
+      // rather than a zero that would read as "this business has none".
+      AppTableColumn(
+        label: l10n.navProducts,
+        numeric: true,
+        cellBuilder: (context, item) => Text(metrics == null ? '—' : '${metrics.forBusiness(item.id).productCount}'),
+      ),
+      AppTableColumn(
+        label: l10n.navEmployees,
+        numeric: true,
+        cellBuilder: (context, item) => Text(metrics == null ? '—' : '${metrics.forBusiness(item.id).employeeCount}'),
+      ),
       AppTableColumn(
         label: l10n.fieldStatus,
         cellBuilder: (context, item) => StatusBadge(
