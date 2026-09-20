@@ -27,6 +27,7 @@ import 'package:warehouse_os_app/features/categories/categories_screen.dart';
 import 'package:warehouse_os_app/features/customers/customers_screen.dart';
 import 'package:warehouse_os_app/features/customers/presentation/customer_detail_screen.dart';
 import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
+import 'package:warehouse_os_app/features/employees/employees_screen.dart';
 import 'package:warehouse_os_app/features/orders/orders_screen.dart';
 import 'package:warehouse_os_app/features/orders/presentation/order_detail_screen.dart';
 import 'package:warehouse_os_app/features/production/presentation/production_detail_screen.dart';
@@ -38,6 +39,7 @@ import 'package:warehouse_os_app/features/purchases/presentation/purchase_detail
 import 'package:warehouse_os_app/features/purchases/purchases_screen.dart';
 import 'package:warehouse_os_app/features/returns/presentation/return_detail_screen.dart';
 import 'package:warehouse_os_app/features/returns/returns_screen.dart';
+import 'package:warehouse_os_app/features/sales/sales_screen.dart';
 import 'package:warehouse_os_app/features/search/presentation/search_results_screen.dart';
 import 'package:warehouse_os_app/features/suppliers/presentation/supplier_detail_screen.dart';
 import 'package:warehouse_os_app/features/suppliers/suppliers_screen.dart';
@@ -838,7 +840,7 @@ void main() {
       }
     });
 
-    testWidgets('Employees card navigates to the Businesses list (no cross-tenant Employees screen exists)', (tester) async {
+    testWidgets('Employees card navigates to the real Employees screen, not Businesses, and back returns to the dashboard', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -846,10 +848,16 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Employee'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      expect(find.byType(EmployeesPlaceholderScreen), findsOneWidget);
+      expect(find.byType(AdminBusinessesScreen), findsNothing);
+      expect(find.byType(AdminDashboardScreen), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
 
-    testWidgets('Products card navigates to the Businesses list, which breaks the total down per business', (tester) async {
+    testWidgets('Products card navigates to the real Products screen, not Businesses, and back returns to the dashboard', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -857,10 +865,19 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Products'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      // Same LocalProductRepository every business screen reads — proves
+      // this is the real Products module, not a stand-in.
+      expect(find.byType(ProductsScreen), findsOneWidget);
+      expect(find.text('3-Seat Sofa — Charcoal'), findsOneWidget);
+      expect(find.byType(AdminBusinessesScreen), findsNothing);
+      expect(find.byType(AdminDashboardScreen), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
 
-    testWidgets('Orders card navigates to the Businesses list', (tester) async {
+    testWidgets('Orders card navigates to the real Orders screen, not Businesses, and back returns to the dashboard', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -868,10 +885,16 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Orders'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      expect(find.byType(OrdersScreen), findsOneWidget);
+      expect(find.byType(AdminBusinessesScreen), findsNothing);
+      expect(find.byType(AdminDashboardScreen), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
 
-    testWidgets('Sales card navigates to the Businesses list', (tester) async {
+    testWidgets('Sales card navigates to the real Sales screen, not Businesses, and back returns to the dashboard', (tester) async {
       final container = adminContainer();
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
@@ -879,7 +902,13 @@ void main() {
       await tester.tap(find.widgetWithText(StatCard, 'Sales'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdminBusinessesScreen), findsOneWidget);
+      expect(find.byType(SalesPlaceholderScreen), findsOneWidget);
+      expect(find.byType(AdminBusinessesScreen), findsNothing);
+      expect(find.byType(AdminDashboardScreen), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+      expect(find.byType(AdminDashboardScreen), findsOneWidget);
     });
   });
 

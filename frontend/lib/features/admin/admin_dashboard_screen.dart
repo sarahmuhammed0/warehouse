@@ -47,7 +47,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                 StatCard(label: l10n.adminNavBusinesses, value: '${all.length}', icon: Icons.apartment_outlined, onTap: () => _openBusinesses(context, ref)),
                 StatCard(label: l10n.statusActive, value: '$active', icon: Icons.check_circle_outline, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.active)),
                 StatCard(label: l10n.statusDisabled, value: '$disabled', icon: Icons.block_outlined, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.disabled)),
-                StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline, onTap: () => _openBusinesses(context, ref)),
+                StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline, onTap: () => context.push(AppRoutes.employees)),
               ],
             ),
             desktop: (context) => Row(
@@ -58,7 +58,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(child: StatCard(label: l10n.statusDisabled, value: '$disabled', icon: Icons.block_outlined, onTap: () => _openBusinesses(context, ref, status: BusinessAccountStatus.disabled))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline, onTap: () => _openBusinesses(context, ref))),
+                Expanded(child: StatCard(label: l10n.fieldEmployee, value: '$totalUsers', icon: Icons.people_outline, onTap: () => context.push(AppRoutes.employees))),
               ],
             ),
           ),
@@ -66,18 +66,18 @@ class AdminDashboardScreen extends ConsumerWidget {
             mobile: (context) => Column(
               spacing: AppSpacing.md,
               children: [
-                StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined, onTap: () => _openBusinesses(context, ref)),
-                StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined, onTap: () => _openBusinesses(context, ref)),
-                StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined, onTap: () => _openBusinesses(context, ref)),
+                StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined, onTap: () => context.push(AppRoutes.products)),
+                StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined, onTap: () => context.push(AppRoutes.orders)),
+                StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined, onTap: () => context.push(AppRoutes.sales)),
               ],
             ),
             desktop: (context) => Row(
               children: [
-                Expanded(child: StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined, onTap: () => _openBusinesses(context, ref))),
+                Expanded(child: StatCard(label: l10n.navProducts, value: '$totalProducts', icon: Icons.inventory_2_outlined, onTap: () => context.push(AppRoutes.products))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined, onTap: () => _openBusinesses(context, ref))),
+                Expanded(child: StatCard(label: l10n.navOrders, value: '$totalOrders', icon: Icons.receipt_long_outlined, onTap: () => context.push(AppRoutes.orders))),
                 const SizedBox(width: AppSpacing.md),
-                Expanded(child: StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined, onTap: () => _openBusinesses(context, ref))),
+                Expanded(child: StatCard(label: l10n.navSales, value: totalSales.toStringAsFixed(0), icon: Icons.point_of_sale_outlined, onTap: () => context.push(AppRoutes.sales))),
               ],
             ),
           ),
@@ -110,18 +110,19 @@ class AdminDashboardScreen extends ConsumerWidget {
     );
   }
 
-  /// Every stat card drills into the same Businesses list its number was
-  /// folded from (`adminBusinessListControllerProvider`) — Active/Disabled
-  /// additionally pre-apply the real status filter the list already
-  /// supports (`admin_repository.dart` reads `query.filters['status']`),
-  /// so the count on the card and the rows the user lands on come from the
-  /// exact same data, never a second hard-coded number. Employees/Products/
-  /// Orders/Sales are cross-tenant aggregates with no per-business session
-  /// selected in System Admin mode (see docs/frontend-demo-mode.md) — there
-  /// is no real per-tenant list to deep-link to for those, so they land on
-  /// the same Businesses list, which already breaks each of those numbers
-  /// down per business (see its Products/Employees columns and each row's
-  /// own detail screen).
+  /// Businesses/Active/Disabled drill into the same Businesses list their
+  /// numbers were folded from (`adminBusinessListControllerProvider`) —
+  /// Active/Disabled additionally pre-apply the real status filter the list
+  /// already supports (`admin_repository.dart` reads
+  /// `query.filters['status']`), so the count on the card and the rows the
+  /// user lands on come from the exact same data, never a second
+  /// hard-coded number. `context.go`, not `push`: these three stay inside
+  /// the admin shell (a same-shell peer navigation, like the sidebar), no
+  /// back-to-dashboard step is expected. Employees/Products/Orders/Sales
+  /// are different — they `push` into the *business* shell's real screens
+  /// (`_isAdminBrowsableRoute` in app_router.dart lets a System Admin
+  /// session reach exactly those four routes) so the back arrow those
+  /// screens gain when reached this way (`context.canPop()`) returns here.
   void _openBusinesses(BuildContext context, WidgetRef ref, {BusinessAccountStatus? status}) {
     ref.read(adminBusinessListControllerProvider.notifier).setFilters(status == null ? {} : {'status': status});
     context.go(AppRoutes.adminBusinesses);

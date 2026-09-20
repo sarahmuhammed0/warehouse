@@ -218,8 +218,26 @@ String? _redirect(Ref ref, GoRouterState state) {
     return isAdminSession ? AppRoutes.adminDashboard : AppRoutes.dashboard;
   }
   if (isAdminRoute && !isAdminSession) return AppRoutes.dashboard;
-  if (!isAdminRoute && isAdminSession) return AppRoutes.adminDashboard;
+  if (!isAdminRoute && isAdminSession && !_isAdminBrowsableRoute(location)) return AppRoutes.adminDashboard;
   return null;
+}
+
+/// The System Admin dashboard's Employees/Products/Orders/Sales stat cards
+/// (§ admin dashboard card mapping) open these real business-module screens
+/// directly — by explicit instruction, not the Businesses list, even though
+/// System Admin has no single selected business/tenant. There's genuinely
+/// no per-business session to scope these to in this phase, so what an
+/// admin sees here is the same demo data any business session would (the
+/// `Local*Repository`s aren't session-scoped) — an accepted, documented
+/// limitation (docs/frontend-demo-mode.md), not a masked bug. Narrow
+/// on purpose: this does not open the rest of the business app (Categories,
+/// Inventory, Customers, etc.) to admin sessions, only the four routes the
+/// dashboard's cards actually link to.
+bool _isAdminBrowsableRoute(String location) {
+  return location.startsWith(AppRoutes.products) ||
+      location.startsWith(AppRoutes.orders) ||
+      location.startsWith(AppRoutes.sales) ||
+      location.startsWith(AppRoutes.employees);
 }
 
 /// Bridges Riverpod state changes into the `Listenable` go_router expects

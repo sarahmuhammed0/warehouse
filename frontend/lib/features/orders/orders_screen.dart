@@ -42,6 +42,11 @@ class OrdersScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navOrders,
+      // See ProductsScreen's identical showBackButton comment — only
+      // visible when reached via a push (e.g. the admin dashboard's Orders
+      // card), never on normal sidebar navigation.
+      showBackButton: context.canPop(),
+      backFallbackRoute: AppRoutes.adminDashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navOrders}', icon: Icons.add, onPressed: () => context.push('/orders/new')),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(

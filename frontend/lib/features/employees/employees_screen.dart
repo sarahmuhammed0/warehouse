@@ -44,6 +44,11 @@ class EmployeesPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navEmployees,
+      // See ProductsScreen's identical showBackButton comment — only
+      // visible when reached via a push (e.g. the admin dashboard's
+      // Employee card), never on normal sidebar navigation.
+      showBackButton: context.canPop(),
+      backFallbackRoute: AppRoutes.adminDashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navEmployees}', icon: Icons.add, onPressed: () => showEmployeeFormDialog(context)),
       secondaryActions: [
         AppButton(label: l10n.fieldRole, icon: Icons.admin_panel_settings_outlined, variant: AppButtonVariant.outline, onPressed: () => context.push(AppRoutes.roles)),

@@ -53,6 +53,11 @@ class SalesPlaceholderScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navSales,
+      // See ProductsScreen's identical showBackButton comment — only
+      // visible when reached via a push (e.g. the admin dashboard's Sales
+      // card), never on normal sidebar navigation.
+      showBackButton: context.canPop(),
+      backFallbackRoute: AppRoutes.adminDashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navSales}', icon: Icons.point_of_sale_outlined, onPressed: () => context.push(AppRoutes.saleNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
       body: Column(

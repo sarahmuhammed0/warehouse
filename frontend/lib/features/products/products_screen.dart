@@ -99,6 +99,13 @@ class ProductsScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: l10n.navProducts,
+      // Only shown when there's really something to pop back to — normal
+      // sidebar navigation lands here via `go` (nothing to pop); the
+      // System Admin dashboard's Products card reaches this same screen
+      // via `push` (see app_router.dart's `_isAdminBrowsableRoute`), where
+      // popping correctly returns to the admin dashboard.
+      showBackButton: context.canPop(),
+      backFallbackRoute: AppRoutes.adminDashboard,
       primaryAction: AppButton(
         label: '${l10n.add} ${l10n.navProducts}',
         icon: Icons.add,
