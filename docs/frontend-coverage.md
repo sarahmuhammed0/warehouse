@@ -172,6 +172,15 @@ number, currency, language, time zone) is not in the frontend's business
 model, and inputs for fields nothing stores would be a form that lies about
 what it saves.
 
+## Business-side functionality audit
+
+Every interactive control on the business side was audited for dead, fake,
+partial and missing behaviour, and the gaps fixed in demo mode. The largest
+finding was that **no module wrote a cross-module side effect** — selling,
+purchasing, returning and producing never moved stock. Full module-by-module
+findings, what each control does now, and an honest list of what remains
+backend-dependent: **[`docs/business-frontend-functionality-audit.md`](business-frontend-functionality-audit.md)**.
+
 ## §48 rule — demo data isolation (explicit, verified)
 
 Every repository backed by local data implements the `DemoRepository`

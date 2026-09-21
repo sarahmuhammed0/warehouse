@@ -125,7 +125,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => PurchaseDetailScreen(purchaseId: state.pathParameters['id']!),
           ),
           GoRoute(path: AppRoutes.returns, builder: (context, state) => const ReturnsPlaceholderScreen()),
-          GoRoute(path: AppRoutes.returnNew, builder: (context, state) => const ReturnFormScreen()),
+          GoRoute(
+            path: AppRoutes.returnNew,
+            builder: (context, state) => ReturnFormScreen(orderId: state.uri.queryParameters['orderId']),
+          ),
           GoRoute(
             path: '/returns/:id',
             builder: (context, state) => ReturnDetailScreen(returnId: state.pathParameters['id']!),

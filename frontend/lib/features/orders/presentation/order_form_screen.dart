@@ -116,6 +116,19 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
       );
       final created = await ref.read(orderRepositoryProvider).create(draft);
       await ref.read(orderListControllerProvider.notifier).reload();
+      // Roll the order into the customer's running totals, so the
+      // Customers table and their detail stats stop being frozen at the
+      // values they were seeded with.
+      final customerId = created.customerId;
+      if (customerId != null) {
+        await ref.read(customerRepositoryProvider).applyOrder(
+              customerId,
+              grandTotal: created.grandTotal,
+              paidAmount: created.paidAmount,
+            );
+        await ref.read(customerListControllerProvider.notifier).reload();
+        ref.invalidate(customerByIdProvider(customerId));
+      }
       // A quick sale is born Completed (order_models.dart), so the goods
       // leave the shelf now. A standard order starts as a Draft and moves
       // stock when it reaches Completed — see `OrderDetailScreen._transition`.

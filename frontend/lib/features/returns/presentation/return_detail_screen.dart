@@ -9,6 +9,8 @@ import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../inventory/data/inventory_models.dart';
+import '../../orders/data/order_models.dart';
+import '../../orders/data/order_providers.dart';
 import '../../inventory/data/stock_engine.dart';
 import '../../../theme/app_typography.dart';
 import '../data/return_models.dart';
@@ -143,6 +145,26 @@ class ReturnDetailScreen extends ConsumerWidget {
       type: MovementType.returnMovement,
       note: item.returnNumber,
     );
+
+    // Close the loop back to the order. Without this a completed return
+    // left its order still reading "Completed", so the two modules
+    // disagreed about whether the goods had come back. Partial when only
+    // some lines came back, fully Returned when all of them did.
+    try {
+      final order = await ref.read(orderRepositoryProvider).getById(item.orderId);
+      final returnedByProduct = <String, int>{};
+      for (final line in item.items) {
+        returnedByProduct.update(line.productId, (v) => v + line.quantity, ifAbsent: () => line.quantity);
+      }
+      final everythingCameBack = order.items.every((o) => (returnedByProduct[o.productId] ?? 0) >= o.quantity);
+      await ref.read(orderListControllerProvider.notifier).updateStatus(
+            order.id,
+            everythingCameBack ? OrderStatus.returned : OrderStatus.partiallyReturned,
+          );
+      ref.invalidate(orderByIdProvider(order.id));
+    } catch (_) {
+      // A return whose order no longer exists must not fail the return.
+    }
   }
 
   Widget _row(String label, String value) {

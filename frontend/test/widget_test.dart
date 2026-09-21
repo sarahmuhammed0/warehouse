@@ -46,6 +46,8 @@ import 'package:warehouse_os_app/features/orders/data/order_models.dart';
 import 'package:warehouse_os_app/features/orders/data/order_providers.dart';
 import 'package:warehouse_os_app/features/orders/data/order_stock.dart';
 import 'package:warehouse_os_app/features/orders/presentation/order_form_screen.dart';
+import 'package:warehouse_os_app/features/customers/data/customer_models.dart';
+import 'package:warehouse_os_app/features/customers/data/customer_providers.dart';
 import 'package:warehouse_os_app/features/customers/presentation/customer_form_dialog.dart';
 import 'package:warehouse_os_app/features/inventory/presentation/stock_adjustment_dialog.dart';
 import 'package:warehouse_os_app/features/reports/presentation/report_export.dart';
@@ -2215,6 +2217,56 @@ void main() {
       final after = await container.read(dashboardMetricsProvider.future);
       expect(after.totalSalesTotal, greaterThan(before.totalSalesTotal));
       expect(after.totalStockQuantity, before.totalStockQuantity - 1);
+    });
+  });
+
+  group('Cross-module effects beyond stock', () {
+    test("Creating an order rolls into the customer's totals", () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final customers = container.read(customerRepositoryProvider);
+      final created = await customers.create(const CustomerDraft(fullName: 'Rollup Test', phone: '+9647700000123'));
+
+      // A customer starts at zero and used to stay there for ever, so the
+      // Customers table was permanently wrong for anyone you added.
+      expect(created.totalPurchases, 0);
+      expect(created.orderCount, 0);
+
+      await customers.applyOrder(created.id, grandTotal: 250, paidAmount: 100);
+      final after = await customers.getById(created.id);
+
+      expect(after.orderCount, 1);
+      expect(after.totalPurchases, 250);
+      expect(after.outstandingBalance, 150, reason: 'what is still owed on the order');
+    });
+
+    test('Overpaying does not create a negative balance', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final customers = container.read(customerRepositoryProvider);
+      final created = await customers.create(const CustomerDraft(fullName: 'Overpay', phone: '+9647700000124'));
+
+      await customers.applyOrder(created.id, grandTotal: 100, paidAmount: 180);
+      expect((await customers.getById(created.id)).outstandingBalance, 0);
+    });
+
+    test('Creating a transfer really adds a row — the repository method had no caller', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final inventory = container.read(inventoryRepositoryProvider);
+      final before = (await inventory.listTransfers(const PagedQuery(pageSize: 100))).total;
+
+      await inventory.createTransfer(
+        fromWarehouseId: 'wh-1',
+        toWarehouseId: 'wh-2',
+        productName: '3-Seat Sofa — Charcoal',
+        quantity: 3,
+      );
+
+      final after = await inventory.listTransfers(const PagedQuery(pageSize: 100));
+      expect(after.total, before + 1);
+      expect(after.items.first.quantity, 3);
+      expect(after.items.first.status, TransferStatus.pending);
     });
   });
 

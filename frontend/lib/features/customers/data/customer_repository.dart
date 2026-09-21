@@ -10,6 +10,17 @@ abstract class CustomerRepository {
   Future<Customer> create(CustomerDraft draft);
   Future<Customer> update(String id, CustomerDraft draft);
   Future<void> setStatus(String id, CustomerStatus status);
+
+  /// Rolls one order into this customer's running totals.
+  ///
+  /// `totalPurchases`, `outstandingBalance` and `orderCount` were seeded
+  /// values that nothing ever changed: a customer you created started at
+  /// zero and stayed there no matter how many orders you placed for them,
+  /// so the Customers table and the detail screen's stat cards were
+  /// permanently wrong for every non-seeded customer. Server-computed in a
+  /// real deployment (see the contract notes' "never client-trusted"
+  /// caveat); computed here so the demo tells the truth.
+  Future<Customer> applyOrder(String id, {required double grandTotal, required double paidAmount});
 }
 
 class LocalCustomerRepository with DemoRepository implements CustomerRepository {
@@ -147,5 +158,33 @@ class LocalCustomerRepository with DemoRepository implements CustomerRepository 
       orderCount: existing.orderCount,
       createdAt: existing.createdAt,
     );
+  }
+
+  @override
+  Future<Customer> applyOrder(String id, {required double grandTotal, required double paidAmount}) async {
+    await simulatedLatency();
+    final index = _items.indexWhere((c) => c.id == id);
+    if (index == -1) throw StateError('Customer not found');
+    final existing = _items[index];
+    final updated = Customer(
+      id: existing.id,
+      code: existing.code,
+      fullName: existing.fullName,
+      phone: existing.phone,
+      secondaryPhone: existing.secondaryPhone,
+      email: existing.email,
+      address: existing.address,
+      company: existing.company,
+      notes: existing.notes,
+      status: existing.status,
+      totalPurchases: existing.totalPurchases + grandTotal,
+      // What they still owe on this order. Never negative: overpaying is
+      // not a credit balance in this model.
+      outstandingBalance: existing.outstandingBalance + (grandTotal - paidAmount).clamp(0, double.infinity),
+      orderCount: existing.orderCount + 1,
+      createdAt: existing.createdAt,
+    );
+    _items[index] = updated;
+    return updated;
   }
 }

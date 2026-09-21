@@ -19,7 +19,17 @@ import '../data/return_providers.dart';
 /// quantity: the per-line quantity stepper (capped at the order's own line
 /// quantity) covers all three without three different screens.
 class ReturnFormScreen extends ConsumerStatefulWidget {
-  const ReturnFormScreen({super.key});
+  const ReturnFormScreen({super.key, this.orderId});
+
+  /// Preselects the order to return against.
+  ///
+  /// The Orders detail screen offers Return on a completed order. It used
+  /// to just flip the status to Returned, which left the Returns module
+  /// empty -- the order claimed to have been returned and no return record
+  /// existed. It now sends the user here with the order already chosen, so
+  /// the return is really created and goes through Requested -> Approved ->
+  /// Completed like any other (and restocks on completion).
+  final String? orderId;
 
   @override
   ConsumerState<ReturnFormScreen> createState() => _ReturnFormScreenState();
@@ -96,6 +106,14 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final ordersAsync = ref.watch(completedOrdersProvider);
+    // Resolve the preselected order once its list has loaded.
+    final preselect = widget.orderId;
+    if (preselect != null && _order == null) {
+      final match = ordersAsync.asData?.value.where((o) => o.id == preselect);
+      if (match != null && match.isNotEmpty) {
+        _order = match.first;
+      }
+    }
 
     return PageScaffold(
       title: '${l10n.add} ${l10n.navReturns}',

@@ -16,7 +16,9 @@ import '../products/data/product_models.dart';
 import '../products/data/product_providers.dart';
 import 'data/inventory_models.dart';
 import 'data/inventory_providers.dart';
+import '../../shared/buttons/app_button.dart';
 import 'presentation/stock_adjustment_dialog.dart';
+import 'presentation/transfer_form_dialog.dart';
 
 /// Inventory (spec §10/§11/§12) — one screen, four tabs, matching the
 /// module's own internal structure rather than four separate routes (the
@@ -269,6 +271,15 @@ class _TransfersTab extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 16,
       children: [
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: AppButton(
+            key: const ValueKey('newTransfer'),
+            label: '${l10n.add} ${l10n.transfer}',
+            icon: Icons.add,
+            onPressed: () => showTransferFormDialog(context),
+          ),
+        ),
         Expanded(
           child: SingleChildScrollView(
             child: AppDataTable<StockTransfer>(

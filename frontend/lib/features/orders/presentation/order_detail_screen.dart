@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
@@ -77,6 +78,16 @@ class OrderDetailScreen extends ConsumerWidget {
 
   Future<void> _transition(BuildContext context, WidgetRef ref, Order order, OrderStatus next) async {
     final l10n = AppLocalizations.of(context)!;
+    // Returning is a workflow, not a status flip. Flipping the status here
+    // left Returns empty while the order claimed to have been returned —
+    // and skipped the condition/quantity/refund decisions a return needs
+    // before it can restock. Hand off to the return form with this order
+    // already selected; `ReturnDetailScreen` sets the order's status when
+    // the return completes.
+    if (next == OrderStatus.returned || next == OrderStatus.partiallyReturned) {
+      context.push('${AppRoutes.returnNew}?orderId=${order.id}');
+      return;
+    }
     if (next == OrderStatus.cancelled) {
       final confirmed = await confirmAction(
         context,
