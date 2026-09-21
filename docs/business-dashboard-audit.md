@@ -57,41 +57,54 @@ All fifteen §5 statistics are present, but not all at once. Fifteen
 equal-weight cards is a wall of numbers with no shape, and the three or four
 that actually need acting on get lost in it.
 
-The headline row is exactly the figures that **need attention or action
-today** — and by construction every one of them drills into its own records:
+The headline row is the six figures chosen as the ones a business owner
+actually leads with:
 
-> Today's sales · Today's orders · This month's sales
-> Pending orders · Low stock · Out of stock
+> Total products · Total stock quantity · Low stock
+> Out of stock · Today's sales · Pending orders
+
+Four of the six drill into their own records. Total products and Total
+stock quantity are informational — "all products" is the unfiltered
+Products list, and that is the sidebar's job.
 
 The remaining nine (plus profit, when cost data makes it known) are
-reference figures: totals that barely move day to day, and the closed-order
-counts. They sit behind one tap — a **"More statistics (10)"** expander on
-the same page. Nothing is removed, nothing is two clicks away, and the six
-that matter are legible at a glance.
+reference figures: the other totals, the period figures, and the
+closed-order counts. They sit behind one tap — a **"More statistics (10)"**
+expander on the same page. Nothing is removed, nothing is two clicks away,
+and the six that matter are legible at a glance.
 
 Two widget tests hold this in place: one asserts exactly six cards before
 expanding and all sixteen after, the other that it collapses again.
 
-### KPI cards — clickable vs informational
+## Section order
 
-| Statistic (§5 order) | Behaviour |
-|---|---|
-| Total products | informational |
-| Total categories | informational |
-| Total stock quantity | informational |
-| Low-stock products | → **Inventory**, filtered to low stock |
-| Out-of-stock products | → **Inventory**, filtered to out of stock |
-| Today's sales | → Sales, filtered to today |
-| Today's orders | → Orders, filtered to today |
-| This month's sales | → Sales, filtered to this month |
-| Total sales | informational |
-| Pending orders | → Orders, filtered to Pending |
-| Completed orders | → Orders, filtered to Completed |
-| Cancelled orders | → Orders, filtered to Cancelled |
-| Returned orders | → Orders, filtered to Returned |
-| Total customers | informational |
-| Total suppliers | informational |
-| Gross profit (when cost data exists) | informational |
+    Header → Statistics → Alerts → Charts → Recent activity → Quick actions
+
+Quick actions is the **last** major section on the page; nothing follows it
+but page padding. The monitoring content — what is happening — comes first,
+and the shortcuts sit at the bottom. A widget test measures the real
+on-screen `dy` of each section and asserts the order, so it cannot drift.
+
+### KPI cards — where each one lives, and what tapping it does
+
+| Statistic (§5 order) | Shown | Behaviour |
+|---|---|---|
+| Total products | headline | informational |
+| Total categories | collapsed | informational |
+| Total stock quantity | headline | informational |
+| Low-stock products | headline | → **Inventory**, filtered to low stock |
+| Out-of-stock products | headline | → **Inventory**, filtered to out of stock |
+| Today's sales | headline | → Sales, filtered to today |
+| Today's orders | collapsed | → Orders, filtered to today |
+| This month's sales | collapsed | → Sales, filtered to this month |
+| Total sales | collapsed | informational |
+| Pending orders | headline | → Orders, filtered to Pending |
+| Completed orders | collapsed | → Orders, filtered to Completed |
+| Cancelled orders | collapsed | → Orders, filtered to Cancelled |
+| Returned orders | collapsed | → Orders, filtered to Returned |
+| Total customers | collapsed | informational |
+| Total suppliers | collapsed | informational |
+| Gross profit (when cost data exists) | collapsed | informational |
 
 Low/out-of-stock deliberately open **Inventory**, not Products: the question
 behind the number is a stock question and Inventory is where stock is acted
@@ -191,6 +204,20 @@ Header → Quick actions → Statistics → Alerts → Charts → Recent activit
 §5's own order is statistics, charts, quick actions; the quick actions sit
 near the top because they are shortcuts and burying them under five sections
 of reading defeats the point. The PDF does not specify layout or ordering.
+
+## A third rendering bug: every button inside a Wrap was full-width
+
+`AppButton` wrapped its content in a bare `Center`, which fills whatever
+width it is offered. Inside a `Row` that is invisible, because a Row hands
+its children unbounded main-axis constraints and the button sizes to its
+label. Inside a `Wrap` it is not: a Wrap hands each child the full line
+width, so every button became a full-width bar stacked one per row.
+
+That affected the dashboard quick actions and the System Admin §57 Controls
+row. Fixed once with `widthFactor: expand ? null : 1.0`, so a button
+shrink-wraps unless it was deliberately asked to expand. A test measures the
+rendered width of all eight quick actions and asserts each is under half the
+card width.
 
 ## Dead interactions found and fixed
 

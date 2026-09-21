@@ -96,6 +96,15 @@ class AppButton extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Center(
+              // `widthFactor: 1` unless the button is deliberately
+              // expanding. A bare `Center` fills whatever width it is
+              // offered, which is invisible inside a `Row` (children get
+              // unbounded main-axis constraints there) but turns every
+              // button inside a `Wrap` into a full-width bar — the Wrap
+              // hands its children the full line width. That is what the
+              // dashboard's quick actions and the System Admin's §57
+              // Controls row were doing.
+              widthFactor: expand ? null : 1.0,
               child: _disabled && !loading
                   ? DefaultTextStyle.merge(
                       style: TextStyle(color: colors.disabled),

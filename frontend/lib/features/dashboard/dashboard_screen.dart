@@ -61,10 +61,10 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: AppSpacing.lg,
+        // Order: statistics → alerts → charts → recent activity → quick
+        // actions. The monitoring content comes first and the shortcuts sit
+        // at the very bottom; nothing follows them but page padding.
         children: [
-          // §5's quick actions — shortcuts into a workflow, placed where
-          // they are reachable without scrolling past the statistics.
-          _QuickActions(l10n: l10n),
           _Statistics(metrics: metrics, l10n: l10n),
           _Alerts(metrics: metrics, l10n: l10n),
           if (metrics != null)
@@ -72,6 +72,8 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
           else
             SectionCard(title: l10n.dashboardKeyMetrics, child: const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))),
           _RecentActivity(metrics: metrics, l10n: l10n),
+          // §5's quick actions — the last major section on the page.
+          _QuickActions(l10n: l10n),
         ],
       ),
     );
@@ -132,27 +134,30 @@ class _StatisticsState extends ConsumerState<_Statistics> {
       context.go(AppRoutes.inventory);
     }
 
-    // Needs attention or action today. Every one is a drill-down.
+    // The six the dashboard leads with. Four of them drill into their own
+    // records; Total products and Total stock quantity are informational,
+    // since "all products" is the unfiltered Products list and that is the
+    // sidebar's job.
     final headline = <Widget>[
-      _Stat(l10n.statTodaysSales, money(metrics?.todaysSalesTotal), Icons.point_of_sale_outlined,
-          onTap: () => openOrders(AppRoutes.sales, period: 'today')),
-      _Stat(l10n.statTodaysOrders, n(metrics?.todaysOrderCount), Icons.receipt_long_outlined,
-          onTap: () => openOrders(AppRoutes.orders, period: 'today')),
-      _Stat(l10n.statMonthSales, money(metrics?.monthSalesTotal), Icons.calendar_month_outlined,
-          onTap: () => openOrders(AppRoutes.sales, period: 'month')),
-      _Stat(l10n.statPendingOrders, n(metrics?.pendingOrders), Icons.hourglass_empty,
-          onTap: () => openOrders(AppRoutes.orders, status: OrderStatus.pending)),
+      _Stat(l10n.statTotalProducts, n(metrics?.totalProducts), Icons.inventory_2_outlined),
+      _Stat(l10n.statTotalStock, n(metrics?.totalStockQuantity), Icons.warehouse_outlined),
       _Stat(l10n.statusLowStock, n(metrics?.lowStockCount), Icons.warning_amber_outlined,
           onTap: () => openInventory('low'), tone: Colors.orange),
       _Stat(l10n.statusOutOfStock, n(metrics?.outOfStockCount), Icons.remove_shopping_cart_outlined,
           onTap: () => openInventory('out'), tone: Colors.red),
+      _Stat(l10n.statTodaysSales, money(metrics?.todaysSalesTotal), Icons.point_of_sale_outlined,
+          onTap: () => openOrders(AppRoutes.sales, period: 'today')),
+      _Stat(l10n.statPendingOrders, n(metrics?.pendingOrders), Icons.hourglass_empty,
+          onTap: () => openOrders(AppRoutes.orders, status: OrderStatus.pending)),
     ];
 
     // Reference figures. Still §5-required, still exact, just not shouting.
     final secondary = <Widget>[
-      _Stat(l10n.statTotalProducts, n(metrics?.totalProducts), Icons.inventory_2_outlined),
       _Stat(l10n.statTotalCategories, n(metrics?.totalCategories), Icons.category_outlined),
-      _Stat(l10n.statTotalStock, n(metrics?.totalStockQuantity), Icons.warehouse_outlined),
+      _Stat(l10n.statTodaysOrders, n(metrics?.todaysOrderCount), Icons.receipt_long_outlined,
+          onTap: () => openOrders(AppRoutes.orders, period: 'today')),
+      _Stat(l10n.statMonthSales, money(metrics?.monthSalesTotal), Icons.calendar_month_outlined,
+          onTap: () => openOrders(AppRoutes.sales, period: 'month')),
       // Total sales has no filter to drill into — "all sales" is the
       // unfiltered Sales list, which is the sidebar's job.
       _Stat(l10n.statTotalSales, money(metrics?.totalSalesTotal), Icons.summarize_outlined),

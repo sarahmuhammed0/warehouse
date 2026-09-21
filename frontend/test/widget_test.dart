@@ -755,13 +755,19 @@ void main() {
       expect(find.text('Products'), findsOneWidget); // sidebar only
       expect(find.text('Settings'), findsOneWidget);
 
-      // "Total products" is a reference figure, so it sits in the
-      // collapsed "More statistics" section rather than competing with the
-      // six that need acting on.
-      expect(find.text('Total products'), findsNothing);
+      // "Total products" is one of the six headline figures, so it is on
+      // screen from the start and must not read as the sidebar's
+      // "Products".
+      expect(find.text('Total products'), findsOneWidget);
+
+      // "Total categories" is a reference figure, so it sits in the
+      // collapsed section — and expanding must not duplicate a sidebar
+      // label either.
+      expect(find.text('Total categories'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('toggleMoreStatistics')));
       await tester.pumpAndSettle();
-      expect(find.text('Total products'), findsOneWidget);
+      expect(find.text('Total categories'), findsOneWidget);
+      expect(find.text('Categories'), findsOneWidget, reason: 'sidebar label must stay unique');
       expect(find.text('Products'), findsOneWidget, reason: 'expanding must not duplicate the sidebar label');
     });
 
@@ -1933,18 +1939,65 @@ void main() {
       // Six cards, not fifteen — the wall of equal-weight numbers is what
       // made the three that matter impossible to spot.
       expect(find.byType(StatCard), findsNWidgets(6));
-      for (final label in ['Today sales', 'Today orders', 'This month sales', 'Pending orders', 'Low Stock', 'Out of Stock']) {
+      for (final label in ['Total products', 'Total stock quantity', 'Low Stock', 'Out of Stock', 'Today sales', 'Pending orders']) {
         expect(find.widgetWithText(StatCard, label), findsOneWidget);
       }
       // Reference figures are not on screen yet...
-      expect(find.widgetWithText(StatCard, 'Total products'), findsNothing);
+      expect(find.widgetWithText(StatCard, 'Total categories'), findsNothing);
       expect(find.widgetWithText(StatCard, 'Total suppliers'), findsNothing);
 
       // ...but nothing was deleted: one tap brings all of them back.
       await expandMoreStatistics(tester);
       expect(find.byType(StatCard), findsNWidgets(16));
-      expect(find.widgetWithText(StatCard, 'Total products'), findsOneWidget);
+      expect(find.widgetWithText(StatCard, 'Total categories'), findsOneWidget);
       expect(find.widgetWithText(StatCard, 'Total suppliers'), findsOneWidget);
+    });
+
+    testWidgets('Sections run statistics → alerts → charts → activity → quick actions', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      // Measured by real on-screen position, not by widget-tree order — it
+      // is the rendered order that the reader actually experiences.
+      double topOf(Finder finder) => tester.getTopLeft(finder).dy;
+
+      final statistics = topOf(find.byType(StatCard).first);
+      final alerts = topOf(find.widgetWithText(SectionCard, 'Alerts'));
+      final charts = topOf(find.byType(SimpleBarChart));
+      final activity = topOf(find.widgetWithText(SectionCard, 'Recent activity'));
+      final quickActions = topOf(find.widgetWithText(SectionCard, 'Quick actions'));
+
+      expect(statistics, lessThan(alerts));
+      expect(alerts, lessThan(charts));
+      expect(charts, lessThan(activity));
+      expect(activity, lessThan(quickActions), reason: 'quick actions must come after recent activity');
+
+      // Nothing but page padding below it: quick actions is the last
+      // major section on the page.
+      for (final section in ['Alerts', 'Recent activity']) {
+        expect(topOf(find.widgetWithText(SectionCard, section)), lessThan(quickActions));
+      }
+    });
+
+    testWidgets('Quick actions stay compact — buttons, not full-width bars', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      final card = find.widgetWithText(SectionCard, 'Quick actions');
+      final buttons = find.descendant(of: card, matching: find.byType(AppButton));
+      expect(buttons, findsNWidgets(8));
+
+      // Each button hugs its label rather than stretching across the page.
+      final cardWidth = tester.getSize(card).width;
+      for (var i = 0; i < 8; i++) {
+        expect(
+          tester.getSize(buttons.at(i)).width,
+          lessThan(cardWidth / 2),
+          reason: 'quick action $i should stay compact, not become a full-width bar',
+        );
+      }
     });
 
     testWidgets('The section collapses again', (tester) async {
@@ -1968,7 +2021,7 @@ void main() {
 
       // These would just re-open a module the sidebar already lists, so
       // they carry no onTap at all rather than looking clickable.
-      for (final label in ['Total products', 'Total categories', 'Total stock quantity', 'Total sales', 'Total customers', 'Total suppliers']) {
+      for (final label in ['Total categories', 'Total sales', 'Total customers', 'Total suppliers']) {
         expect(cardNamed(tester, label).onTap, isNull, reason: '"$label" duplicates sidebar navigation');
       }
     });
@@ -1980,12 +2033,12 @@ void main() {
 
       // Every headline card is a drill-down — that is the rule that
       // decides which six are headline in the first place.
-      for (final label in ['Today sales', 'Today orders', 'This month sales', 'Pending orders', 'Low Stock', 'Out of Stock']) {
+      for (final label in ['Low Stock', 'Out of Stock', 'Today sales', 'Pending orders']) {
         expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
       }
-      // ...and the closed-order counts keep theirs once expanded.
+      // ...and the collapsed ones keep theirs once expanded.
       await expandMoreStatistics(tester);
-      for (final label in ['Completed orders', 'Cancelled orders', 'Returned orders']) {
+      for (final label in ['Completed orders', 'Cancelled orders', 'Returned orders', 'Today orders', 'This month sales']) {
         expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
       }
     });
@@ -2047,6 +2100,7 @@ void main() {
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
+      await expandMoreStatistics(tester);
       await tapCard(tester, 'Today orders');
 
       expect(find.byType(OrdersScreen), findsOneWidget);
