@@ -229,7 +229,7 @@ npm run test:integration  # login flow, session lifecycle, mandatory tenant-isol
 
 ```bash
 flutter analyze        # 0 issues
-flutter test           # 112 tests — app shell, RTL/localization, routing guards,
+flutter test           # 132 tests — app shell, RTL/localization, routing guards,
                          # data table states, pagination, dialogs/overlays, the full
                          # login-screen suite (Phase 2), this phase's business-module
                          # suite: product list/detail/create validation, category
@@ -321,7 +321,7 @@ warehouse-os/
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                  112 tests total
+│       └── widget_test.dart                  132 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,

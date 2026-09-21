@@ -343,5 +343,15 @@
   "copiedToClipboard": "Copied to clipboard",
   "markAllRead": "Mark all as read",
   "fieldLineDiscount": "Discount",
-  "fieldExtraCharges": "Extra charges"
+  "fieldExtraCharges": "Extra charges",
+  "chartWeeklySales": "Weekly sales (last 6 weeks)",
+  "chartYearlySales": "Yearly sales",
+  "chartPurchases": "Purchases by month",
+  "chartReturns": "Returns by month",
+  "chartProfit": "Profit by month",
+  "dashboardAlerts2": "Alerts",
+  "alertOverstock": "Overstock",
+  "alertPendingPayments": "Pending payments",
+  "alertNoneTitle": "Nothing needs attention",
+  "dashboardInformationalHint": "Overview only — use the sidebar to open a module."
 }

@@ -1,11 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/repositories/paged_query.dart';
+import '../../../routing/app_routes.dart';
 import '../../categories/data/category_providers.dart';
 import '../../customers/data/customer_providers.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/data/inventory_providers.dart';
 import '../../orders/data/order_models.dart';
 import '../../orders/data/order_providers.dart';
+import '../../production/data/production_providers.dart';
 import '../../products/data/product_providers.dart';
+import '../../purchases/data/purchase_providers.dart';
+import '../../returns/data/return_providers.dart';
 import '../../suppliers/data/supplier_providers.dart';
 
 /// Every statistic spec §5 asks a business dashboard to show, derived from
@@ -34,9 +40,19 @@ class DashboardMetrics {
     required this.totalCustomers,
     required this.totalSuppliers,
     required this.dailySales,
+    required this.weeklySales,
     required this.monthlySales,
+    required this.yearlySales,
     required this.topProducts,
     required this.categorySales,
+    required this.stockMovement,
+    required this.purchases,
+    required this.returns,
+    required this.profitByMonth,
+    required this.overstockCount,
+    required this.unpaidOrderCount,
+    required this.unpaidTotal,
+    required this.recentActivity,
     required this.grossProfit,
   });
 
@@ -63,11 +79,30 @@ class DashboardMetrics {
   final int totalCustomers;
   final int totalSuppliers;
 
-  /// Chart series (§5's "visual reports"). Each entry is one bar.
+  /// §5's "visual reports" — one series per chart type the spec names.
+  /// Each entry is one bar.
   final List<ChartPoint> dailySales;
+  final List<ChartPoint> weeklySales;
   final List<ChartPoint> monthlySales;
+  final List<ChartPoint> yearlySales;
   final List<ChartPoint> topProducts;
   final List<ChartPoint> categorySales;
+  final List<ChartPoint> stockMovement;
+  final List<ChartPoint> purchases;
+  final List<ChartPoint> returns;
+  final List<ChartPoint> profitByMonth;
+
+  /// §5's alert block, and the counts behind it.
+  final int overstockCount;
+
+  /// Orders with money still outstanding — "pending payments".
+  final int unpaidOrderCount;
+  final double unpaidTotal;
+
+  /// The most recent real business events, newest first — never
+  /// fabricated filler (§5 asks for recent activity; inventing it would
+  /// make the panel worthless).
+  final List<ActivityEntry> recentActivity;
 
   /// Revenue minus cost of the items sold, over every completed sale/order
   /// whose products carry a `purchaseCost`. Null when no product has cost
@@ -82,15 +117,31 @@ class ChartPoint {
   final double value;
 }
 
+/// One real business event for the dashboard's activity feed.
+class ActivityEntry {
+  const ActivityEntry({required this.description, required this.at, required this.route});
+  final String description;
+  final DateTime at;
+
+  /// Where this event happened, so the feed is investigable rather than
+  /// decorative.
+  final String route;
+}
+
 /// Not `.autoDispose`: the dashboard and its drill-down targets both read
 /// this, and re-deriving it on every navigation would make the numbers
 /// visibly flicker between screens that are meant to agree.
 final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
-  final products = await ref.watch(productRepositoryProvider).list(const PagedQuery(pageSize: 1000));
-  final orders = await ref.watch(orderRepositoryProvider).list(const PagedQuery(pageSize: 1000));
+  const everything = PagedQuery(pageSize: 1000);
+  final products = await ref.watch(productRepositoryProvider).list(everything);
+  final orders = await ref.watch(orderRepositoryProvider).list(everything);
   final customers = await ref.watch(customerPickerOptionsProvider.future);
   final suppliers = await ref.watch(supplierPickerOptionsProvider.future);
   final categories = await ref.watch(categoryPickerOptionsProvider.future);
+  final movements = (await ref.watch(inventoryRepositoryProvider).listMovements(everything)).items;
+  final purchaseList = (await ref.watch(purchaseRepositoryProvider).list(everything)).items;
+  final returnList = (await ref.watch(returnRepositoryProvider).list(everything)).items;
+  final productionList = (await ref.watch(productionRepositoryProvider).list(everything)).items;
 
   final productList = products.items;
   final orderList = orders.items;
@@ -117,6 +168,18 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
     dailySales.add(ChartPoint('${day.day}/${day.month}', total));
   }
 
+  // Last 6 weeks, each labelled by the Monday that starts it.
+  final weeklySales = <ChartPoint>[];
+  final startOfThisWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+  for (var i = 5; i >= 0; i--) {
+    final weekStart = startOfThisWeek.subtract(Duration(days: 7 * i));
+    final weekEnd = weekStart.add(const Duration(days: 7));
+    final total = sales
+        .where((o) => !o.createdAt.isBefore(weekStart) && o.createdAt.isBefore(weekEnd))
+        .fold<double>(0, (sum, o) => sum + o.grandTotal);
+    weeklySales.add(ChartPoint('${weekStart.day}/${weekStart.month}', total));
+  }
+
   final monthlySales = <ChartPoint>[];
   for (var i = 5; i >= 0; i--) {
     final month = DateTime(now.year, now.month - i);
@@ -125,6 +188,19 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
         .fold<double>(0, (sum, o) => sum + o.grandTotal);
     monthlySales.add(ChartPoint('${month.month}/${month.year % 100}', total));
   }
+
+  // Three years. The demo dataset spans a few weeks, so two of these bars
+  // are honestly zero rather than padded with invented history.
+  final yearlySales = <ChartPoint>[
+    for (var i = 2; i >= 0; i--)
+      () {
+        final year = now.year - i;
+        return ChartPoint(
+          '$year',
+          sales.where((o) => o.createdAt.year == year).fold<double>(0, (sum, o) => sum + o.grandTotal),
+        );
+      }(),
+  ];
 
   // Revenue per product and per category, over every order line.
   final revenueByProduct = <String, double>{};
@@ -148,8 +224,69 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
   final categorySales = revenueByCategory.entries.map((e) => ChartPoint(e.key, e.value)).toList()
     ..sort((a, b) => b.value.compareTo(a.value));
 
-  // ---- profit --------------------------------------------------------
+  // ---- the remaining §5 chart types ----------------------------------
+  // Stock movement: total units moved per movement type. The type axis is
+  // what makes this a *movement* chart rather than another time series —
+  // it answers "where is stock going", which a per-day count does not.
+  final movedByType = <MovementType, int>{};
+  for (final m in movements) {
+    movedByType.update(m.type, (v) => v + m.quantity, ifAbsent: () => m.quantity);
+  }
+  final stockMovement = [
+    for (final entry in movedByType.entries) ChartPoint(entry.key.name, entry.value.toDouble()),
+  ]..sort((a, b) => b.value.compareTo(a.value));
+
+  double monthlyFold<T>(Iterable<T> items, DateTime month, DateTime Function(T) dateOf, double Function(T) valueOf) {
+    return items
+        .where((i) => dateOf(i).year == month.year && dateOf(i).month == month.month)
+        .fold<double>(0, (sum, i) => sum + valueOf(i));
+  }
+
+  final purchasesSeries = <ChartPoint>[];
+  final returnsSeries = <ChartPoint>[];
+  final profitByMonth = <ChartPoint>[];
   final anyCostKnown = productList.any((p) => p.purchaseCost != null);
+  for (var i = 5; i >= 0; i--) {
+    final month = DateTime(now.year, now.month - i);
+    final label = '${month.month}/${month.year % 100}';
+    purchasesSeries.add(ChartPoint(label, monthlyFold(purchaseList, month, (p) => p.createdAt, (p) => p.total)));
+    returnsSeries.add(ChartPoint(label, monthlyFold(returnList, month, (r) => r.createdAt, (r) => r.refundAmount)));
+    if (anyCostKnown) {
+      final revenue = monthlyFold(orderList, month, (o) => o.createdAt, (o) => o.grandTotal);
+      final cost = orderList
+          .where((o) => o.createdAt.year == month.year && o.createdAt.month == month.month)
+          .fold<double>(0, (sum, o) => sum + o.items.fold<double>(0, (c, i) => c + (costById[i.productId] ?? 0) * i.quantity));
+      profitByMonth.add(ChartPoint(label, revenue - cost));
+    }
+  }
+
+  // ---- alerts ---------------------------------------------------------
+  final unpaidOrders = orderList
+      .where((o) => o.status != OrderStatus.cancelled && o.paymentStatus != PaymentStatus.paid)
+      .toList();
+
+  // ---- recent activity ------------------------------------------------
+  // Assembled from real records across modules, newest first. Nothing here
+  // is seeded filler: if the demo data has no returns, the feed shows no
+  // returns.
+  final recentActivity = <ActivityEntry>[
+    for (final m in movements.take(12))
+      ActivityEntry(description: '${m.productName}: ${m.previousQuantity} → ${m.newQuantity}', at: m.dateTime, route: AppRoutes.productDetail(m.productId)),
+    for (final o in orderList.take(8))
+      ActivityEntry(
+        description: '${o.orderNumber} · ${o.grandTotal.toStringAsFixed(2)}',
+        at: o.createdAt,
+        route: AppRoutes.orderDetail(o.id),
+      ),
+    for (final r in returnList.take(5))
+      ActivityEntry(description: '${r.returnNumber} · ${r.reason}', at: r.createdAt, route: AppRoutes.returnDetail(r.id)),
+    for (final p in purchaseList.take(5))
+      ActivityEntry(description: '${p.purchaseNumber} · ${p.supplierName}', at: p.createdAt, route: AppRoutes.purchaseDetail(p.id)),
+    for (final p in productionList.take(5))
+      ActivityEntry(description: '${p.productionNumber} · ${p.productName}', at: p.createdAt, route: AppRoutes.productionDetail(p.id)),
+  ]..sort((a, b) => b.at.compareTo(a.at));
+
+  // ---- profit --------------------------------------------------------
   double? grossProfit;
   if (anyCostKnown) {
     var revenue = 0.0;
@@ -180,9 +317,19 @@ final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
     totalCustomers: customers.length,
     totalSuppliers: suppliers.length,
     dailySales: dailySales,
+    weeklySales: weeklySales,
     monthlySales: monthlySales,
+    yearlySales: yearlySales,
     topProducts: topProducts.take(6).toList(),
     categorySales: categorySales.take(6).toList(),
+    stockMovement: stockMovement,
+    purchases: purchasesSeries,
+    returns: returnsSeries,
+    profitByMonth: profitByMonth,
+    overstockCount: productList.where((p) => p.isOverstock).length,
+    unpaidOrderCount: unpaidOrders.length,
+    unpaidTotal: unpaidOrders.fold<double>(0, (sum, o) => sum + o.remainingAmount),
+    recentActivity: recentActivity,
     grossProfit: grossProfit,
   );
 });

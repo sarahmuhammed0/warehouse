@@ -104,8 +104,13 @@ class OrderFilterBar extends StatelessWidget {
       controller.setFilters(next);
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Wrap, not Row: two dropdowns plus a Clear button are ~430px wide and
+    // overflowed a 390px phone by 243px. Wrapping lets them stack instead
+    // of being clipped.
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         SizedBox(
           width: 190,
@@ -119,7 +124,6 @@ class OrderFilterBar extends StatelessWidget {
             onChanged: (value) => set('status', value),
           ),
         ),
-        const SizedBox(width: 12),
         SizedBox(
           width: 170,
           child: AppDropdownField<String?>(
@@ -133,14 +137,12 @@ class OrderFilterBar extends StatelessWidget {
             onChanged: (value) => set('period', value),
           ),
         ),
-        if (status != null || period != null) ...[
-          const SizedBox(width: 12),
+        if (status != null || period != null)
           AppButton(
             label: l10n.clearFilters,
             variant: AppButtonVariant.text,
             onPressed: controller.clearFilters,
           ),
-        ],
       ],
     );
   }

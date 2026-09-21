@@ -218,11 +218,20 @@ class _CardList<T> extends StatelessWidget {
                     if (column.showInMobileCard)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
+                        // Both sides Flexible: neither the label nor the
+                        // value is bounded otherwise, so one long cell (a
+                        // full customer name, a formatted date) overflowed
+                        // the card on a phone. Found by running the
+                        // dashboard's drill-downs at 390px.
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(column.label, style: AppTypography.caption.copyWith(color: colors.textMuted)),
-                            column.cellBuilder(context, item),
+                            Flexible(
+                              child: Text(column.label, style: AppTypography.caption.copyWith(color: colors.textMuted)),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Flexible(child: column.cellBuilder(context, item)),
                           ],
                         ),
                       ),

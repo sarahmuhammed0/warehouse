@@ -325,5 +325,15 @@
   "copiedToClipboard": "تم النسخ إلى الحافظة",
   "markAllRead": "تعليم الكل كمقروء",
   "fieldLineDiscount": "الخصم",
-  "fieldExtraCharges": "رسوم إضافية"
+  "fieldExtraCharges": "رسوم إضافية",
+  "chartWeeklySales": "المبيعات الأسبوعية (آخر ٦ أسابيع)",
+  "chartYearlySales": "المبيعات السنوية",
+  "chartPurchases": "المشتريات حسب الشهر",
+  "chartReturns": "المرتجعات حسب الشهر",
+  "chartProfit": "الأرباح حسب الشهر",
+  "dashboardAlerts2": "التنبيهات",
+  "alertOverstock": "مخزون زائد",
+  "alertPendingPayments": "مدفوعات معلقة",
+  "alertNoneTitle": "لا يوجد ما يتطلب انتباهك",
+  "dashboardInformationalHint": "نظرة عامة فقط — استخدم الشريط الجانبي لفتح أي وحدة."
 }

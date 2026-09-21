@@ -111,13 +111,31 @@ class _StockOverviewTab extends ConsumerWidget {
       ),
     ];
 
+    // The dashboard's Low Stock / Out of Stock cards land here with the
+    // filter already applied. Without a visible chip the user would be
+    // looking at a subset with no indication of why, and no way back to
+    // the full list — so the arriving filter announces and clears itself.
+    final stockFilter = state.query.filters['stock'] as String?;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 16,
       children: [
-        SizedBox(
-          width: 280,
-          child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search),
+        Row(
+          children: [
+            SizedBox(
+              width: 280,
+              child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search),
+            ),
+            if (stockFilter != null) ...[
+              const SizedBox(width: 12),
+              InputChip(
+                key: const ValueKey('inventoryStockFilterChip'),
+                label: Text(stockFilter == 'low' ? l10n.statusLowStock : l10n.statusOutOfStock),
+                onDeleted: () => controller.setFilters({...state.query.filters}..remove('stock')),
+              ),
+            ],
+          ],
         ),
         Expanded(
           child: SingleChildScrollView(

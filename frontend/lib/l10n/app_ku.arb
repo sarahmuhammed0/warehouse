@@ -325,5 +325,15 @@
   "copiedToClipboard": "لەبەرگیرایەوە",
   "markAllRead": "هەمووی وەک خوێندراوە نیشان بکە",
   "fieldLineDiscount": "داشکاندن",
-  "fieldExtraCharges": "باجی زیادە"
+  "fieldExtraCharges": "باجی زیادە",
+  "chartWeeklySales": "فرۆشتنی هەفتانە (٦ هەفتەی ڕابردوو)",
+  "chartYearlySales": "فرۆشتنی ساڵانە",
+  "chartPurchases": "کڕین بەپێی مانگ",
+  "chartReturns": "گەڕاندنەوە بەپێی مانگ",
+  "chartProfit": "قازانج بەپێی مانگ",
+  "dashboardAlerts2": "ئاگادارییەکان",
+  "alertOverstock": "کۆگای زیادە",
+  "alertPendingPayments": "پارەدانی چاوەڕوان",
+  "alertNoneTitle": "هیچ شتێک پێویستی بە سەرنج نییە",
+  "dashboardInformationalHint": "تەنها تێڕوانینێکی گشتی — بۆ کردنەوەی بەشەکان لیستەی لاتەنیشت بەکاربهێنە."
 }

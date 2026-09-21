@@ -56,7 +56,7 @@ authentication is untouched and still fully functional.
 |---|---|---|---|---|
 | §1 | System concept | Whole app | ✅ | Multi-tenant shell, business-scoped nav |
 | §2–4, 58 | Admin, business creation, login, session security | `features/auth/*` (Phase 2, untouched) | ✅ | Real, backend-verified — see `docs/authentication.md` |
-| §5 | Dashboard: stats/charts/quick actions | `features/dashboard/dashboard_screen.dart` | ✅ | Real counts from demo repos; chart still a structural placeholder (no charting library added, per Phase 1's documented decision) |
+| §5 | Dashboard: stats/charts/quick actions | `features/dashboard/dashboard_screen.dart` | ✅ | All 15 statistics and all 10 chart subjects the PDF lists, derived from the demo repositories; 8 quick actions each opening a create workflow; §44's inventory alerts. KPI cards drill down only where the filter investigates that number — the dashboard is not a second sidebar. Full audit: **[`docs/business-dashboard-audit.md`](business-dashboard-audit.md)** |
 | §6 | Sidebar navigation, module visibility | `shared/navigation/nav_items.dart`, `routing/app_router.dart`'s `_enabledBusinessNavItems` | ✅ | Filters by `businessTypeModules` (§33) |
 | §7 | Categories | `features/categories/*` | ✅ | List, create/edit dialog, parent/subcategory, archive/activate, search |
 | §8 | Products (full field set) | `features/products/*` | ✅ | Adaptive form (Basic/Inventory/Financial/collapsed Optional), list, detail, image slot (no real upload — see contract notes) |
@@ -76,7 +76,8 @@ authentication is untouched and still fully functional.
 | §30, 55 | Audit log | `features/activity_history/*` | ✅ | Same shape as the backend's real Phase 2 `audit_logs` table/writer |
 | §31 | Notifications | `features/notifications/*`, topbar bell | ✅ | Low/out-of-stock derived live from real product data; other types seeded (no live trigger source yet) |
 | §32–33 | Search, barcode | `features/search/presentation/search_results_screen.dart`; barcode label preview in product detail | ✅ | Cross-module search (Products/Customers/Suppliers/Orders); barcode scanning itself is a documented mock (§31 of the brief explicitly allows this) |
-| §34, 49, 50, 11 | Settings, dashboard customization, business-type config | `features/settings/settings_screen.dart` (10 sections), `dashboard_widgets_controller.dart`, `business_type_config.dart` | ✅ | All settings sections are real, interactive, in-memory (no backend to persist to yet — same precedent as Phase 1's theme/locale) |
+| §34, 50, 11 | Settings, business-type config | `features/settings/settings_screen.dart` (10 sections), `business_type_config.dart` | ✅ | All settings sections are real, interactive, in-memory (no backend to persist to yet — same precedent as Phase 1's theme/locale) |
+| §49 | Dashboard customization | `dashboard_widgets_controller.dart` | ❌ | **Not implemented.** The controller and its `toggle()` exist but nothing calls them — there is no UI to choose which dashboard cards show. The dashboard deliberately does not gate any §5 statistic on it, since that would silently drop a required KPI with no way to restore it. See `docs/business-dashboard-audit.md` |
 | §35–36, 25 | Security & multi-tenant isolation | N/A this phase | ✅ (unchanged) | Phase 2's real backend enforcement untouched; nothing in this phase's demo data layer claims to be a security boundary |
 | §37–39 | MySQL schema, API architecture, frontend structure | N/A this phase | — | Backend-only concerns, explicitly out of scope this phase |
 | §40–43 | Responsive design, UI/UX, product/order table anatomy | Every screen (via `ResponsiveLayout`, `AppDataTable`) | ✅ | Verified live at desktop/tablet/mobile widths — see §51 of this report below |

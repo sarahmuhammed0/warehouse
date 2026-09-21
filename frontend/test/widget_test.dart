@@ -39,6 +39,9 @@ import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
 import 'package:warehouse_os_app/features/employees/data/employee_providers.dart';
 import 'package:warehouse_os_app/features/employees/data/employee_repository.dart';
 import 'package:warehouse_os_app/features/dashboard/data/dashboard_metrics.dart';
+import 'package:warehouse_os_app/features/categories/presentation/category_form_dialog.dart';
+import 'package:warehouse_os_app/features/inventory/inventory_screen.dart';
+import 'package:warehouse_os_app/features/suppliers/presentation/supplier_form_dialog.dart';
 import 'package:warehouse_os_app/features/inventory/data/inventory_models.dart';
 import 'package:warehouse_os_app/features/inventory/data/inventory_providers.dart';
 import 'package:warehouse_os_app/features/inventory/data/stock_engine.dart';
@@ -78,6 +81,8 @@ import 'package:warehouse_os_app/routing/app_router.dart';
 import 'package:warehouse_os_app/routing/app_routes.dart';
 import 'package:warehouse_os_app/shared/badges/status_badge.dart';
 import 'package:warehouse_os_app/shared/dashboard/dashboard_cards.dart';
+import 'package:warehouse_os_app/shared/dashboard/simple_bar_chart.dart';
+import 'package:warehouse_os_app/theme/theme_controller.dart';
 import 'package:warehouse_os_app/shared/dashboard/metric_cards.dart';
 import 'package:warehouse_os_app/shared/navigation/nav_items.dart';
 import 'package:warehouse_os_app/shared/buttons/app_button.dart';
@@ -1819,12 +1824,12 @@ void main() {
     expect(storageStoreModules.contains(productionNavItem.moduleKey), isFalse);
   });
 
-  group('Business dashboard (spec §5 — real stats, live drill-downs, working quick actions)', () {
+  group('Business dashboard (PDF §5 — statistics, charts, quick actions)', () {
     ProviderContainer businessContainer() =>
         ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAuthenticatedController.new)]);
 
     Future<void> pumpDashboard(WidgetTester tester, ProviderContainer container) async {
-      tester.view.physicalSize = const Size(1400, 1800);
+      tester.view.physicalSize = const Size(1400, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -1832,6 +1837,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DashboardPlaceholderScreen), findsOneWidget);
     }
+
+    StatCard cardNamed(WidgetTester tester, String label) =>
+        tester.widget<StatCard>(find.widgetWithText(StatCard, label));
 
     Future<void> tapCard(WidgetTester tester, String label) async {
       final finder = find.widgetWithText(StatCard, label);
@@ -1849,76 +1857,272 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('Shows the §5 statistics, with values derived from the repositories', (tester) async {
+    // ---- §5 main statistics -------------------------------------------
+
+    testWidgets('All fifteen §5 statistics are present and derived from the repositories', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
-      final metrics = await container.read(dashboardMetricsProvider.future);
+      final m = await container.read(dashboardMetricsProvider.future);
       await pumpDashboard(tester, container);
 
-      // A spread across the four kinds of figure: counts, money, today's
-      // window, and an order-status count.
-      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total products')).value, '${metrics.totalProducts}');
-      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total categories')).value, '${metrics.totalCategories}');
-      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total stock quantity')).value, '${metrics.totalStockQuantity}');
-      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total sales')).value, metrics.totalSalesTotal.toStringAsFixed(2));
-      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Pending orders')).value, '${metrics.pendingOrders}');
-      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total suppliers')).value, '${metrics.totalSuppliers}');
+      // The PDF's list, in its own order.
+      expect(cardNamed(tester, 'Total products').value, '${m.totalProducts}');
+      expect(cardNamed(tester, 'Total categories').value, '${m.totalCategories}');
+      expect(cardNamed(tester, 'Total stock quantity').value, '${m.totalStockQuantity}');
+      expect(cardNamed(tester, 'Low Stock').value, '${m.lowStockCount}');
+      expect(cardNamed(tester, 'Out of Stock').value, '${m.outOfStockCount}');
+      expect(cardNamed(tester, 'Today sales').value, m.todaysSalesTotal.toStringAsFixed(2));
+      expect(cardNamed(tester, 'Today orders').value, '${m.todaysOrderCount}');
+      expect(cardNamed(tester, 'This month sales').value, m.monthSalesTotal.toStringAsFixed(2));
+      expect(cardNamed(tester, 'Total sales').value, m.totalSalesTotal.toStringAsFixed(2));
+      expect(cardNamed(tester, 'Pending orders').value, '${m.pendingOrders}');
+      expect(cardNamed(tester, 'Completed orders').value, '${m.completedOrders}');
+      expect(cardNamed(tester, 'Cancelled orders').value, '${m.cancelledOrders}');
+      expect(cardNamed(tester, 'Returned orders').value, '${m.returnedOrders}');
+      expect(cardNamed(tester, 'Total customers').value, '${m.totalCustomers}');
+      expect(cardNamed(tester, 'Total suppliers').value, '${m.totalSuppliers}');
     });
 
-    testWidgets('Every stat card is a live control, not decoration', (tester) async {
+    test('The statistics agree with the underlying demo data', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final m = await container.read(dashboardMetricsProvider.future);
+      final products = (await container.read(productRepositoryProvider).list(const PagedQuery(pageSize: 500))).items;
+      final orders = (await container.read(orderRepositoryProvider).list(const PagedQuery(pageSize: 500))).items;
+
+      expect(m.totalProducts, products.length);
+      expect(m.totalStockQuantity, products.fold<int>(0, (s, p) => s + p.currentQuantity));
+      // §44's own definitions: low = qty <= reorder level, out = qty 0.
+      expect(m.lowStockCount, products.where((p) => p.isLowStock).length);
+      expect(m.outOfStockCount, products.where((p) => p.isOutOfStock).length);
+      expect(m.pendingOrders, orders.where((o) => o.status == OrderStatus.pending).length);
+      expect(m.completedOrders, orders.where((o) => o.status == OrderStatus.completed).length);
+      expect(m.cancelledOrders, orders.where((o) => o.status == OrderStatus.cancelled).length);
+      expect(
+        m.totalSalesTotal,
+        closeTo(orders.where((o) => o.orderType == OrderType.quickSale).fold<double>(0, (s, o) => s + o.grandTotal), 0.001),
+      );
+    });
+
+    // ---- the dashboard is not a second sidebar (§2) ---------------------
+
+    testWidgets('Totals with nothing to drill into are informational, not fake buttons', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
-      final cards = tester.widgetList<StatCard>(find.byType(StatCard));
-      expect(cards, isNotEmpty);
-      for (final card in cards) {
-        expect(card.onTap, isNotNull, reason: '"${card.label}" looks tappable and does nothing');
+      // These would just re-open a module the sidebar already lists, so
+      // they carry no onTap at all rather than looking clickable.
+      for (final label in ['Total products', 'Total categories', 'Total stock quantity', 'Total sales', 'Total customers', 'Total suppliers']) {
+        expect(cardNamed(tester, label).onTap, isNull, reason: '"$label" duplicates sidebar navigation');
       }
     });
 
-    testWidgets('Low stock drills into Products filtered to low stock', (tester) async {
+    testWidgets('Cards that investigate their own number are clickable', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      for (final label in [
+        'Low Stock',
+        'Out of Stock',
+        'Today sales',
+        'Today orders',
+        'This month sales',
+        'Pending orders',
+        'Completed orders',
+        'Cancelled orders',
+        'Returned orders',
+      ]) {
+        expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
+      }
+    });
+
+    // ---- §4 drill-downs -------------------------------------------------
+
+    testWidgets('Low Stock opens Inventory filtered to low stock', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
       await tapCard(tester, 'Low Stock');
 
-      expect(find.byType(ProductsScreen), findsOneWidget);
-      // The filter really applied — the chip is showing and the rows are
-      // narrowed to what the card counted.
+      expect(find.byType(InventoryScreen), findsOneWidget);
       expect(container.read(productListControllerProvider).query.filters['stock'], 'low');
       final shown = container.read(productListControllerProvider).items;
       expect(shown, isNotEmpty);
-      expect(shown.every((p) => p.isLowStock), isTrue, reason: 'the list must be exactly the rows behind the number');
+      expect(shown.every((p) => p.isLowStock), isTrue, reason: 'the rows must be exactly what the card counted');
+      // The arriving filter announces itself and can be cleared.
+      expect(find.byKey(const ValueKey('inventoryStockFilterChip')), findsOneWidget);
     });
 
-    testWidgets('Pending orders drills into Orders filtered to Pending', (tester) async {
+    testWidgets('Out of Stock opens Inventory filtered to out of stock', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
-      await tapCard(tester, 'Pending orders');
+      await tapCard(tester, 'Out of Stock');
+
+      expect(find.byType(InventoryScreen), findsOneWidget);
+      expect(container.read(productListControllerProvider).query.filters['stock'], 'out');
+      expect(container.read(productListControllerProvider).items.every((p) => p.isOutOfStock), isTrue);
+    });
+
+    for (final (label, status) in [
+      ('Pending orders', OrderStatus.pending),
+      ('Completed orders', OrderStatus.completed),
+      ('Cancelled orders', OrderStatus.cancelled),
+      ('Returned orders', OrderStatus.returned),
+    ]) {
+      testWidgets('$label opens Orders filtered to that status', (tester) async {
+        final container = businessContainer();
+        addTearDown(container.dispose);
+        await pumpDashboard(tester, container);
+
+        await tapCard(tester, label);
+
+        expect(find.byType(OrdersScreen), findsOneWidget);
+        expect(container.read(orderListControllerProvider).query.filters['status'], status);
+        expect(container.read(orderListControllerProvider).items.every((o) => o.status == status), isTrue);
+      });
+    }
+
+    testWidgets("Today orders opens Orders filtered to today", (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapCard(tester, 'Today orders');
 
       expect(find.byType(OrdersScreen), findsOneWidget);
-      expect(container.read(orderListControllerProvider).query.filters['status'], OrderStatus.pending);
-      expect(container.read(orderListControllerProvider).items.every((o) => o.status == OrderStatus.pending), isTrue);
+      expect(container.read(orderListControllerProvider).query.filters['period'], 'today');
+      final now = DateTime.now();
+      expect(
+        container.read(orderListControllerProvider).items.every(
+              (o) => o.createdAt.year == now.year && o.createdAt.month == now.month && o.createdAt.day == now.day,
+            ),
+        isTrue,
+      );
     });
 
-    testWidgets('Quick actions open their workflow, not a list screen', (tester) async {
+    testWidgets("Today sales opens Sales filtered to today", (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
+      await tapCard(tester, 'Today sales');
+
+      expect(find.byType(SalesPlaceholderScreen), findsOneWidget);
+      expect(container.read(orderListControllerProvider).query.filters['period'], 'today');
+    });
+
+    // ---- §5 visual reports ----------------------------------------------
+
+    testWidgets('All ten §5 chart subjects are offered, and switching really changes the data', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      // Every chart subject the PDF names.
+      for (final tab in [
+        'Daily sales (last 7 days)',
+        'Weekly sales (last 6 weeks)',
+        'Monthly sales (last 6 months)',
+        'Yearly sales',
+        'Top products by revenue',
+        'Sales by category',
+        'Stock movement',
+        'Purchases by month',
+        'Returns by month',
+        'Profit by month',
+      ]) {
+        expect(find.byKey(ValueKey('chartTab$tab')), findsOneWidget, reason: '§5 lists $tab');
+      }
+
+      // Switching is not cosmetic: the rendered bars change.
+      expect(find.text('3-Seat Sofa — Charcoal'), findsNothing);
+      final topProducts = find.byKey(const ValueKey('chartTabTop products by revenue'));
+      await tester.ensureVisible(topProducts);
+      await tester.pumpAndSettle();
+      await tester.tap(topProducts);
+      await tester.pumpAndSettle();
+      expect(find.text('3-Seat Sofa — Charcoal'), findsWidgets, reason: 'the product series should now be plotted');
+
+      // ...and again, to a series with entirely different labels.
+      final stockMovement = find.byKey(const ValueKey('chartTabStock movement'));
+      await tester.ensureVisible(stockMovement);
+      await tester.pumpAndSettle();
+      await tester.tap(stockMovement);
+      await tester.pumpAndSettle();
+      expect(find.text('3-Seat Sofa — Charcoal'), findsNothing);
+      expect(find.textContaining('adjustment'), findsWidgets);
+    });
+
+    testWidgets('No placeholder chart text survives', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      expect(find.textContaining('Chart will render here'), findsNothing);
+      expect(find.textContaining('Coming soon'), findsNothing);
+    });
+
+    // ---- §44 alerts -------------------------------------------------------
+
+    testWidgets('Inventory alerts are shown on the dashboard and drill in', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      final m = await container.read(dashboardMetricsProvider.future);
+      await pumpDashboard(tester, container);
+
+      // §44 ends with "Show these on the dashboard".
+      expect(m.outOfStockCount, greaterThan(0), reason: 'the demo data should exercise this alert');
+      final alerts = find.widgetWithText(SectionCard, 'Alerts');
+      expect(alerts, findsOneWidget);
+
+      final row = find.descendant(of: alerts, matching: find.text('Out of Stock'));
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InventoryScreen), findsOneWidget);
+      expect(container.read(productListControllerProvider).query.filters['stock'], 'out');
+    });
+
+    // ---- §5 quick actions -------------------------------------------------
+
+    testWidgets('Add product opens the create form', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
       await tapQuickAction(tester, 'quickAddProduct');
-      expect(find.byType(ProductFormScreen), findsOneWidget, reason: 'Add product must open the create form');
+      expect(find.byType(ProductFormScreen), findsOneWidget);
+    });
+
+    testWidgets('Add category opens the create dialog and the saved category appears', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickAddCategory');
+      expect(find.byType(CategoryFormDialog), findsOneWidget);
+
+      // Name and Code are both required on this dialog.
+      final fields = find.descendant(of: find.byType(CategoryFormDialog), matching: find.byType(AppTextField));
+      await tester.enterText(fields.at(0), 'Garden Furniture');
+      await tester.enterText(fields.at(1), 'GARDEN');
+      await tester.tap(find.widgetWithText(AppButton, 'Create'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CategoriesScreen), findsOneWidget);
+      expect(find.text('Garden Furniture'), findsOneWidget);
     });
 
     testWidgets('New sale opens the sale workflow', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
-
       await tapQuickAction(tester, 'quickNewSale');
       expect(find.byType(OrderFormScreen), findsOneWidget);
     });
@@ -1927,7 +2131,6 @@ void main() {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
-
       await tapQuickAction(tester, 'quickNewOrder');
       expect(find.byType(OrderFormScreen), findsOneWidget);
     });
@@ -1940,18 +2143,33 @@ void main() {
       await tapQuickAction(tester, 'quickAddCustomer');
       expect(find.byType(CustomerFormDialog), findsOneWidget);
 
-      // Positional, not by label: `FormFieldWrapper` renders labels as
-      // RichText spans (to draw the required asterisk), which `find.text`
-      // does not match. The dialog's first two fields are Name and Phone.
       final fields = find.descendant(of: find.byType(CustomerFormDialog), matching: find.byType(AppTextField));
       await tester.enterText(fields.at(0), 'Nawroz Trading');
       await tester.enterText(fields.at(1), '+9647705550000');
       await tester.tap(find.widgetWithText(AppButton, 'Create'));
       await tester.pumpAndSettle();
 
-      // Landed on Customers, with the new row really there.
       expect(find.byType(CustomersScreen), findsOneWidget);
       expect(find.text('Nawroz Trading'), findsOneWidget);
+    });
+
+    testWidgets('Add supplier opens the create dialog and the saved supplier appears', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickAddSupplier');
+      expect(find.byType(SupplierFormDialog), findsOneWidget);
+
+      // Field order is Name, Company, Phone — Phone is the required one.
+      final fields = find.descendant(of: find.byType(SupplierFormDialog), matching: find.byType(AppTextField));
+      await tester.enterText(fields.at(0), 'Zagros Timber');
+      await tester.enterText(fields.at(2), '+9647705550111');
+      await tester.tap(find.widgetWithText(AppButton, 'Create'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SuppliersScreen), findsOneWidget);
+      expect(find.text('Zagros Timber'), findsOneWidget);
     });
 
     testWidgets('Add stock asks which product, then really moves the stock', (tester) async {
@@ -1962,8 +2180,6 @@ void main() {
 
       await tapQuickAction(tester, 'quickAddStock');
       expect(find.byType(StockAdjustmentDialog), findsOneWidget);
-      // No product chosen yet, so saving is disabled rather than a silent
-      // no-op.
       expect(tester.widget<AppButton>(find.byKey(const ValueKey('stockAdjustSave'))).onPressed, isNull);
 
       await tester.tap(find.byKey(const ValueKey('stockProductPicker')));
@@ -1977,6 +2193,100 @@ void main() {
 
       expect((await container.read(productRepositoryProvider).getById('prod-1')).currentQuantity, before + 7);
     });
+
+    testWidgets('Generate report opens Reports', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+      await tapQuickAction(tester, 'quickGenerateReport');
+      expect(find.byType(ReportsPlaceholderScreen), findsOneWidget);
+    });
+
+    // ---- §11 recent activity ----------------------------------------------
+
+    testWidgets('Recent activity shows real records and opens them', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      final m = await container.read(dashboardMetricsProvider.future);
+      await pumpDashboard(tester, container);
+
+      expect(m.recentActivity, isNotEmpty);
+      final feed = find.widgetWithText(SectionCard, 'Recent activity');
+      expect(feed, findsOneWidget);
+
+      // Every entry carries a real destination.
+      for (final entry in m.recentActivity.take(8)) {
+        expect(entry.route, isNotEmpty);
+      }
+    });
+
+    // ---- §19 localization / RTL, §20 dark mode -----------------------------
+
+    for (final locale in [const Locale('ar'), const Locale('ku')]) {
+      testWidgets('Renders under ${locale.languageCode} with RTL directionality and localized labels', (tester) async {
+        final container = businessContainer();
+        addTearDown(container.dispose);
+        tester.view.physicalSize = const Size(1400, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        container.read(localeProvider.notifier).setLocale(locale);
+        await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DashboardPlaceholderScreen), findsOneWidget);
+        expect(Directionality.of(tester.element(find.byType(DashboardPlaceholderScreen))), TextDirection.rtl);
+        // The English strings must be gone — a card still reading "Total
+        // products" would mean an unlocalized literal.
+        expect(find.text('Total products'), findsNothing);
+        expect(find.byType(StatCard), findsWidgets);
+        expect(find.byKey(const ValueKey('quickAddProduct')), findsOneWidget);
+      });
+    }
+
+    testWidgets('Renders in dark mode without losing any section', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      tester.view.physicalSize = const Size(1400, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      container.read(themeModeProvider.notifier).setMode(ThemeMode.dark);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+
+      expect(Theme.of(tester.element(find.byType(DashboardPlaceholderScreen))).brightness, Brightness.dark);
+      expect(find.byType(StatCard), findsWidgets);
+      expect(find.widgetWithText(SectionCard, 'Alerts'), findsOneWidget);
+      expect(find.widgetWithText(SectionCard, 'Recent activity'), findsOneWidget);
+      expect(find.byType(SimpleBarChart), findsOneWidget);
+    });
+
+    // ---- §18 responsive ----------------------------------------------------
+
+    for (final (label, size) in [('tablet', Size(800, 1600)), ('mobile', Size(390, 1800))]) {
+      testWidgets('Statistics, charts and quick actions all render at $label width', (tester) async {
+        final container = businessContainer();
+        addTearDown(container.dispose);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DashboardPlaceholderScreen), findsOneWidget);
+        expect(find.byType(StatCard), findsWidgets);
+        expect(find.widgetWithText(SectionCard, 'Alerts'), findsOneWidget);
+        expect(find.byKey(const ValueKey('quickAddProduct')), findsOneWidget);
+        // A drill-down still works at this width.
+        await tapCard(tester, 'Pending orders');
+        expect(find.byType(OrdersScreen), findsOneWidget);
+      });
+    }
   });
 
   group('Reports (spec §25/§26 — every card opens a real report)', () {
