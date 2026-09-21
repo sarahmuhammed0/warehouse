@@ -353,5 +353,9 @@
   "alertOverstock": "Overstock",
   "alertPendingPayments": "Pending payments",
   "alertNoneTitle": "Nothing needs attention",
-  "dashboardInformationalHint": "Overview only — use the sidebar to open a module."
+  "dashboardInformationalHint": "Overview only — use the sidebar to open a module.",
+  "dashboardMoreStatistics": "More statistics ({count})",
+  "@dashboardMoreStatistics": { "placeholders": {"count":{"type":"int"}} },
+  "dashboardFewerStatistics": "Hide extra statistics",
+  "dashboardNeedsAttention": "Needs attention today"
 }

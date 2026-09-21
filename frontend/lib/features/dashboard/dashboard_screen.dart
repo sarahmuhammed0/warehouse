@@ -78,14 +78,38 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
   }
 }
 
-/// §5's fifteen "main statistics", in the order the PDF lists them.
-class _Statistics extends ConsumerWidget {
+/// §5's fifteen "main statistics", split into what a business owner needs
+/// *today* and what they occasionally look up.
+///
+/// All fifteen are here — §5 requires them and none was dropped. But
+/// fifteen equal-weight cards is a wall of numbers with no shape, and the
+/// three or four that actually need acting on are lost in it. So the
+/// headline row is exactly the figures that **need attention or action
+/// today**, and by construction every one of them drills into its own
+/// records:
+///
+///   Today's sales · Today's orders · This month's sales
+///   Pending orders · Low stock · Out of stock
+///
+/// The remaining nine are reference figures — totals that barely move
+/// day to day, and the closed-order counts — behind one tap. They keep
+/// their drill-downs where they had one.
+class _Statistics extends ConsumerStatefulWidget {
   const _Statistics({required this.metrics, required this.l10n});
   final DashboardMetrics? metrics;
   final AppLocalizations l10n;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Statistics> createState() => _StatisticsState();
+}
+
+class _StatisticsState extends ConsumerState<_Statistics> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = widget.l10n;
+    final metrics = widget.metrics;
     // While the aggregate loads, cards show '—' rather than a zero that
     // would read as a real "you have none".
     String n(int? value) => value?.toString() ?? '—';
@@ -108,25 +132,30 @@ class _Statistics extends ConsumerWidget {
       context.go(AppRoutes.inventory);
     }
 
-    final cards = <Widget>[
-      _Stat(l10n.statTotalProducts, n(metrics?.totalProducts), Icons.inventory_2_outlined),
-      _Stat(l10n.statTotalCategories, n(metrics?.totalCategories), Icons.category_outlined),
-      _Stat(l10n.statTotalStock, n(metrics?.totalStockQuantity), Icons.warehouse_outlined),
-      _Stat(l10n.statusLowStock, n(metrics?.lowStockCount), Icons.warning_amber_outlined,
-          onTap: () => openInventory('low'), tone: Colors.orange),
-      _Stat(l10n.statusOutOfStock, n(metrics?.outOfStockCount), Icons.remove_shopping_cart_outlined,
-          onTap: () => openInventory('out'), tone: Colors.red),
+    // Needs attention or action today. Every one is a drill-down.
+    final headline = <Widget>[
       _Stat(l10n.statTodaysSales, money(metrics?.todaysSalesTotal), Icons.point_of_sale_outlined,
           onTap: () => openOrders(AppRoutes.sales, period: 'today')),
       _Stat(l10n.statTodaysOrders, n(metrics?.todaysOrderCount), Icons.receipt_long_outlined,
           onTap: () => openOrders(AppRoutes.orders, period: 'today')),
       _Stat(l10n.statMonthSales, money(metrics?.monthSalesTotal), Icons.calendar_month_outlined,
           onTap: () => openOrders(AppRoutes.sales, period: 'month')),
+      _Stat(l10n.statPendingOrders, n(metrics?.pendingOrders), Icons.hourglass_empty,
+          onTap: () => openOrders(AppRoutes.orders, status: OrderStatus.pending)),
+      _Stat(l10n.statusLowStock, n(metrics?.lowStockCount), Icons.warning_amber_outlined,
+          onTap: () => openInventory('low'), tone: Colors.orange),
+      _Stat(l10n.statusOutOfStock, n(metrics?.outOfStockCount), Icons.remove_shopping_cart_outlined,
+          onTap: () => openInventory('out'), tone: Colors.red),
+    ];
+
+    // Reference figures. Still §5-required, still exact, just not shouting.
+    final secondary = <Widget>[
+      _Stat(l10n.statTotalProducts, n(metrics?.totalProducts), Icons.inventory_2_outlined),
+      _Stat(l10n.statTotalCategories, n(metrics?.totalCategories), Icons.category_outlined),
+      _Stat(l10n.statTotalStock, n(metrics?.totalStockQuantity), Icons.warehouse_outlined),
       // Total sales has no filter to drill into — "all sales" is the
       // unfiltered Sales list, which is the sidebar's job.
       _Stat(l10n.statTotalSales, money(metrics?.totalSalesTotal), Icons.summarize_outlined),
-      _Stat(l10n.statPendingOrders, n(metrics?.pendingOrders), Icons.hourglass_empty,
-          onTap: () => openOrders(AppRoutes.orders, status: OrderStatus.pending)),
       _Stat(l10n.statCompletedOrders, n(metrics?.completedOrders), Icons.check_circle_outline,
           onTap: () => openOrders(AppRoutes.orders, status: OrderStatus.completed)),
       _Stat(l10n.statCancelledOrders, n(metrics?.cancelledOrders), Icons.cancel_outlined,
@@ -143,6 +172,34 @@ class _Statistics extends ConsumerWidget {
         _Stat(l10n.statGrossProfit, money(metrics!.grossProfit), Icons.trending_up),
     ];
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: AppSpacing.md,
+      children: [
+        _StatGrid(cards: headline),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            key: const ValueKey('toggleMoreStatistics'),
+            onPressed: () => setState(() => _expanded = !_expanded),
+            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+            label: Text(_expanded ? l10n.dashboardFewerStatistics : l10n.dashboardMoreStatistics(secondary.length)),
+          ),
+        ),
+        if (_expanded) _StatGrid(cards: secondary),
+      ],
+    );
+  }
+}
+
+/// The responsive card grid both statistic rows use — 4 columns on a
+/// desktop, 2 on a tablet, 1 on a phone.
+class _StatGrid extends StatelessWidget {
+  const _StatGrid({required this.cards});
+  final List<Widget> cards;
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth > 1100

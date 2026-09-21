@@ -744,16 +744,25 @@ void main() {
       expect(find.text('Outdoor Furniture'), findsOneWidget);
     });
 
-    testWidgets('Dashboard shows total-products/total-customers stat cards without colliding with sidebar labels', (tester) async {
+    testWidgets('Dashboard stat cards never collide with the sidebar module labels', (tester) async {
       final container = authenticatedContainer();
       addTearDown(container.dispose);
       await pumpDesktop(tester, container);
 
-      // Exactly one "Products" (sidebar) and one "Total products" (stat
-      // card) — these must never collide on the same screen.
-      expect(find.text('Products'), findsOneWidget);
-      expect(find.text('Total products'), findsOneWidget);
+      // The sidebar owns the module names; the dashboard owns the figures.
+      // The original bug this guards against was the two rendering as the
+      // same string on one screen.
+      expect(find.text('Products'), findsOneWidget); // sidebar only
       expect(find.text('Settings'), findsOneWidget);
+
+      // "Total products" is a reference figure, so it sits in the
+      // collapsed "More statistics" section rather than competing with the
+      // six that need acting on.
+      expect(find.text('Total products'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('toggleMoreStatistics')));
+      await tester.pumpAndSettle();
+      expect(find.text('Total products'), findsOneWidget);
+      expect(find.text('Products'), findsOneWidget, reason: 'expanding must not duplicate the sidebar label');
     });
 
     testWidgets('Settings: switching to the Security section shows password-policy fields', (tester) async {
@@ -1857,6 +1866,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// Opens the "More statistics" section. The nine reference figures are
+    /// collapsed by default so the six that need acting on are not lost in
+    /// a wall of numbers.
+    Future<void> expandMoreStatistics(WidgetTester tester) async {
+      final toggle = find.byKey(const ValueKey('toggleMoreStatistics'));
+      await tester.ensureVisible(toggle);
+      await tester.pumpAndSettle();
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+    }
+
     // ---- §5 main statistics -------------------------------------------
 
     testWidgets('All fifteen §5 statistics are present and derived from the repositories', (tester) async {
@@ -1864,8 +1884,9 @@ void main() {
       addTearDown(container.dispose);
       final m = await container.read(dashboardMetricsProvider.future);
       await pumpDashboard(tester, container);
+      await expandMoreStatistics(tester);
 
-      // The PDF's list, in its own order.
+      // The PDF's list, in its own order — all fifteen still exist.
       expect(cardNamed(tester, 'Total products').value, '${m.totalProducts}');
       expect(cardNamed(tester, 'Total categories').value, '${m.totalCategories}');
       expect(cardNamed(tester, 'Total stock quantity').value, '${m.totalStockQuantity}');
@@ -1904,12 +1925,46 @@ void main() {
       );
     });
 
+    testWidgets('Only the six figures needing attention are shown up front', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      // Six cards, not fifteen — the wall of equal-weight numbers is what
+      // made the three that matter impossible to spot.
+      expect(find.byType(StatCard), findsNWidgets(6));
+      for (final label in ['Today sales', 'Today orders', 'This month sales', 'Pending orders', 'Low Stock', 'Out of Stock']) {
+        expect(find.widgetWithText(StatCard, label), findsOneWidget);
+      }
+      // Reference figures are not on screen yet...
+      expect(find.widgetWithText(StatCard, 'Total products'), findsNothing);
+      expect(find.widgetWithText(StatCard, 'Total suppliers'), findsNothing);
+
+      // ...but nothing was deleted: one tap brings all of them back.
+      await expandMoreStatistics(tester);
+      expect(find.byType(StatCard), findsNWidgets(16));
+      expect(find.widgetWithText(StatCard, 'Total products'), findsOneWidget);
+      expect(find.widgetWithText(StatCard, 'Total suppliers'), findsOneWidget);
+    });
+
+    testWidgets('The section collapses again', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await expandMoreStatistics(tester);
+      expect(find.byType(StatCard), findsNWidgets(16));
+      await expandMoreStatistics(tester);
+      expect(find.byType(StatCard), findsNWidgets(6));
+    });
+
     // ---- the dashboard is not a second sidebar (§2) ---------------------
 
     testWidgets('Totals with nothing to drill into are informational, not fake buttons', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
+      await expandMoreStatistics(tester);
 
       // These would just re-open a module the sidebar already lists, so
       // they carry no onTap at all rather than looking clickable.
@@ -1923,17 +1978,14 @@ void main() {
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
-      for (final label in [
-        'Low Stock',
-        'Out of Stock',
-        'Today sales',
-        'Today orders',
-        'This month sales',
-        'Pending orders',
-        'Completed orders',
-        'Cancelled orders',
-        'Returned orders',
-      ]) {
+      // Every headline card is a drill-down — that is the rule that
+      // decides which six are headline in the first place.
+      for (final label in ['Today sales', 'Today orders', 'This month sales', 'Pending orders', 'Low Stock', 'Out of Stock']) {
+        expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
+      }
+      // ...and the closed-order counts keep theirs once expanded.
+      await expandMoreStatistics(tester);
+      for (final label in ['Completed orders', 'Cancelled orders', 'Returned orders']) {
         expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
       }
     });
@@ -1978,6 +2030,9 @@ void main() {
         final container = businessContainer();
         addTearDown(container.dispose);
         await pumpDashboard(tester, container);
+        // Pending is a headline card; the three closed-order counts live
+        // in the collapsed section.
+        if (label != 'Pending orders') await expandMoreStatistics(tester);
 
         await tapCard(tester, label);
 

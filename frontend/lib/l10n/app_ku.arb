@@ -335,5 +335,8 @@
   "alertOverstock": "کۆگای زیادە",
   "alertPendingPayments": "پارەدانی چاوەڕوان",
   "alertNoneTitle": "هیچ شتێک پێویستی بە سەرنج نییە",
-  "dashboardInformationalHint": "تەنها تێڕوانینێکی گشتی — بۆ کردنەوەی بەشەکان لیستەی لاتەنیشت بەکاربهێنە."
+  "dashboardInformationalHint": "تەنها تێڕوانینێکی گشتی — بۆ کردنەوەی بەشەکان لیستەی لاتەنیشت بەکاربهێنە.",
+  "dashboardMoreStatistics": "ئامارى زیاتر ({count})",
+  "dashboardFewerStatistics": "شاردنەوەی ئاماری زیادە",
+  "dashboardNeedsAttention": "پێویستی بە سەرنجە ئەمڕۆ"
 }

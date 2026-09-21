@@ -51,6 +51,27 @@ A card reading "Total products → Products" is a second, worse copy of a
 sidebar entry that is already one click away. So a KPI is clickable **only
 when tapping it investigates that specific number**.
 
+### Two rows, not one wall of fifteen
+
+All fifteen §5 statistics are present, but not all at once. Fifteen
+equal-weight cards is a wall of numbers with no shape, and the three or four
+that actually need acting on get lost in it.
+
+The headline row is exactly the figures that **need attention or action
+today** — and by construction every one of them drills into its own records:
+
+> Today's sales · Today's orders · This month's sales
+> Pending orders · Low stock · Out of stock
+
+The remaining nine (plus profit, when cost data makes it known) are
+reference figures: totals that barely move day to day, and the closed-order
+counts. They sit behind one tap — a **"More statistics (10)"** expander on
+the same page. Nothing is removed, nothing is two clicks away, and the six
+that matter are legible at a glance.
+
+Two widget tests hold this in place: one asserts exactly six cards before
+expanding and all sixteen after, the other that it collapses again.
+
 ### KPI cards — clickable vs informational
 
 | Statistic (§5 order) | Behaviour |

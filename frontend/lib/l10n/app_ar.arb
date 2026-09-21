@@ -335,5 +335,8 @@
   "alertOverstock": "مخزون زائد",
   "alertPendingPayments": "مدفوعات معلقة",
   "alertNoneTitle": "لا يوجد ما يتطلب انتباهك",
-  "dashboardInformationalHint": "نظرة عامة فقط — استخدم الشريط الجانبي لفتح أي وحدة."
+  "dashboardInformationalHint": "نظرة عامة فقط — استخدم الشريط الجانبي لفتح أي وحدة.",
+  "dashboardMoreStatistics": "إحصائيات إضافية ({count})",
+  "dashboardFewerStatistics": "إخفاء الإحصائيات الإضافية",
+  "dashboardNeedsAttention": "يحتاج إلى انتباه اليوم"
 }
