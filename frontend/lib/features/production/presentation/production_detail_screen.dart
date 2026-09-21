@@ -7,15 +7,19 @@ import '../../../shared/badges/status_badge.dart';
 import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
+import '../../../shared/feedback/confirm_dialog.dart';
 import '../../../shared/layout/page_scaffold.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/data/stock_engine.dart';
 import '../../../theme/app_typography.dart';
 import '../data/production_models.dart';
 import '../data/production_providers.dart';
 
 /// Production order detail — Planned → In Progress → Completed/Cancelled
-/// (§22). Completion note communicates the eventual backend effect
-/// (materials decrease, finished goods increase) without pretending it
-/// already happened (§48: no fake production behavior).
+/// (§22). Completing a run really does decrease the BOM's raw materials and
+/// increase finished goods, through `StockEngine` — this screen used to
+/// show a note explaining that the effect would arrive with the backend,
+/// which is no longer true in demo mode.
 class ProductionDetailScreen extends ConsumerWidget {
   const ProductionDetailScreen({super.key, required this.productionId});
   final String productionId;
@@ -44,11 +48,11 @@ class ProductionDetailScreen extends ConsumerWidget {
         backFallbackRoute: AppRoutes.production,
         secondaryActions: [
           if (order.status == ProductionStatus.planned) ...[
-            AppButton(label: l10n.statusInProgress, onPressed: () => _update(context, ref, order.id, ProductionStatus.inProgress)),
-            AppButton(label: l10n.cancelAction, variant: AppButtonVariant.destructive, onPressed: () => _update(context, ref, order.id, ProductionStatus.cancelled)),
+            AppButton(label: l10n.statusInProgress, onPressed: () => _update(context, ref, order, ProductionStatus.inProgress)),
+            AppButton(label: l10n.cancelAction, variant: AppButtonVariant.destructive, onPressed: () => _update(context, ref, order, ProductionStatus.cancelled)),
           ],
           if (order.status == ProductionStatus.inProgress)
-            AppButton(label: l10n.statusCompleted, onPressed: () => _update(context, ref, order.id, ProductionStatus.completed)),
+            AppButton(label: l10n.statusCompleted, onPressed: () => _update(context, ref, order, ProductionStatus.completed)),
         ],
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -66,7 +70,7 @@ class ProductionDetailScreen extends ConsumerWidget {
                   if (order.status == ProductionStatus.completed)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(l10n.demoDataNotice, style: AppTypography.helperText),
+                      child: Text(l10n.productionStockApplied, style: AppTypography.helperText),
                     ),
                 ],
               ),
@@ -99,9 +103,45 @@ class ProductionDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _update(BuildContext context, WidgetRef ref, String id, ProductionStatus status) async {
-    await ref.read(productionListControllerProvider.notifier).updateStatus(id, status);
-    ref.invalidate(productionByIdProvider(id));
+  Future<void> _update(BuildContext context, WidgetRef ref, ProductionOrder order, ProductionStatus status) async {
+    if (status == ProductionStatus.cancelled) {
+      final l10n = AppLocalizations.of(context)!;
+      final confirmed = await confirmAction(
+        context,
+        title: l10n.deleteConfirmTitle,
+        description: order.productionNumber,
+        confirmLabel: l10n.cancelAction,
+        cancelLabel: l10n.back,
+        isDestructive: true,
+      );
+      if (!(confirmed ?? false)) return;
+    }
+    await ref.read(productionListControllerProvider.notifier).updateStatus(order.id, status);
+    ref.invalidate(productionByIdProvider(order.id));
+    if (status != ProductionStatus.completed) return;
+
+    // A completed production run is two stock events in one: the BOM's raw
+    // materials are consumed, and the finished product appears. Both are
+    // recorded as `MovementType.production` movements, so the ledger shows
+    // where the materials went and where the goods came from.
+    //
+    // Materials scale with the run: the BOM lists what one unit needs, so a
+    // batch of 8 consumes eight times that. `quantityProduced` is what the
+    // repository actually credited (it sets it to `quantityPlanned` on
+    // completion), so the finished-goods line uses the planned quantity.
+    await ref.read(stockEngineProvider).apply(
+      [
+        for (final material in order.materials)
+          StockChange(
+            productId: material.materialProductId,
+            productName: material.materialProductName,
+            delta: -(material.quantityRequired * order.quantityPlanned),
+          ),
+        StockChange(productId: order.productId, productName: order.productName, delta: order.quantityPlanned),
+      ],
+      type: MovementType.production,
+      note: order.productionNumber,
+    );
   }
 
   Widget _row(String label, String value) {

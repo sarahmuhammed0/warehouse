@@ -12,10 +12,14 @@ import '../../../shared/forms/app_text_field.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../theme/app_typography.dart';
 import '../../customers/data/customer_providers.dart';
+import '../../dashboard/data/dashboard_metrics.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/data/stock_engine.dart';
 import '../../products/data/product_models.dart';
 import '../../products/data/product_providers.dart';
 import '../data/order_models.dart';
 import '../data/order_providers.dart';
+import '../data/order_stock.dart';
 
 /// Sales *and* Orders both create through this one screen (§13/§14) — a
 /// cart-style line-item editor with live totals, the "select customer,
@@ -102,8 +106,19 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
         paymentMethod: _paymentMethod,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       );
-      await ref.read(orderRepositoryProvider).create(draft);
+      final created = await ref.read(orderRepositoryProvider).create(draft);
       await ref.read(orderListControllerProvider.notifier).reload();
+      // A quick sale is born Completed (order_models.dart), so the goods
+      // leave the shelf now. A standard order starts as a Draft and moves
+      // stock when it reaches Completed — see `OrderDetailScreen._transition`.
+      if (created.orderType == OrderType.quickSale) {
+        await ref.read(stockEngineProvider).apply(
+              stockChangesFor(created),
+              type: MovementType.sale,
+              note: created.orderNumber,
+            );
+      }
+      ref.invalidate(dashboardMetricsProvider);
       if (mounted) context.go(widget.orderType == OrderType.quickSale ? AppRoutes.sales : AppRoutes.orders);
     } catch (_) {
       if (mounted) setState(() => _error = AppLocalizations.of(context)!.unableToSave);

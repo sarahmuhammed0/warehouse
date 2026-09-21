@@ -11,6 +11,19 @@ abstract class ProductRepository {
   Future<Product> update(String id, ProductDraft draft);
   Future<void> setStatus(String id, ProductStatus status);
 
+  /// Move one product's stock by [delta] (negative to consume).
+  ///
+  /// Exists because every other module needs exactly this and nothing else:
+  /// a sale, a purchase completing, a return restocking, a production run
+  /// consuming materials. The alternative — rebuilding a full 20-field
+  /// `ProductDraft` just to change one integer — is what made those side
+  /// effects not get written in the first place, and it silently overwrites
+  /// any field the caller forgets to copy.
+  ///
+  /// Never writes a movement row itself: `StockEngine` owns that pairing so
+  /// stock cannot move without history (spec §12). Call it, not this.
+  Future<Product> adjustQuantity(String id, int delta);
+
   /// Unpaginated, active products only — for pickers in Sales/Orders/
   /// Purchases/Production line-item editors.
   Future<List<Product>> allForPicker();
@@ -222,6 +235,54 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     _items[index] = updated;
     return updated;
   }
+
+  @override
+  Future<Product> adjustQuantity(String id, int delta) async {
+    await simulatedLatency();
+    final index = _items.indexWhere((p) => p.id == id);
+    if (index == -1) throw StateError('Product not found');
+    final current = _items[index];
+    final draft = _draftFrom(current);
+    final updated = _fromDraft(
+      id,
+      businessId: current.businessId,
+      // Clamped at zero: demo stock going negative would make every
+      // downstream figure (valuation, low-stock, the dashboard) nonsense.
+      // `BusinessSettingsData.negativeInventoryAllowed` is the setting that
+      // will decide this once the flows that honour it are wired.
+      _draftWithQuantity(draft, (current.currentQuantity + delta).clamp(0, 1 << 31)),
+      categoryName: current.categoryName,
+      createdAt: current.createdAt,
+    );
+    _items[index] = updated;
+    return updated;
+  }
+
+  ProductDraft _draftWithQuantity(ProductDraft draft, int quantity) => ProductDraft(
+        name: draft.name,
+        code: draft.code,
+        sku: draft.sku,
+        barcode: draft.barcode,
+        categoryId: draft.categoryId,
+        brand: draft.brand,
+        imageUrl: draft.imageUrl,
+        description: draft.description,
+        shortDescription: draft.shortDescription,
+        status: draft.status,
+        productType: draft.productType,
+        currentQuantity: quantity,
+        minStock: draft.minStock,
+        maxStock: draft.maxStock,
+        reorderLevel: draft.reorderLevel,
+        warehouseName: draft.warehouseName,
+        shelfRackBin: draft.shelfRackBin,
+        unit: draft.unit,
+        purchaseCost: draft.purchaseCost,
+        sellingPrice: draft.sellingPrice,
+        wholesalePrice: draft.wholesalePrice,
+        discountPrice: draft.discountPrice,
+        taxRate: draft.taxRate,
+      );
 
   @override
   Future<void> setStatus(String id, ProductStatus status) async {

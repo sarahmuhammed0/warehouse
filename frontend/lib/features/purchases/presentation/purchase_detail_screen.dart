@@ -7,7 +7,10 @@ import '../../../shared/badges/status_badge.dart';
 import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
+import '../../../shared/feedback/confirm_dialog.dart';
 import '../../../shared/layout/page_scaffold.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/data/stock_engine.dart';
 import '../../../theme/app_typography.dart';
 import '../data/purchase_models.dart';
 import '../data/purchase_providers.dart';
@@ -45,12 +48,32 @@ class PurchaseDetailScreen extends ConsumerWidget {
               onPressed: () async {
                 await ref.read(purchaseListControllerProvider.notifier).updateStatus(purchase.id, PurchaseStatus.completed);
                 ref.invalidate(purchaseByIdProvider(purchase.id));
+                // Goods received — stock goes up, with a movement row per
+                // line. The form's own "Completed: Inventory +" helper text
+                // promised exactly this and, until now, nothing delivered it.
+                await ref.read(stockEngineProvider).apply(
+                      [
+                        for (final item in purchase.items)
+                          StockChange(productId: item.productId, productName: item.productName, delta: item.quantity),
+                      ],
+                      type: MovementType.purchase,
+                      note: purchase.purchaseNumber,
+                    );
               },
             ),
             AppButton(
               label: l10n.cancelAction,
               variant: AppButtonVariant.destructive,
               onPressed: () async {
+                final confirmed = await confirmAction(
+                  context,
+                  title: l10n.deleteConfirmTitle,
+                  description: purchase.purchaseNumber,
+                  confirmLabel: l10n.cancelAction,
+                  cancelLabel: l10n.back,
+                  isDestructive: true,
+                );
+                if (!(confirmed ?? false)) return;
                 await ref.read(purchaseListControllerProvider.notifier).updateStatus(purchase.id, PurchaseStatus.cancelled);
                 ref.invalidate(purchaseByIdProvider(purchase.id));
               },
@@ -102,7 +125,7 @@ class PurchaseDetailScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  if (purchase.status == PurchaseStatus.completed) Text(l10n.demoDataNotice, style: AppTypography.helperText),
+                  if (purchase.status == PurchaseStatus.completed) Text(l10n.purchaseStockApplied, style: AppTypography.helperText),
                 ],
               ),
             ),

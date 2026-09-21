@@ -8,6 +8,8 @@ import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_error_state.dart';
 import '../../../shared/layout/page_scaffold.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/data/stock_engine.dart';
 import '../../../theme/app_typography.dart';
 import '../data/return_models.dart';
 import '../data/return_providers.dart';
@@ -43,11 +45,11 @@ class ReturnDetailScreen extends ConsumerWidget {
         backFallbackRoute: AppRoutes.returns,
         secondaryActions: [
           if (item.status == ReturnStatus.requested) ...[
-            AppButton(label: l10n.approve, onPressed: () => _update(context, ref, item.id, ReturnStatus.approved)),
-            AppButton(label: l10n.reject, variant: AppButtonVariant.destructive, onPressed: () => _update(context, ref, item.id, ReturnStatus.rejected)),
+            AppButton(label: l10n.approve, onPressed: () => _update(context, ref, item, ReturnStatus.approved)),
+            AppButton(label: l10n.reject, variant: AppButtonVariant.destructive, onPressed: () => _update(context, ref, item, ReturnStatus.rejected)),
           ],
           if (item.status == ReturnStatus.approved)
-            AppButton(label: l10n.statusCompleted, onPressed: () => _update(context, ref, item.id, ReturnStatus.completed)),
+            AppButton(label: l10n.statusCompleted, onPressed: () => _update(context, ref, item, ReturnStatus.completed)),
         ],
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -116,9 +118,31 @@ class ReturnDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _update(BuildContext context, WidgetRef ref, String id, ReturnStatus status) async {
-    await ref.read(returnListControllerProvider.notifier).updateStatus(id, status);
-    ref.invalidate(returnByIdProvider(id));
+  Future<void> _update(BuildContext context, WidgetRef ref, ProductReturn item, ReturnStatus status) async {
+    await ref.read(returnListControllerProvider.notifier).updateStatus(item.id, status);
+    ref.invalidate(returnByIdProvider(item.id));
+    if (status != ReturnStatus.completed || !item.restocksOnCompletion) return;
+
+    // The two-stage policy `ProductReturn.restocksOnCompletion` documents:
+    // goods come back into stock when the return COMPLETES, not when it is
+    // approved. Until now that getter had no call site and the
+    // Sellable/Damaged dropdown had no consequence — both conditions
+    // behaved identically. Now only sellable lines restock; damaged ones
+    // still record a movement, because a damaged return is a real event
+    // that a stock ledger should show.
+    final engine = ref.read(stockEngineProvider);
+    await engine.apply(
+      [
+        for (final line in item.items)
+          StockChange(
+            productId: line.productId,
+            productName: line.productName,
+            delta: line.condition == ItemCondition.sellable ? line.quantity : 0,
+          ),
+      ],
+      type: MovementType.returnMovement,
+      note: item.returnNumber,
+    );
   }
 
   Widget _row(String label, String value) {

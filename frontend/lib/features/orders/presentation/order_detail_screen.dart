@@ -13,7 +13,11 @@ import '../../../shared/layout/page_scaffold.dart';
 import '../../../shared/layout/responsive/responsive_layout.dart';
 import '../../../theme/app_typography.dart';
 import '../data/order_models.dart';
+import '../../dashboard/data/dashboard_metrics.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/data/stock_engine.dart';
 import '../data/order_providers.dart';
+import '../data/order_stock.dart';
 import '../orders_screen.dart' show orderStatusLabel, orderStatusTone;
 
 /// Order detail (§14: "view/edit/change status/cancel/return/reopen/print/
@@ -86,6 +90,21 @@ class OrderDetailScreen extends ConsumerWidget {
     }
     await ref.read(orderListControllerProvider.notifier).updateStatus(order.id, next);
     ref.invalidate(orderByIdProvider(order.id));
+
+    // Stock follows the status, in both directions. Completing a standard
+    // order ships the goods; cancelling one that had already completed puts
+    // them back. A quick sale already moved its stock when it was created
+    // (it is born Completed), so it must not move again here.
+    final alreadyMovedOnCreate = order.orderType == OrderType.quickSale;
+    if (!alreadyMovedOnCreate) {
+      final engine = ref.read(stockEngineProvider);
+      if (next == OrderStatus.completed && order.status != OrderStatus.completed) {
+        await engine.apply(stockChangesFor(order), type: MovementType.sale, note: order.orderNumber);
+      } else if (next == OrderStatus.cancelled && order.status == OrderStatus.completed) {
+        await engine.reverse(stockChangesFor(order), type: MovementType.sale, note: order.orderNumber);
+      }
+    }
+    ref.invalidate(dashboardMetricsProvider);
   }
 
   List<Widget> _sections(AppLocalizations l10n, Order order) {

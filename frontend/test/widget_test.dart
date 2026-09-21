@@ -38,7 +38,13 @@ import 'package:warehouse_os_app/features/customers/presentation/customer_detail
 import 'package:warehouse_os_app/features/dashboard/dashboard_screen.dart';
 import 'package:warehouse_os_app/features/employees/data/employee_providers.dart';
 import 'package:warehouse_os_app/features/employees/data/employee_repository.dart';
+import 'package:warehouse_os_app/features/dashboard/data/dashboard_metrics.dart';
+import 'package:warehouse_os_app/features/inventory/data/inventory_models.dart';
+import 'package:warehouse_os_app/features/inventory/data/inventory_providers.dart';
+import 'package:warehouse_os_app/features/inventory/data/stock_engine.dart';
+import 'package:warehouse_os_app/features/orders/data/order_models.dart';
 import 'package:warehouse_os_app/features/orders/data/order_providers.dart';
+import 'package:warehouse_os_app/features/orders/data/order_stock.dart';
 import 'package:warehouse_os_app/features/products/data/product_providers.dart';
 import 'package:warehouse_os_app/features/employees/employees_screen.dart';
 import 'package:warehouse_os_app/features/orders/orders_screen.dart';
@@ -1803,6 +1809,150 @@ void main() {
 
     final productionNavItem = businessNavItems.firstWhere((i) => i.moduleKey == 'production');
     expect(storageStoreModules.contains(productionNavItem.moduleKey), isFalse);
+  });
+
+  group('Stock engine — business actions actually move inventory', () {
+    // Before this existed you could sell a sofa, complete the order, and the
+    // sofa's quantity never changed. Every test below asserts BOTH halves:
+    // the quantity moved, and a movement row was written for it (spec §12 —
+    // stock never changes without history).
+
+    Future<int> quantityOf(ProviderContainer container, String productId) async =>
+        (await container.read(productRepositoryProvider).getById(productId)).currentQuantity;
+
+    Future<List<StockMovement>> movements(ProviderContainer container) async =>
+        (await container.read(inventoryRepositoryProvider).listMovements(const PagedQuery(pageSize: 200))).items;
+
+    test('A quick sale consumes stock and records a sale movement', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final before = await quantityOf(container, 'prod-1');
+
+      final sale = await container.read(orderRepositoryProvider).create(
+            const OrderDraft(
+              orderType: OrderType.quickSale,
+              items: [OrderItemDraft(productId: 'prod-1', productName: '3-Seat Sofa — Charcoal', quantity: 2, unitPrice: 420)],
+            ),
+          );
+      await container.read(stockEngineProvider).apply(stockChangesFor(sale), type: MovementType.sale, note: sale.orderNumber);
+
+      expect(await quantityOf(container, 'prod-1'), before - 2);
+      final movement = (await movements(container)).firstWhere((m) => m.note == sale.orderNumber);
+      expect(movement.type, MovementType.sale);
+      expect(movement.previousQuantity, before);
+      expect(movement.newQuantity, before - 2);
+    });
+
+    test('Cancelling a completed order puts the stock back', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final before = await quantityOf(container, 'prod-3');
+
+      final order = await container.read(orderRepositoryProvider).create(
+            const OrderDraft(
+              orderType: OrderType.standard,
+              items: [OrderItemDraft(productId: 'prod-3', productName: 'Coffee Table — Oak', quantity: 4, unitPrice: 120)],
+            ),
+          );
+      final engine = container.read(stockEngineProvider);
+      await engine.apply(stockChangesFor(order), type: MovementType.sale);
+      expect(await quantityOf(container, 'prod-3'), before - 4);
+
+      await engine.reverse(stockChangesFor(order), type: MovementType.sale);
+      expect(await quantityOf(container, 'prod-3'), before, reason: 'reversal must be exactly symmetric');
+    });
+
+    test('Completing a purchase increases stock and records a purchase movement', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final before = await quantityOf(container, 'prod-6');
+
+      await container.read(stockEngineProvider).apply(
+        [const StockChange(productId: 'prod-6', productName: 'Solid Pine Timber (2m)', delta: 200)],
+        type: MovementType.purchase,
+        note: 'PUR-TEST',
+      );
+
+      expect(await quantityOf(container, 'prod-6'), before + 200);
+      expect((await movements(container)).firstWhere((m) => m.note == 'PUR-TEST').type, MovementType.purchase);
+    });
+
+    test('A completed return restocks sellable lines only — damaged ones record a movement but no stock', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final sellableBefore = await quantityOf(container, 'prod-1');
+      final damagedBefore = await quantityOf(container, 'prod-2');
+
+      await container.read(stockEngineProvider).apply(
+        [
+          // Exactly what ReturnDetailScreen builds: sellable keeps its
+          // quantity, damaged is zeroed but still recorded.
+          const StockChange(productId: 'prod-1', productName: 'sellable', delta: 3),
+          const StockChange(productId: 'prod-2', productName: 'damaged', delta: 0),
+        ],
+        type: MovementType.returnMovement,
+        note: 'RET-TEST',
+      );
+
+      expect(await quantityOf(container, 'prod-1'), sellableBefore + 3);
+      expect(await quantityOf(container, 'prod-2'), damagedBefore, reason: 'damaged goods must not become sellable stock');
+      final rows = (await movements(container)).where((m) => m.note == 'RET-TEST').toList();
+      expect(rows, hasLength(2), reason: 'both lines are real events the ledger should show');
+    });
+
+    test('Completing production consumes materials per unit built and adds finished goods', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final timberBefore = await quantityOf(container, 'prod-6'); // BOM material
+      final sofaBefore = await quantityOf(container, 'prod-1'); // finished good
+
+      // prod-1's BOM needs 4 timber per unit; a run of 5 consumes 20.
+      const built = 5;
+      const timberPerUnit = 4;
+      await container.read(stockEngineProvider).apply(
+        [
+          const StockChange(productId: 'prod-6', productName: 'Solid Pine Timber (2m)', delta: -(timberPerUnit * built)),
+          const StockChange(productId: 'prod-1', productName: '3-Seat Sofa — Charcoal', delta: built),
+        ],
+        type: MovementType.production,
+        note: 'PRDN-TEST',
+      );
+
+      expect(await quantityOf(container, 'prod-6'), timberBefore - (timberPerUnit * built));
+      expect(await quantityOf(container, 'prod-1'), sofaBefore + built);
+    });
+
+    test('Stock never goes negative, and the movement row agrees with the clamp', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final before = await quantityOf(container, 'prod-5');
+
+      await container.read(stockEngineProvider).apply(
+        [StockChange(productId: 'prod-5', productName: 'Bookshelf — 5 Tier', delta: -(before + 50))],
+        type: MovementType.sale,
+        note: 'OVERSELL',
+      );
+
+      expect(await quantityOf(container, 'prod-5'), 0, reason: 'negative demo stock makes every downstream figure nonsense');
+    });
+
+    test('The dashboard total reflects a sale immediately', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final before = await container.read(dashboardMetricsProvider.future);
+
+      final sale = await container.read(orderRepositoryProvider).create(
+            const OrderDraft(
+              orderType: OrderType.quickSale,
+              items: [OrderItemDraft(productId: 'prod-1', productName: '3-Seat Sofa — Charcoal', quantity: 1, unitPrice: 420)],
+            ),
+          );
+      await container.read(stockEngineProvider).apply(stockChangesFor(sale), type: MovementType.sale);
+
+      final after = await container.read(dashboardMetricsProvider.future);
+      expect(after.totalSalesTotal, greaterThan(before.totalSalesTotal));
+      expect(after.totalStockQuantity, before.totalStockQuantity - 1);
+    });
   });
 
   group('Demo/backend mode selection (frontend-only demo-mode verification)', () {
