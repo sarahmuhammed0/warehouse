@@ -112,7 +112,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
                 loading: () => const LinearProgressIndicator(),
                 error: (_, _) => const SizedBox.shrink(),
               ),
-              AppSwitch(label: l10n.statusActive, value: _active, onChanged: _saving ? (_) {} : (value) => setState(() => _active = value)),
+              AppSwitch(label: l10n.statusActive, value: _active, onChanged: _saving ? null : (value) => setState(() => _active = value)),
               if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
           ),

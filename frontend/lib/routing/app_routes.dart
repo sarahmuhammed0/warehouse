@@ -12,6 +12,9 @@ class AppRoutes {
   static String productDetail(String id) => '/products/$id';
   static String productEdit(String id) => '/products/$id/edit';
 
+  /// One product's stock-movement ledger (§8's "History" row action).
+  static String productHistory(String id) => '/products/$id/history';
+
   static const categories = '/categories';
 
   static const inventory = '/inventory';

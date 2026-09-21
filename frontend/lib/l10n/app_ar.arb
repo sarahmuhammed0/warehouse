@@ -322,5 +322,8 @@
   "reportPayments": "المدفوعات",
   "selectProductFirst": "اختر منتجًا",
   "copy": "نسخ",
-  "copiedToClipboard": "تم النسخ إلى الحافظة"
+  "copiedToClipboard": "تم النسخ إلى الحافظة",
+  "markAllRead": "تعليم الكل كمقروء",
+  "fieldLineDiscount": "الخصم",
+  "fieldExtraCharges": "رسوم إضافية"
 }

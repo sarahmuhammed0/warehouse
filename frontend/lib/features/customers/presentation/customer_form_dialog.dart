@@ -105,7 +105,7 @@ class _CustomerFormDialogState extends ConsumerState<CustomerFormDialog> {
               AppTextField(label: l10n.fieldCompany, controller: _company, enabled: !_saving),
               AppTextField(label: l10n.fieldAddress, controller: _address, enabled: !_saving),
               AppTextField.multiline(label: l10n.fieldNotes, controller: _notes, enabled: !_saving, maxLines: 2),
-              AppSwitch(label: l10n.statusActive, value: _active, onChanged: _saving ? (_) {} : (value) => setState(() => _active = value)),
+              AppSwitch(label: l10n.statusActive, value: _active, onChanged: _saving ? null : (value) => setState(() => _active = value)),
               if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
           ),

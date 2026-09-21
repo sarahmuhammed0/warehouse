@@ -177,7 +177,13 @@ class _NotificationBell extends ConsumerWidget {
           for (final n in notifications.take(6))
             PopupMenuItem<String>(
               value: n.id,
-              onTap: () => ref.read(notificationsProvider.notifier).markRead(n.id),
+              onTap: () {
+                ref.read(notificationsProvider.notifier).markRead(n.id);
+                // ...and go to what it is about. `PopupMenuItem.onTap`
+                // fires after the menu closes, so pushing here is safe.
+                final route = n.targetRoute;
+                if (route != null) context.push(route);
+              },
               child: SizedBox(
                 width: 260,
                 child: Row(
@@ -198,6 +204,14 @@ class _NotificationBell extends ConsumerWidget {
                 ),
               ),
             ),
+          if (unreadCount > 0) ...[
+            const PopupMenuDivider(),
+            PopupMenuItem<String>(
+              value: 'mark-all-read',
+              onTap: () => ref.read(notificationsProvider.notifier).markAllRead(),
+              child: Text(l10n.markAllRead),
+            ),
+          ],
         ],
       ],
     );

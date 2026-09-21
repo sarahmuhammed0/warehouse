@@ -32,6 +32,7 @@ import '../features/production/presentation/production_form_screen.dart';
 import '../features/production/production_screen.dart';
 import '../features/products/presentation/product_detail_screen.dart';
 import '../features/products/presentation/product_form_screen.dart';
+import '../features/products/presentation/product_history_screen.dart';
 import '../features/products/products_screen.dart';
 import '../features/purchases/presentation/purchase_detail_screen.dart';
 import '../features/purchases/presentation/purchase_form_screen.dart';
@@ -85,6 +86,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: AppRoutes.dashboard, builder: (context, state) => const DashboardPlaceholderScreen()),
           GoRoute(path: AppRoutes.products, builder: (context, state) => const ProductsScreen()),
           GoRoute(path: AppRoutes.productNew, builder: (context, state) => const ProductFormScreen()),
+          GoRoute(
+            path: '/products/:id/history',
+            builder: (context, state) => ProductHistoryScreen(productId: state.pathParameters['id']!),
+          ),
           GoRoute(
             path: '/products/:id/edit',
             builder: (context, state) => ProductFormScreen(productId: state.pathParameters['id']),

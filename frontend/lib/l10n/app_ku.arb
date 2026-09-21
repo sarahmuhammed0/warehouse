@@ -322,5 +322,8 @@
   "reportPayments": "پارەدانەکان",
   "selectProductFirst": "بەرهەمێک هەڵبژێرە",
   "copy": "لەبەرگرتنەوە",
-  "copiedToClipboard": "لەبەرگیرایەوە"
+  "copiedToClipboard": "لەبەرگیرایەوە",
+  "markAllRead": "هەمووی وەک خوێندراوە نیشان بکە",
+  "fieldLineDiscount": "داشکاندن",
+  "fieldExtraCharges": "باجی زیادە"
 }

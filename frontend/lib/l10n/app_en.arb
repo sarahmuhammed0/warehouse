@@ -340,5 +340,8 @@
   "reportPayments": "Payments",
   "selectProductFirst": "Select a product",
   "copy": "Copy",
-  "copiedToClipboard": "Copied to clipboard"
+  "copiedToClipboard": "Copied to clipboard",
+  "markAllRead": "Mark all as read",
+  "fieldLineDiscount": "Discount",
+  "fieldExtraCharges": "Extra charges"
 }

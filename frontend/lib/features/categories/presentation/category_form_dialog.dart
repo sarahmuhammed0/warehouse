@@ -141,7 +141,7 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
               AppSwitch(
                 label: l10n.statusActive,
                 value: _active,
-                onChanged: _saving ? (_) {} : (value) => setState(() => _active = value),
+                onChanged: _saving ? null : (value) => setState(() => _active = value),
               ),
               if (_error != null)
                 Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

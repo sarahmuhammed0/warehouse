@@ -17,6 +17,7 @@ import '../../shared/tables/app_data_table.dart';
 import '../../shared/tables/table_column.dart';
 import '../../shared/tables/table_row_actions.dart';
 import '../categories/data/category_providers.dart';
+import '../inventory/presentation/stock_adjustment_dialog.dart';
 import 'data/product_models.dart';
 import 'data/product_providers.dart';
 
@@ -171,6 +172,21 @@ class ProductsScreen extends ConsumerWidget {
                 RowAction(label: l10n.view, icon: Icons.visibility_outlined, onTap: () => context.push(AppRoutes.productDetail(item.id))),
                 if (canEdit)
                   RowAction(label: l10n.edit, icon: Icons.edit_outlined, onTap: () => context.push(AppRoutes.productEdit(item.id))),
+                // §8 lists five row actions: View, Edit, Stock, History,
+                // Delete/archive. Stock and History were simply absent,
+                // although the dialog and the movement query both existed.
+                if (hasPermission(permissions, 'inventory', 'edit'))
+                  RowAction(
+                    label: l10n.adjust,
+                    icon: Icons.tune,
+                    onTap: () => showStockAdjustmentDialog(context, item),
+                  ),
+                if (hasPermission(permissions, 'inventory', 'view'))
+                  RowAction(
+                    label: l10n.reportStockMovement,
+                    icon: Icons.history,
+                    onTap: () => context.push(AppRoutes.productHistory(item.id)),
+                  ),
                 if (canEdit)
                   if (item.status == ProductStatus.active)
                     RowAction(label: l10n.deactivate, icon: Icons.visibility_off_outlined, onTap: () => controller.setStatus(item.id, ProductStatus.inactive))

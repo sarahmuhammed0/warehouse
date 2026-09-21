@@ -20,6 +20,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/theme_controller.dart';
 import 'data/business_type_config.dart';
 import 'data/settings_state.dart';
+import 'presentation/settings_field.dart';
 
 enum _SettingsSection { general, business, users, inventory, sales, pdf, production, security, customFields, backup }
 
@@ -150,8 +151,8 @@ class _BusinessSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 14,
         children: [
-          AppTextField(label: l10n.fieldName, controller: TextEditingController(text: settings.businessName), onChanged: (v) => controller.update((s) => s.copyWith(businessName: v))),
-          AppTextField(label: 'Currency', controller: TextEditingController(text: settings.currency), onChanged: (v) => controller.update((s) => s.copyWith(currency: v))),
+          SettingsField(label: l10n.fieldName, initialValue: settings.businessName, onChanged: (v) => controller.update((s) => s.copyWith(businessName: v))),
+          SettingsField(label: 'Currency', initialValue: settings.currency, onChanged: (v) => controller.update((s) => s.copyWith(currency: v))),
           const Divider(),
           Text('Business type (spec §33) — determines which sidebar modules are enabled.', style: AppTypography.helperText),
           Wrap(
@@ -212,10 +213,10 @@ class _InventorySection extends ConsumerWidget {
             value: settings.negativeInventoryAllowed,
             onChanged: (v) => controller.update((s) => s.copyWith(negativeInventoryAllowed: v)),
           ),
-          AppTextField.number(
+          SettingsField(
             label: l10n.fieldReorderLevel,
-            controller: TextEditingController(text: '${settings.lowStockDefaultThreshold}'),
-            allowDecimal: false,
+            initialValue: '${settings.lowStockDefaultThreshold}',
+            number: true,
             onChanged: (v) => controller.update((s) => s.copyWith(lowStockDefaultThreshold: int.tryParse(v) ?? s.lowStockDefaultThreshold)),
           ),
         ],
@@ -239,9 +240,9 @@ class _SalesSection extends ConsumerWidget {
         spacing: 14,
         children: [
           Wrap(spacing: 14, runSpacing: 14, children: [
-            SizedBox(width: 160, child: AppTextField(label: 'Invoice prefix', controller: TextEditingController(text: settings.invoicePrefix), onChanged: (v) => controller.update((s) => s.copyWith(invoicePrefix: v)))),
-            SizedBox(width: 160, child: AppTextField(label: 'Order prefix', controller: TextEditingController(text: settings.orderPrefix), onChanged: (v) => controller.update((s) => s.copyWith(orderPrefix: v)))),
-            SizedBox(width: 160, child: AppTextField.number(label: 'Starting number', controller: TextEditingController(text: '${settings.startingNumber}'), allowDecimal: false, onChanged: (v) => controller.update((s) => s.copyWith(startingNumber: int.tryParse(v) ?? s.startingNumber)))),
+            SizedBox(width: 160, child: SettingsField(label: 'Invoice prefix', initialValue: settings.invoicePrefix, onChanged: (v) => controller.update((s) => s.copyWith(invoicePrefix: v)))),
+            SizedBox(width: 160, child: SettingsField(label: 'Order prefix', initialValue: settings.orderPrefix, onChanged: (v) => controller.update((s) => s.copyWith(orderPrefix: v)))),
+            SizedBox(width: 160, child: SettingsField(label: 'Starting number', initialValue: '${settings.startingNumber}', number: true, onChanged: (v) => controller.update((s) => s.copyWith(startingNumber: int.tryParse(v) ?? s.startingNumber)))),
           ]),
           Text('Preview: ${settings.invoicePrefix}-2026-${settings.startingNumber.toString().padLeft(6, '0')}', style: AppTypography.helperText),
           AppCheckbox(label: l10n.paymentMethodCash, value: settings.cashPaymentsEnabled, onChanged: (v) => controller.update((s) => s.copyWith(cashPaymentsEnabled: v ?? true))),
@@ -270,7 +271,7 @@ class _PdfSection extends ConsumerWidget {
           AppCheckbox(label: l10n.fieldImage, value: settings.pdfShowLogo, onChanged: (v) => controller.update((s) => s.copyWith(pdfShowLogo: v ?? true))),
           AppCheckbox(label: l10n.fieldTax, value: settings.pdfShowTaxInfo, onChanged: (v) => controller.update((s) => s.copyWith(pdfShowTaxInfo: v ?? true))),
           AppCheckbox(label: 'Signature', value: settings.pdfShowSignature, onChanged: (v) => controller.update((s) => s.copyWith(pdfShowSignature: v ?? true))),
-          AppTextField.multiline(label: 'Footer text', controller: TextEditingController(text: settings.pdfFooterText), maxLines: 2, onChanged: (v) => controller.update((s) => s.copyWith(pdfFooterText: v))),
+          SettingsField(label: 'Footer text', initialValue: settings.pdfFooterText, maxLines: 2, onChanged: (v) => controller.update((s) => s.copyWith(pdfFooterText: v))),
           const Divider(),
           Text('Live preview', style: AppTypography.sectionTitle),
           Container(
@@ -305,7 +306,7 @@ class _ProductionSection extends ConsumerWidget {
     final controller = ref.read(businessSettingsProvider.notifier);
     return AppCard(
       title: Text(l10n.navProduction),
-      child: AppTextField(label: 'Production number prefix', controller: TextEditingController(text: settings.productionNumberPrefix), onChanged: (v) => controller.update((s) => s.copyWith(productionNumberPrefix: v))),
+      child: SettingsField(label: 'Production number prefix', initialValue: settings.productionNumberPrefix, onChanged: (v) => controller.update((s) => s.copyWith(productionNumberPrefix: v))),
     );
   }
 }
@@ -324,9 +325,9 @@ class _SecuritySection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 14,
         children: [
-          AppTextField.number(label: 'Minimum password length', controller: TextEditingController(text: '${settings.minPasswordLength}'), allowDecimal: false, onChanged: (v) => controller.update((s) => s.copyWith(minPasswordLength: int.tryParse(v) ?? s.minPasswordLength))),
-          AppTextField.number(label: 'Session timeout (minutes)', controller: TextEditingController(text: '${settings.sessionTimeoutMinutes}'), allowDecimal: false, onChanged: (v) => controller.update((s) => s.copyWith(sessionTimeoutMinutes: int.tryParse(v) ?? s.sessionTimeoutMinutes))),
-          AppTextField.number(label: 'Lockout after N failed logins', controller: TextEditingController(text: '${settings.loginLockoutAttempts}'), allowDecimal: false, onChanged: (v) => controller.update((s) => s.copyWith(loginLockoutAttempts: int.tryParse(v) ?? s.loginLockoutAttempts))),
+          SettingsField(label: 'Minimum password length', initialValue: '${settings.minPasswordLength}', number: true, onChanged: (v) => controller.update((s) => s.copyWith(minPasswordLength: int.tryParse(v) ?? s.minPasswordLength))),
+          SettingsField(label: 'Session timeout (minutes)', initialValue: '${settings.sessionTimeoutMinutes}', number: true, onChanged: (v) => controller.update((s) => s.copyWith(sessionTimeoutMinutes: int.tryParse(v) ?? s.sessionTimeoutMinutes))),
+          SettingsField(label: 'Lockout after N failed logins', initialValue: '${settings.loginLockoutAttempts}', number: true, onChanged: (v) => controller.update((s) => s.copyWith(loginLockoutAttempts: int.tryParse(v) ?? s.loginLockoutAttempts))),
           Text('The backend\'s real auth already enforces lockout/rate-limiting (Phase 2) — this panel is the future UI for adjusting those thresholds per business, not yet wired to that endpoint.', style: AppTypography.helperText),
         ],
       ),

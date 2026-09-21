@@ -96,7 +96,13 @@ class AppSwitch extends StatelessWidget {
 
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+
+  /// Nullable so a caller can genuinely disable it. It used to be
+  /// non-nullable, so every form that wanted to lock the switch while
+  /// saving passed `(_) {}` — which leaves `Switch` looking fully
+  /// interactive while silently swallowing taps. `null` greys it out, the
+  /// same way the buttons beside it already behaved.
+  final ValueChanged<bool>? onChanged;
   final String? helperText;
 
   @override

@@ -16,7 +16,10 @@ import '../../../theme/app_typography.dart';
 import '../../../shared/forms/app_text_field.dart';
 import '../../../shared/overlays/app_dialog.dart';
 import '../data/product_models.dart';
+import '../../inventory/data/inventory_models.dart';
+import '../../inventory/presentation/stock_adjustment_dialog.dart';
 import '../data/product_providers.dart';
+import 'product_history_screen.dart';
 import '../data/product_variant_models.dart';
 import '../data/product_variant_providers.dart';
 
@@ -60,6 +63,22 @@ class ProductDetailScreen extends ConsumerWidget {
           onPressed: () => context.push(AppRoutes.productEdit(product.id)),
         ),
         secondaryActions: [
+          // The whole Inventory card below was read-only text: you could
+          // see a product was out of stock and had no way to act on it
+          // without going back to the list.
+          AppButton(
+            key: const ValueKey('productAdjustStock'),
+            label: l10n.adjust,
+            icon: Icons.tune,
+            variant: AppButtonVariant.outline,
+            onPressed: () => showStockAdjustmentDialog(context, product),
+          ),
+          AppButton(
+            label: l10n.reportStockMovement,
+            icon: Icons.history,
+            variant: AppButtonVariant.outline,
+            onPressed: () => context.push(AppRoutes.productHistory(product.id)),
+          ),
           if (product.barcode != null)
             AppButton(
               label: l10n.print,
@@ -153,14 +172,10 @@ class ProductDetailScreen extends ConsumerWidget {
           ],
         ),
       ),
-      AppCard(
-        title: Text(l10n.fieldOrderHistory),
-        child: AppEmptyState(
-          icon: Icons.history,
-          title: l10n.emptyStateDefaultTitle,
-          description: l10n.demoDataNotice,
-        ),
-      ),
+      // Was a hard-coded empty state. Now the product's five most recent
+      // stock movements — real ones, since sales/purchases/returns/
+      // production all write them.
+      _RecentMovementsCard(productId: product.id, l10n: l10n),
       _VariantsCard(product: product, l10n: l10n),
     ];
   }
@@ -279,6 +294,47 @@ class _VariantsCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The product's recent stock movements, in place of what used to be a
+/// permanently empty "Order history" card.
+class _RecentMovementsCard extends ConsumerWidget {
+  const _RecentMovementsCard({required this.productId, required this.l10n});
+
+  final String productId;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final movements = ref.watch(productMovementsProvider(productId)).asData?.value ?? const <StockMovement>[];
+
+    return AppCard(
+      title: Text(l10n.reportStockMovement),
+      actions: [
+        TextButton(
+          onPressed: () => context.push(AppRoutes.productHistory(productId)),
+          child: Text(l10n.view),
+        ),
+      ],
+      child: movements.isEmpty
+          ? AppEmptyState(icon: Icons.history, title: l10n.emptyStateDefaultTitle, description: l10n.emptyStateDefaultDescription)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final m in movements.take(5))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(m.type.name, style: AppTypography.body)),
+                        Text('${m.previousQuantity} → ${m.newQuantity}', style: AppTypography.bodyStrong),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }

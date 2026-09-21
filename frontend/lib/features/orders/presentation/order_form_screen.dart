@@ -36,14 +36,22 @@ class OrderFormScreen extends ConsumerStatefulWidget {
 }
 
 class _CartLine {
-  _CartLine({required this.product, this.quantity = 1})
-      : tax = (product.sellingPrice ?? 0) * (product.taxRate ?? 0) / 100 * quantity;
+  _CartLine({required this.product});
   final Product product;
-  int quantity;
+  int quantity = 1;
   double discount = 0;
-  double tax;
 
   double get unitPrice => product.sellingPrice ?? 0;
+
+  /// A getter, not a field captured in the constructor.
+  ///
+  /// It used to be computed once at construction — when `quantity` was
+  /// still its default of 1 — and never recomputed. Changing the quantity
+  /// updated the subtotal and grand total but left the tax frozen at the
+  /// one-unit amount, so a ten-unit line was taxed as one, both on screen
+  /// and in the `OrderItemDraft` that got saved.
+  double get tax => unitPrice * (product.taxRate ?? 0) / 100 * quantity;
+
   double get lineTotal => (quantity * unitPrice) - discount + tax;
 }
 
@@ -201,6 +209,21 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                               const SizedBox(width: 8),
                               SizedBox(width: 90, child: Text(line.unitPrice.toStringAsFixed(2), textAlign: TextAlign.end)),
                               const SizedBox(width: 8),
+                              // Per-line discount (§13/§14 both list it).
+                              // `_CartLine.discount` existed and was always
+                              // 0 because nothing could edit it, which made
+                              // the Discount row in the totals permanently
+                              // read 0.00.
+                              SizedBox(
+                                width: 80,
+                                child: TextFormField(
+                                  initialValue: line.discount == 0 ? '' : '${line.discount}',
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  decoration: InputDecoration(labelText: l10n.fieldLineDiscount),
+                                  onChanged: (value) => setState(() => line.discount = double.tryParse(value) ?? 0),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               SizedBox(width: 90, child: Text(line.lineTotal.toStringAsFixed(2), textAlign: TextAlign.end, style: AppTypography.bodyStrong)),
                               IconButton(
                                 icon: const Icon(Icons.close, size: 18),
@@ -223,7 +246,9 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                 _totalsRow(l10n.fieldSubtotal, _subtotal),
                 _totalsRow(l10n.fieldDiscount, _discountTotal),
                 _totalsRow(l10n.fieldTax, _taxTotal),
-                AppTextField.number(label: l10n.fieldReferenceNumber, controller: _extraCharges, onChanged: (_) => setState(() {})),
+                // Was labelled "Reference Number" while feeding extraCharges and the
+                // grand total — a money input asking for a reference code.
+                AppTextField.number(label: l10n.fieldExtraCharges, controller: _extraCharges, onChanged: (_) => setState(() {})),
                 const Divider(),
                 _totalsRow(l10n.fieldGrandTotal, _grandTotal, strong: true),
                 AppDropdownField<PaymentMethod>(

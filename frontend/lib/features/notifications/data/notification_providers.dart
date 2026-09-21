@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../routing/app_routes.dart';
 import '../../products/data/product_providers.dart';
 import 'notification_models.dart';
 
@@ -23,14 +24,18 @@ class NotificationsController extends Notifier<List<AppNotification>> {
   List<AppNotification> build() {
     final products = ref.watch(productPickerOptionsProvider).asData?.value ?? const [];
     final now = DateTime.now();
+    // Each derived entry carries the route of the thing it is about, so
+    // tapping it opens that product rather than just dismissing the menu.
     final derived = <AppNotification>[
       for (final p in products.where((p) => p.isOutOfStock))
-        AppNotification(id: 'notif-out-${p.id}', type: NotificationType.outOfStock, title: 'Out of stock', body: '${p.name} is out of stock.', createdAt: now),
+        AppNotification(id: 'notif-out-${p.id}', type: NotificationType.outOfStock, title: 'Out of stock', body: '${p.name} is out of stock.', createdAt: now, targetRoute: AppRoutes.productDetail(p.id)),
       for (final p in products.where((p) => p.isLowStock))
-        AppNotification(id: 'notif-low-${p.id}', type: NotificationType.lowStock, title: 'Low stock', body: '${p.name}: ${p.currentQuantity} ${p.unit} left.', createdAt: now),
+        AppNotification(id: 'notif-low-${p.id}', type: NotificationType.lowStock, title: 'Low stock', body: '${p.name}: ${p.currentQuantity} ${p.unit} left.', createdAt: now, targetRoute: AppRoutes.productDetail(p.id)),
     ];
     final seeded = <AppNotification>[
-      AppNotification(id: 'notif-seed-1', type: NotificationType.newOrder, title: 'New order', body: 'A new order was placed.', createdAt: now.subtract(const Duration(hours: 2))),
+      AppNotification(id: 'notif-seed-1', type: NotificationType.newOrder, title: 'New order', body: 'A new order was placed.', createdAt: now.subtract(const Duration(hours: 2)), targetRoute: AppRoutes.orders),
+      // No target: a general notice isn't "about" one screen, and sending
+      // the reader somewhere arbitrary would be worse than not moving.
       AppNotification(id: 'notif-seed-2', type: NotificationType.systemAlert, title: 'System alert', body: 'Demo data only — no backend connected yet.', createdAt: now.subtract(const Duration(days: 1))),
     ];
     return [
