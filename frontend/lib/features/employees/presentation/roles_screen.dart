@@ -107,12 +107,17 @@ class _PermissionMatrix extends ConsumerWidget {
                       ? const SizedBox(width: 24, height: 24)
                       : Checkbox(
                           value: role.permissions.contains(PermissionCatalog.key(module, action)),
-                          onChanged: (checked) {
+                          onChanged: (checked) async {
                             final next = Set<String>.from(role.permissions);
                             final key = PermissionCatalog.key(module, action);
                             checked ?? false ? next.add(key) : next.remove(key);
-                            ref.read(employeeRepositoryProvider).updateRolePermissions(role.id, next);
-                            ref.invalidate(rolesProvider);
+                            // Awaited, and routed through the controller
+                            // that bumps `rolesVersionProvider` — that's
+                            // what makes the change visible beyond this
+                            // screen. Un-ticking "products.view" for your
+                            // own role now really does remove Products
+                            // from the sidebar.
+                            await ref.read(rolesVersionProvider.notifier).updatePermissions(role.id, next);
                           },
                         ),
                 ),

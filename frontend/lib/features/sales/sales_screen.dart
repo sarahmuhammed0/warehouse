@@ -13,7 +13,7 @@ import '../../shared/tables/app_data_table.dart';
 import '../../shared/tables/table_column.dart';
 import '../orders/data/order_models.dart';
 import '../orders/data/order_providers.dart';
-import '../orders/orders_screen.dart' show orderStatusLabel, orderStatusTone;
+import '../orders/orders_screen.dart' show OrderFilterBar, orderStatusLabel, orderStatusTone;
 
 /// Sales (spec §13) — the fast-checkout view over the same `orders`
 /// repository as the Orders module, filtered to `orderType == quickSale`
@@ -58,6 +58,7 @@ class SalesPlaceholderScreen extends ConsumerWidget {
       backFallbackRoute: AppRoutes.dashboard,
       primaryAction: AppButton(label: '${l10n.add} ${l10n.navSales}', icon: Icons.point_of_sale_outlined, onPressed: () => context.push(AppRoutes.saleNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
+      filterBar: OrderFilterBar(state: state, controller: controller),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,
@@ -73,7 +74,7 @@ class SalesPlaceholderScreen extends ConsumerWidget {
             onRowTap: (item) => context.push(AppRoutes.orderDetail(item.id)),
           ),
           if (!state.loading && state.error == null)
-            PaginationBar(page: state.query.page, totalPages: state.totalPages, pageSize: state.query.pageSize, pageSizeOptions: const [10, 20, 50], onPageChanged: controller.changePage),
+            PaginationBar(page: state.query.page, totalPages: state.totalPages, pageSize: state.query.pageSize, pageSizeOptions: const [10, 20, 50], onPageChanged: controller.changePage, onPageSizeChanged: controller.changePageSize),
         ],
       ),
     );

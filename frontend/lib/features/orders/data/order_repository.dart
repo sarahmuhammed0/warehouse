@@ -238,6 +238,20 @@ class LocalOrderRepository with DemoRepository implements OrderRepository {
     if (type != null) pool = pool.where((o) => o.orderType == type).toList();
     final status = query.filters['status'] as OrderStatus?;
     if (status != null) pool = pool.where((o) => o.status == status).toList();
+    // `period` backs the dashboard's "Today's sales"/"Today's orders" cards:
+    // tapping a figure has to land on exactly the rows it counted, so the
+    // same window that produced the number narrows the list.
+    final period = query.filters['period'] as String?;
+    if (period != null) {
+      final now = DateTime.now();
+      pool = pool.where((o) {
+        return switch (period) {
+          'today' => o.createdAt.year == now.year && o.createdAt.month == now.month && o.createdAt.day == now.day,
+          'month' => o.createdAt.year == now.year && o.createdAt.month == now.month,
+          _ => true,
+        };
+      }).toList();
+    }
     return paginateInMemory<Order>(
       pool,
       query,

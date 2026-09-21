@@ -6,6 +6,8 @@ import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
+import '../../core/repositories/paged_list_controller.dart';
+import '../../shared/forms/app_select_field.dart';
 import '../../shared/forms/app_text_field.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/pagination/pagination_bar.dart';
@@ -45,8 +47,9 @@ class OrdersScreen extends ConsumerWidget {
       title: l10n.navOrders,
       showBackButton: true,
       backFallbackRoute: AppRoutes.dashboard,
-      primaryAction: AppButton(label: '${l10n.add} ${l10n.navOrders}', icon: Icons.add, onPressed: () => context.push('/orders/new')),
+      primaryAction: AppButton(label: '${l10n.add} ${l10n.navOrders}', icon: Icons.add, onPressed: () => context.push(AppRoutes.orderNew)),
       searchBar: SizedBox(width: 280, child: AppTextField(label: l10n.search, hintText: l10n.searchPlaceholder, onChanged: controller.search)),
+      filterBar: OrderFilterBar(state: state, controller: controller),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,
@@ -65,9 +68,80 @@ class OrdersScreen extends ConsumerWidget {
             ),
           ),
           if (!state.loading && state.error == null)
-            PaginationBar(page: state.query.page, totalPages: state.totalPages, pageSize: state.query.pageSize, pageSizeOptions: const [10, 20, 50], onPageChanged: controller.changePage),
+            PaginationBar(page: state.query.page, totalPages: state.totalPages, pageSize: state.query.pageSize, pageSizeOptions: const [10, 20, 50], onPageChanged: controller.changePage, onPageSizeChanged: controller.changePageSize),
         ],
       ),
+    );
+  }
+}
+
+/// Status + period filtering, shared by Orders and Sales (they are two
+/// filtered views of one list controller).
+///
+/// It exists mostly so the dashboard's drill-downs are honest: tapping
+/// "Pending orders" lands here with the filter already applied, and without
+/// a visible chip the user would be looking at a subset with no indication
+/// of why — and no way back to the full list short of guessing.
+class OrderFilterBar extends StatelessWidget {
+  const OrderFilterBar({super.key, required this.state, required this.controller});
+
+  final PagedListState<Order> state;
+  final PagedListController<Order> controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final status = state.query.filters['status'] as OrderStatus?;
+    final period = state.query.filters['period'] as String?;
+
+    void set(String key, Object? value) {
+      final next = <String, Object?>{...state.query.filters};
+      if (value == null) {
+        next.remove(key);
+      } else {
+        next[key] = value;
+      }
+      controller.setFilters(next);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 190,
+          child: AppDropdownField<OrderStatus?>(
+            label: l10n.fieldStatus,
+            value: status,
+            options: [
+              AppSelectOption<OrderStatus?>(null, l10n.allOption),
+              for (final s in OrderStatus.values) AppSelectOption<OrderStatus?>(s, orderStatusLabel(l10n, s)),
+            ],
+            onChanged: (value) => set('status', value),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 170,
+          child: AppDropdownField<String?>(
+            label: l10n.fieldDate,
+            value: period,
+            options: [
+              AppSelectOption<String?>(null, l10n.allOption),
+              AppSelectOption<String?>('today', l10n.statTodaysOrders),
+              AppSelectOption<String?>('month', l10n.statMonthSales),
+            ],
+            onChanged: (value) => set('period', value),
+          ),
+        ),
+        if (status != null || period != null) ...[
+          const SizedBox(width: 12),
+          AppButton(
+            label: l10n.clearFilters,
+            variant: AppButtonVariant.text,
+            onPressed: controller.clearFilters,
+          ),
+        ],
+      ],
     );
   }
 }

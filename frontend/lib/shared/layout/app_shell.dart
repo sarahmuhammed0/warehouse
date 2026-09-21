@@ -15,9 +15,21 @@ import 'responsive/responsive_layout.dart';
 ///  - Desktop: persistent, collapsible sidebar alongside the content.
 ///  - Tablet/mobile: sidebar becomes a `Drawer`, top bar gains a menu button.
 ///
-/// One widget serves both the business app and the System Admin area
-/// (`AppRouter` passes different `navItems`/`brandLabel`) — see
+/// One widget serves both the business app and the System Admin area — see
 /// `routing/app_router.dart`.
+///
+/// The System Admin area passes a fixed [navItems]/[brandLabel]. The
+/// business app passes neither and lets the shell resolve them live
+/// ([AppShell.business]), which matters for more than tidiness: those two
+/// values depend on the signed-in role's permissions (§24), the business
+/// type (§33) and the authenticated business's name, and all three can
+/// change mid-session — editing the permission matrix, for instance.
+///
+/// Resolving them *here* rather than inside `routerProvider`'s build is
+/// what makes that safe. A provider watched while building the router makes
+/// the router itself rebuild, which constructs a **brand-new `GoRouter`**
+/// and throws away the navigation stack, dumping the user back at
+/// `initialLocation`. The shell is an ordinary widget, so it just rebuilds.
 class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
@@ -27,8 +39,16 @@ class AppShell extends ConsumerWidget {
     this.showSearch = true,
   });
 
-  final List<NavItem> navItems;
-  final String brandLabel;
+  /// The business shell: nav items filtered by business type and the
+  /// signed-in user's permissions, branded with the business's own name.
+  const AppShell.business({super.key, required this.child})
+      : navItems = null,
+        brandLabel = null,
+        showSearch = true;
+
+  /// `null` means "resolve the business nav live" — see the class comment.
+  final List<NavItem>? navItems;
+  final String? brandLabel;
   final Widget child;
 
   /// The topbar's global search (business modules only — there's nothing
@@ -41,6 +61,8 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentPath = GoRouterState.of(context).uri.toString();
     final l10n = AppLocalizations.of(context)!;
+    final navItems = this.navItems ?? enabledBusinessNavItems(ref);
+    final brandLabel = this.brandLabel ?? businessBrandLabel(ref);
     var pageContext = brandLabel;
     for (final item in navItems) {
       if (currentPath == item.route || currentPath.startsWith('${item.route}/')) {

@@ -24,5 +24,28 @@ class EmployeeListController extends PagedListController<Employee> {
 }
 
 final rolesProvider = FutureProvider.autoDispose<List<Role>>((ref) {
+  ref.watch(rolesVersionProvider);
   return ref.watch(employeeRepositoryProvider).listRoles();
 });
+
+/// Bumped whenever a role's permissions change.
+///
+/// `LocalEmployeeRepository` mutates roles in place, so nothing about the
+/// repository's *identity* changes when one is edited — and Riverpod has no
+/// way to know a cached derived value is now stale. Anything that depends
+/// on role contents (the permission matrix, and crucially
+/// `currentRoleProvider`, which decides what the signed-in user may see)
+/// watches this counter so an edit propagates instead of sitting behind a
+/// cache for the rest of the session.
+final rolesVersionProvider = NotifierProvider<RolesVersionController, int>(RolesVersionController.new);
+
+class RolesVersionController extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  /// Applies a permission change and tells everyone who cares.
+  Future<void> updatePermissions(String roleId, Set<String> permissions) async {
+    await ref.read(employeeRepositoryProvider).updateRolePermissions(roleId, permissions);
+    state = state + 1;
+  }
+}

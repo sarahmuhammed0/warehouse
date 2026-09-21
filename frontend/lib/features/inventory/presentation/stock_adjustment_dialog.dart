@@ -9,18 +9,23 @@ import '../../../shared/overlays/app_dialog.dart';
 import '../../products/data/product_models.dart';
 import '../../products/data/product_providers.dart';
 import '../data/inventory_models.dart';
-import '../data/inventory_providers.dart';
+import '../data/stock_engine.dart';
 
 /// Manual stock increase/decrease (§10/§12 — "manual +/-" is one of the
 /// listed movement types). Every adjustment writes a [StockMovement]
 /// record; nothing silently changes a product's quantity without one.
-Future<void> showStockAdjustmentDialog(BuildContext context, Product product) {
+///
+/// [product] may be omitted: opened from a product row the product is
+/// already known, but the dashboard's "Add stock" quick action has no
+/// product yet, so the dialog asks for one rather than sending the user off
+/// to a list to find the same button.
+Future<void> showStockAdjustmentDialog(BuildContext context, [Product? product]) {
   return showAppDialog<void>(context, builder: (context) => StockAdjustmentDialog(product: product));
 }
 
 class StockAdjustmentDialog extends ConsumerStatefulWidget {
-  const StockAdjustmentDialog({super.key, required this.product});
-  final Product product;
+  const StockAdjustmentDialog({super.key, this.product});
+  final Product? product;
 
   @override
   ConsumerState<StockAdjustmentDialog> createState() => _StockAdjustmentDialogState();
@@ -33,6 +38,7 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
   bool _increase = true;
   bool _saving = false;
   String? _error;
+  late String? _productId = widget.product?.id;
 
   @override
   void dispose() {
@@ -41,7 +47,7 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit(Product product) async {
     if (!_formKey.currentState!.validate()) return;
     final qty = int.tryParse(_quantity.text.trim()) ?? 0;
     if (qty <= 0) return;
@@ -51,47 +57,16 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
       _error = null;
     });
     try {
-      await ref.read(inventoryRepositoryProvider).recordAdjustment(
-            productId: widget.product.id,
-            productName: widget.product.name,
-            currentQuantity: widget.product.currentQuantity,
-            delta: _increase ? qty : -qty,
-            type: _increase ? MovementType.manualIncrease : MovementType.manualDecrease,
-            note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-          );
-      // Reflect the new quantity on the product itself too (§10: inventory
-      // stays authoritative on the product record).
-      final repo = ref.read(productRepositoryProvider);
-      final current = await repo.getById(widget.product.id);
-      await repo.update(
-        widget.product.id,
-        ProductDraft(
-          name: current.name,
-          code: current.code,
-          sku: current.sku,
-          barcode: current.barcode,
-          categoryId: current.categoryId,
-          brand: current.brand,
-          description: current.description,
-          shortDescription: current.shortDescription,
-          status: current.status,
-          productType: current.productType,
-          currentQuantity: current.currentQuantity + (_increase ? qty : -qty),
-          minStock: current.minStock,
-          maxStock: current.maxStock,
-          reorderLevel: current.reorderLevel,
-          warehouseName: current.warehouseName,
-          shelfRackBin: current.shelfRackBin,
-          unit: current.unit,
-          purchaseCost: current.purchaseCost,
-          sellingPrice: current.sellingPrice,
-          wholesalePrice: current.wholesalePrice,
-          discountPrice: current.discountPrice,
-          taxRate: current.taxRate,
-        ),
+      // Through the engine, like every other stock change in the app: it
+      // pairs the movement row with the quantity update and refreshes every
+      // provider that shows a quantity. This used to rebuild a full
+      // 20-field ProductDraft by hand and forget to reload the Movements
+      // tab, so a new adjustment could silently fail to appear there.
+      await ref.read(stockEngineProvider).apply(
+        [StockChange(productId: product.id, productName: product.name, delta: _increase ? qty : -qty)],
+        type: _increase ? MovementType.manualIncrease : MovementType.manualDecrease,
+        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
-      await ref.read(productListControllerProvider.notifier).reload();
-      ref.invalidate(productByIdProvider(widget.product.id));
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) setState(() => _error = AppLocalizations.of(context)!.unableToSave);
@@ -103,8 +78,15 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final options = ref.watch(productPickerOptionsProvider).asData?.value ?? const <Product>[];
+    // Always resolve from the live list so the "current quantity" line is
+    // right after a previous adjustment in the same session.
+    final selected = _productId == null
+        ? null
+        : options.where((p) => p.id == _productId).firstOrNull ?? widget.product;
+
     return AlertDialog(
-      title: Text('${l10n.adjust} — ${widget.product.name}'),
+      title: Text(selected == null ? l10n.actionAddStock : '${l10n.adjust} — ${selected.name}'),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -114,18 +96,28 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 14,
             children: [
-              Text('${l10n.fieldCurrentQuantity}: ${widget.product.currentQuantity} ${widget.product.unit}'),
+              if (widget.product == null)
+                AppDropdownField<String>(
+                  key: const ValueKey('stockProductPicker'),
+                  label: l10n.fieldProduct,
+                  value: _productId,
+                  options: [for (final p in options) AppSelectOption(p.id, '${p.name} (${p.currentQuantity} ${p.unit})')],
+                  onChanged: _saving ? null : (value) => setState(() => _productId = value),
+                ),
+              if (selected != null) Text('${l10n.fieldCurrentQuantity}: ${selected.currentQuantity} ${selected.unit}'),
               AppDropdownField<bool>(
-                label: l10n.fieldModule,
+                // Was labelled "Module" — a copy-paste that made the one
+                // control deciding whether stock goes up or down unreadable.
+                label: l10n.adjust,
                 value: _increase,
                 options: [
                   AppSelectOption(true, '+ ${l10n.fieldQuantity}'),
                   AppSelectOption(false, '- ${l10n.fieldQuantity}'),
                 ],
-                onChanged: (value) => setState(() => _increase = value ?? true),
+                onChanged: _saving ? null : (value) => setState(() => _increase = value ?? true),
               ),
-              AppTextField.number(label: l10n.fieldQuantity, controller: _quantity, allowDecimal: false, required: true),
-              AppTextField(label: l10n.fieldReason, controller: _note),
+              AppTextField.number(key: const ValueKey('stockQuantity'), label: l10n.fieldQuantity, controller: _quantity, allowDecimal: false, required: true, enabled: !_saving),
+              AppTextField(label: l10n.fieldReason, controller: _note, enabled: !_saving),
               if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
           ),
@@ -133,7 +125,14 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
       ),
       actions: [
         AppButton(label: l10n.cancel, variant: AppButtonVariant.text, onPressed: _saving ? null : () => Navigator.of(context).pop()),
-        AppButton(label: l10n.save, loading: _saving, onPressed: _saving ? null : _submit),
+        AppButton(
+          key: const ValueKey('stockAdjustSave'),
+          label: l10n.save,
+          loading: _saving,
+          // Disabled until a product is chosen — the dashboard entry point
+          // opens with none, and saving "nothing" would be a silent no-op.
+          onPressed: _saving || selected == null ? null : () => _submit(selected),
+        ),
       ],
     );
   }

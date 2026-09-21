@@ -320,5 +320,7 @@
   "reportProfit": "قازانج",
   "reportOutstanding": "باڵانسی ماوە",
   "reportPayments": "پارەدانەکان",
-  "selectProductFirst": "بەرهەمێک هەڵبژێرە"
+  "selectProductFirst": "بەرهەمێک هەڵبژێرە",
+  "copy": "لەبەرگرتنەوە",
+  "copiedToClipboard": "لەبەرگیرایەوە"
 }

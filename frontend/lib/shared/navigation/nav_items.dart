@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/presentation/providers/auth_controller.dart';
+import '../../features/auth/presentation/providers/auth_state.dart';
+import '../../features/auth/presentation/providers/permission_providers.dart';
+import '../../features/settings/data/business_type_config.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 
 /// One sidebar entry. `permissionKey` was originally present but unused —
-/// see `routing/app_router.dart`'s `_enabledBusinessNavItems` and
+/// see [enabledBusinessNavItems] below and
 /// `features/auth/presentation/providers/permission_providers.dart` for
 /// where it's now consulted. Still only a UI convenience, never the
 /// security boundary (architecture §8/§9): the backend is the only real
@@ -164,3 +169,53 @@ final List<NavItem> adminNavItems = [
     labelBuilder: (l10n) => l10n.adminNavBusinesses,
   ),
 ];
+
+/// §24: once authenticated, the shell re-brands itself with the real
+/// business's name instead of the generic product name — the "future
+/// business-specific experience" hook, using real data only (never a
+/// placeholder business name pretending to be real).
+String businessBrandLabel(WidgetRef ref) {
+  final state = ref.watch(authControllerProvider);
+  if (state is AuthAuthenticated && state.business != null) {
+    return state.business!.name;
+  }
+  return 'Warehouse OS';
+}
+
+/// Factory type configuration (spec §33) — filters the sidebar down to the
+/// modules `businessTypeModules` enables for the demo business's current
+/// type, e.g. a Storage Store never sees Production. Data-driven (a map
+/// lookup), not a widget-level `if (businessType == ...)`.
+List<NavItem> enabledBusinessNavItems(WidgetRef ref) {
+  return enabledBusinessNavItemsFor(
+    ref.watch(currentPermissionsProvider),
+    ref.watch(businessTypeProvider),
+  );
+}
+
+/// The filtering itself, with its two inputs passed in rather than watched.
+///
+/// Split out so the rule can be tested directly — "revoking products.view
+/// removes Products from the sidebar" is a statement about this function,
+/// and proving it shouldn't require pumping a whole app.
+List<NavItem> enabledBusinessNavItemsFor(Set<String>? permissions, BusinessType type) {
+  final enabled = businessTypeModules[type] ?? const <String>{};
+  // Two independent filters, both narrowing-only, safe to AND together:
+  // moduleKey (is this module relevant to this business TYPE at all —
+  // spec §33) and permissionKey (can THIS USER view it — spec §24). A
+  // `null` permission set (no linked demo Employee — see
+  // permission_providers.dart) never hides anything on its own.
+  return businessNavItems.where((item) {
+    final moduleAllowed = item.moduleKey == null || enabled.contains(item.moduleKey);
+    final permissionAllowed = item.permissionKey == null || _hasNavPermission(permissions, item.permissionKey!);
+    return moduleAllowed && permissionAllowed;
+  }).toList();
+}
+
+/// `NavItem.permissionKey` is already a full `"module.action"` string
+/// (e.g. `"products.view"`), not separate module/action parts, so this
+/// splits it once rather than reusing `hasPermission`'s two-argument form.
+bool _hasNavPermission(Set<String>? permissions, String permissionKey) {
+  if (permissions == null) return true;
+  return permissions.contains(permissionKey);
+}

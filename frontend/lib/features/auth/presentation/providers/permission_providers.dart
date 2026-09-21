@@ -37,6 +37,13 @@ import 'auth_state.dart';
 /// "unrestricted": this adds a real capability in demo mode without
 /// silently taking one away from backend-mode sessions that predate it.
 final currentRoleProvider = Provider<Role?>((ref) {
+  // Roles are mutable: the permission matrix (§24) edits them in place on
+  // the repository. Neither `authControllerProvider` nor
+  // `employeeRepositoryProvider` changes identity when that happens, so
+  // without this watch the resolved Role stays cached for the rest of the
+  // session and revoking a permission changed the checkbox and nothing
+  // else. Watching the version counter is what makes the matrix real.
+  ref.watch(rolesVersionProvider);
   final auth = ref.watch(authControllerProvider);
   if (auth is! AuthAuthenticated || auth.business == null) return null;
   final repo = ref.watch(employeeRepositoryProvider);

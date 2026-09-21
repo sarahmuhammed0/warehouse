@@ -40,11 +40,16 @@ class ProductsScreen extends ConsumerWidget {
     final canEdit = hasPermission(permissions, 'products', 'edit');
     final canDelete = hasPermission(permissions, 'products', 'delete');
     final canViewFinancial = hasPermission(permissions, 'financial', 'view');
+    // Removing one chip drops one filter. It used to call `setFilters({})`,
+    // which also silently cleared the category dropdown — the dropdown then
+    // still displayed the category it was no longer filtering by.
+    void removeFilter(String key) => controller.setFilters({...state.query.filters}..remove(key));
+
     final activeFilters = <FilterChipData>[
       if (state.query.filters['stock'] == 'low')
-        FilterChipData(label: l10n.statusLowStock, onRemove: () => controller.setFilters({}))
+        FilterChipData(label: l10n.statusLowStock, onRemove: () => removeFilter('stock'))
       else if (state.query.filters['stock'] == 'out')
-        FilterChipData(label: l10n.statusOutOfStock, onRemove: () => controller.setFilters({})),
+        FilterChipData(label: l10n.statusOutOfStock, onRemove: () => removeFilter('stock')),
     ];
 
     final columns = <AppTableColumn<Product>>[

@@ -60,7 +60,7 @@ class PurchasesPlaceholderScreen extends ConsumerWidget {
             onRowTap: (item) => context.push(AppRoutes.purchaseDetail(item.id)),
           ),
           if (!state.loading && state.error == null)
-            PaginationBar(page: state.query.page, totalPages: state.totalPages, pageSize: state.query.pageSize, pageSizeOptions: const [10, 20, 50], onPageChanged: controller.changePage),
+            PaginationBar(page: state.query.page, totalPages: state.totalPages, pageSize: state.query.pageSize, pageSizeOptions: const [10, 20, 50], onPageChanged: controller.changePage, onPageSizeChanged: controller.changePageSize),
         ],
       ),
     );

@@ -15,7 +15,6 @@ import '../features/admin/presentation/admin_record_detail_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/providers/auth_controller.dart';
 import '../features/auth/presentation/providers/auth_state.dart';
-import '../features/auth/presentation/providers/permission_providers.dart';
 import '../features/categories/categories_screen.dart' show CategoriesScreen;
 import '../features/customers/customers_screen.dart';
 import '../features/customers/presentation/customer_detail_screen.dart';
@@ -39,7 +38,6 @@ import '../features/purchases/presentation/purchase_form_screen.dart';
 import '../features/purchases/purchases_screen.dart';
 import '../features/reports/reports_screen.dart';
 import '../features/returns/presentation/return_detail_screen.dart';
-import '../features/settings/data/business_type_config.dart';
 import '../features/returns/presentation/return_form_screen.dart';
 import '../features/returns/returns_screen.dart';
 import '../features/sales/sales_screen.dart';
@@ -82,11 +80,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.systemStatus, builder: (context, state) => const SystemStatusScreen()),
 
       ShellRoute(
-        builder: (context, state, child) => AppShell(
-          navItems: _enabledBusinessNavItems(ref),
-          brandLabel: _businessBrandLabel(ref),
-          child: child,
-        ),
+        builder: (context, state, child) => AppShell.business(child: child),
         routes: [
           GoRoute(path: AppRoutes.dashboard, builder: (context, state) => const DashboardPlaceholderScreen()),
           GoRoute(path: AppRoutes.products, builder: (context, state) => const ProductsScreen()),
@@ -215,46 +209,6 @@ List<GoRoute> _adminMetricRoutes() {
       ),
     ],
   ];
-}
-
-/// §24: once authenticated, the shell re-brands itself with the real
-/// business's name instead of the generic product name — the "future
-/// business-specific experience" hook, using real data only (never a
-/// placeholder business name pretending to be real).
-String _businessBrandLabel(Ref ref) {
-  final state = ref.watch(authControllerProvider);
-  if (state is AuthAuthenticated && state.business != null) {
-    return state.business!.name;
-  }
-  return 'Warehouse OS';
-}
-
-/// Factory type configuration (spec §33) — filters the sidebar down to the
-/// modules `businessTypeModules` enables for the demo business's current
-/// type, e.g. a Storage Store never sees Production. Data-driven (a map
-/// lookup), not a widget-level `if (businessType == ...)`.
-List<NavItem> _enabledBusinessNavItems(Ref ref) {
-  final type = ref.watch(businessTypeProvider);
-  final enabled = businessTypeModules[type] ?? const <String>{};
-  // Two independent filters, both narrowing-only, safe to AND together:
-  // moduleKey (is this module relevant to this business TYPE at all —
-  // spec §33) and permissionKey (can THIS USER view it — spec §24). A
-  // `null` permission set (no linked demo Employee — see
-  // permission_providers.dart) never hides anything on its own.
-  final permissions = ref.watch(currentPermissionsProvider);
-  return businessNavItems.where((item) {
-    final moduleAllowed = item.moduleKey == null || enabled.contains(item.moduleKey);
-    final permissionAllowed = item.permissionKey == null || _hasNavPermission(permissions, item.permissionKey!);
-    return moduleAllowed && permissionAllowed;
-  }).toList();
-}
-
-/// `NavItem.permissionKey` is already a full `"module.action"` string
-/// (e.g. `"products.view"`), not separate module/action parts, so this
-/// splits it once rather than reusing `hasPermission`'s two-argument form.
-bool _hasNavPermission(Set<String>? permissions, String permissionKey) {
-  if (permissions == null) return true;
-  return permissions.contains(permissionKey);
 }
 
 String? _redirect(Ref ref, GoRouterState state) {

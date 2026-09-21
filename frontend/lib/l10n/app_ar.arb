@@ -320,5 +320,7 @@
   "reportProfit": "الأرباح",
   "reportOutstanding": "الأرصدة المستحقة",
   "reportPayments": "المدفوعات",
-  "selectProductFirst": "اختر منتجًا"
+  "selectProductFirst": "اختر منتجًا",
+  "copy": "نسخ",
+  "copiedToClipboard": "تم النسخ إلى الحافظة"
 }

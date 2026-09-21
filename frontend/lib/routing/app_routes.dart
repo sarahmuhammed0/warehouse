@@ -22,6 +22,7 @@ class AppRoutes {
   static const saleNew = '/sales/new';
 
   static const orders = '/orders';
+  static const orderNew = '/orders/new';
   static String orderDetail(String id) => '/orders/$id';
 
   static const customers = '/customers';

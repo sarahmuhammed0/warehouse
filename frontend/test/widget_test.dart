@@ -45,6 +45,12 @@ import 'package:warehouse_os_app/features/inventory/data/stock_engine.dart';
 import 'package:warehouse_os_app/features/orders/data/order_models.dart';
 import 'package:warehouse_os_app/features/orders/data/order_providers.dart';
 import 'package:warehouse_os_app/features/orders/data/order_stock.dart';
+import 'package:warehouse_os_app/features/orders/presentation/order_form_screen.dart';
+import 'package:warehouse_os_app/features/customers/presentation/customer_form_dialog.dart';
+import 'package:warehouse_os_app/features/inventory/presentation/stock_adjustment_dialog.dart';
+import 'package:warehouse_os_app/features/reports/presentation/report_export.dart';
+import 'package:warehouse_os_app/features/reports/reports_screen.dart';
+import 'package:warehouse_os_app/features/auth/presentation/providers/permission_providers.dart';
 import 'package:warehouse_os_app/features/products/data/product_providers.dart';
 import 'package:warehouse_os_app/features/employees/employees_screen.dart';
 import 'package:warehouse_os_app/features/orders/orders_screen.dart';
@@ -1811,6 +1817,263 @@ void main() {
     expect(storageStoreModules.contains(productionNavItem.moduleKey), isFalse);
   });
 
+  group('Business dashboard (spec §5 — real stats, live drill-downs, working quick actions)', () {
+    ProviderContainer businessContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAuthenticatedController.new)]);
+
+    Future<void> pumpDashboard(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(1400, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+      expect(find.byType(DashboardPlaceholderScreen), findsOneWidget);
+    }
+
+    Future<void> tapCard(WidgetTester tester, String label) async {
+      final finder = find.widgetWithText(StatCard, label);
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tapQuickAction(WidgetTester tester, String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Shows the §5 statistics, with values derived from the repositories', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      final metrics = await container.read(dashboardMetricsProvider.future);
+      await pumpDashboard(tester, container);
+
+      // A spread across the four kinds of figure: counts, money, today's
+      // window, and an order-status count.
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total products')).value, '${metrics.totalProducts}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total categories')).value, '${metrics.totalCategories}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total stock quantity')).value, '${metrics.totalStockQuantity}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total sales')).value, metrics.totalSalesTotal.toStringAsFixed(2));
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Pending orders')).value, '${metrics.pendingOrders}');
+      expect(tester.widget<StatCard>(find.widgetWithText(StatCard, 'Total suppliers')).value, '${metrics.totalSuppliers}');
+    });
+
+    testWidgets('Every stat card is a live control, not decoration', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      final cards = tester.widgetList<StatCard>(find.byType(StatCard));
+      expect(cards, isNotEmpty);
+      for (final card in cards) {
+        expect(card.onTap, isNotNull, reason: '"${card.label}" looks tappable and does nothing');
+      }
+    });
+
+    testWidgets('Low stock drills into Products filtered to low stock', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapCard(tester, 'Low Stock');
+
+      expect(find.byType(ProductsScreen), findsOneWidget);
+      // The filter really applied — the chip is showing and the rows are
+      // narrowed to what the card counted.
+      expect(container.read(productListControllerProvider).query.filters['stock'], 'low');
+      final shown = container.read(productListControllerProvider).items;
+      expect(shown, isNotEmpty);
+      expect(shown.every((p) => p.isLowStock), isTrue, reason: 'the list must be exactly the rows behind the number');
+    });
+
+    testWidgets('Pending orders drills into Orders filtered to Pending', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapCard(tester, 'Pending orders');
+
+      expect(find.byType(OrdersScreen), findsOneWidget);
+      expect(container.read(orderListControllerProvider).query.filters['status'], OrderStatus.pending);
+      expect(container.read(orderListControllerProvider).items.every((o) => o.status == OrderStatus.pending), isTrue);
+    });
+
+    testWidgets('Quick actions open their workflow, not a list screen', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickAddProduct');
+      expect(find.byType(ProductFormScreen), findsOneWidget, reason: 'Add product must open the create form');
+    });
+
+    testWidgets('New sale opens the sale workflow', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickNewSale');
+      expect(find.byType(OrderFormScreen), findsOneWidget);
+    });
+
+    testWidgets('New order opens the order workflow', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickNewOrder');
+      expect(find.byType(OrderFormScreen), findsOneWidget);
+    });
+
+    testWidgets('Add customer opens the create dialog and the saved customer appears', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickAddCustomer');
+      expect(find.byType(CustomerFormDialog), findsOneWidget);
+
+      // Positional, not by label: `FormFieldWrapper` renders labels as
+      // RichText spans (to draw the required asterisk), which `find.text`
+      // does not match. The dialog's first two fields are Name and Phone.
+      final fields = find.descendant(of: find.byType(CustomerFormDialog), matching: find.byType(AppTextField));
+      await tester.enterText(fields.at(0), 'Nawroz Trading');
+      await tester.enterText(fields.at(1), '+9647705550000');
+      await tester.tap(find.widgetWithText(AppButton, 'Create'));
+      await tester.pumpAndSettle();
+
+      // Landed on Customers, with the new row really there.
+      expect(find.byType(CustomersScreen), findsOneWidget);
+      expect(find.text('Nawroz Trading'), findsOneWidget);
+    });
+
+    testWidgets('Add stock asks which product, then really moves the stock', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+      final before = (await container.read(productRepositoryProvider).getById('prod-1')).currentQuantity;
+
+      await tapQuickAction(tester, 'quickAddStock');
+      expect(find.byType(StockAdjustmentDialog), findsOneWidget);
+      // No product chosen yet, so saving is disabled rather than a silent
+      // no-op.
+      expect(tester.widget<AppButton>(find.byKey(const ValueKey('stockAdjustSave'))).onPressed, isNull);
+
+      await tester.tap(find.byKey(const ValueKey('stockProductPicker')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('3-Seat Sofa — Charcoal').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const ValueKey('stockQuantity')), '7');
+      await tester.tap(find.byKey(const ValueKey('stockAdjustSave')));
+      await tester.pumpAndSettle();
+
+      expect((await container.read(productRepositoryProvider).getById('prod-1')).currentQuantity, before + 7);
+    });
+  });
+
+  group('Reports (spec §25/§26 — every card opens a real report)', () {
+    ProviderContainer businessContainer() =>
+        ProviderContainer(overrides: [authControllerProvider.overrideWith(FakeAuthenticatedController.new)]);
+
+    Future<void> openReports(WidgetTester tester, ProviderContainer container) async {
+      tester.view.physicalSize = const Size(1400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
+      await tester.pumpAndSettle();
+      container.read(routerProvider).go(AppRoutes.reports);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('No report card says "Coming soon" any more', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await openReports(tester, container);
+
+      expect(find.text('Coming soon'), findsNothing);
+    });
+
+    testWidgets('A previously dead card opens a real report over real rows', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await openReports(tester, container);
+
+      // Stock movement was one of the ten `onTap: null` cards.
+      await tester.tap(find.text('Stock movement'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Stock movement'), findsWidgets);
+      // Seeded movements exist, so the report is not an empty shell.
+      expect(find.text('Nothing here yet'), findsNothing);
+    });
+
+    testWidgets('Export produces the real CSV for the rows on screen', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await openReports(tester, container);
+
+      // Scoped to the screen — "Inventory" is also a sidebar nav item.
+      await tester.tap(find.descendant(of: find.byType(ReportsPlaceholderScreen), matching: find.text('Inventory')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('reportExport')));
+      await tester.pumpAndSettle();
+
+      // Real content, and honest about what it is.
+      expect(find.textContaining('3-Seat Sofa — Charcoal'), findsWidgets);
+      expect(find.textContaining('Demo mode'), findsOneWidget);
+    });
+
+    test('buildCsv quotes separators and escapes quotes', () {
+      final csv = buildCsv(
+        ['name', 'note'],
+        [
+          ['Sofa, 3-seat', 'He said "hello"'],
+        ],
+      );
+      expect(csv, 'name,note\n"Sofa, 3-seat","He said ""hello"""');
+    });
+  });
+
+  group('Permissions actually change the UI when edited (spec §24)', () {
+    test('Editing a role updates what the signed-in user may do, without a restart', () async {
+      final container = ProviderContainer(
+        // A session whose phone really matches a seeded Employee, so a Role
+        // resolves — `testAccount`'s phone deliberately matches none, which
+        // is why most tests run unrestricted.
+        overrides: [authControllerProvider.overrideWith(_DemoOwnerSessionController.new)],
+      );
+      addTearDown(container.dispose);
+
+      final before = container.read(currentPermissionsProvider);
+      expect(before, isNotNull);
+      expect(before!.contains('products.view'), isTrue);
+
+      final role = container.read(currentRoleProvider)!;
+      await container.read(rolesVersionProvider.notifier).updatePermissions(
+            role.id,
+            {...role.permissions}..remove('products.view'),
+          );
+
+      // Previously this stayed cached for the whole session: the checkbox
+      // moved and nothing else did.
+      final after = container.read(currentPermissionsProvider);
+      expect(after!.contains('products.view'), isFalse);
+      expect(
+        enabledBusinessNavItemsFor(after, BusinessType.furnitureFactory).any((i) => i.route == AppRoutes.products),
+        isFalse,
+        reason: 'the sidebar must drop a module the role can no longer view',
+      );
+    });
+  });
+
   group('Stock engine — business actions actually move inventory', () {
     // Before this existed you could sell a sofa, complete the order, and the
     // sofa's quantity never changed. Every test below asserts BOTH halves:
@@ -2113,4 +2376,15 @@ class _FixedLocaleController extends LocaleController {
 
   @override
   Locale build() => _locale;
+}
+
+/// An authenticated business session whose phone matches a seeded
+/// `Employee`, so `currentRoleProvider` resolves a real Role to test
+/// permission changes against.
+class _DemoOwnerSessionController extends AuthController {
+  @override
+  AuthState build() => const AuthAuthenticated(
+        account: AuthAccount(id: 1, name: 'Demo Owner', phone: kDemoBusinessPhone),
+        business: testBusiness,
+      );
 }
