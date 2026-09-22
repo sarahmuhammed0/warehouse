@@ -22,6 +22,12 @@
 
   "adminAreaLabel": "إدارة النظام",
   "adminNavDashboard": "لوحة تحكم المشرف",
+  "adminAccountsOnPlatform": "الحسابات على المنصة",
+  "adminAcrossAllBusinesses": "عبر جميع الشركات",
+  "adminAccountHealth": "حالة الحسابات",
+  "adminHealthHealthy": "سليم",
+  "adminHealthNeedsReview": "يحتاج مراجعة",
+  "adminTotalBusinesses": "إجمالي الشركات",
   "adminNavBusinesses": "الشركات",
   "backToBusinessApp": "العودة إلى التطبيق",
 

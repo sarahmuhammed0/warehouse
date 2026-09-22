@@ -849,7 +849,7 @@ void main() {
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
 
-      await tester.tap(find.widgetWithText(StatCard, 'Businesses'));
+      await tester.tap(find.byKey(const ValueKey('adminOpenBusinesses')));
       await tester.pumpAndSettle();
 
       expect(find.byType(AdminBusinessesScreen), findsOneWidget);
@@ -864,9 +864,10 @@ void main() {
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
 
-      expect(find.widgetWithText(StatCard, '3'), findsOneWidget); // the Active card's own count
+      // The pill states its own count, folded from the list it opens.
+      expect(find.textContaining('3 Active'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(StatCard, 'Active'));
+      await tester.tap(find.byKey(const ValueKey('adminFilterActive')));
       await tester.pumpAndSettle();
 
       expect(find.byType(AdminBusinessesScreen), findsOneWidget);
@@ -881,9 +882,9 @@ void main() {
       addTearDown(container.dispose);
       await pumpAdminDesktop(tester, container);
 
-      expect(find.widgetWithText(StatCard, '1'), findsOneWidget); // the Disabled card's own count
+      expect(find.textContaining('1 Disabled'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(StatCard, 'Disabled'));
+      await tester.tap(find.byKey(const ValueKey('adminFilterDisabled')));
       await tester.pumpAndSettle();
 
       expect(find.byType(AdminBusinessesScreen), findsOneWidget);

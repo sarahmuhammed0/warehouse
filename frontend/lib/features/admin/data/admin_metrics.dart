@@ -44,9 +44,23 @@ class BusinessMetrics {
 /// stat cards show. Totals are sums of the per-business rows, so the
 /// dashboard number and the overview rows can never disagree.
 class AdminMetrics {
-  const AdminMetrics(this.byBusiness);
+  const AdminMetrics(
+    this.byBusiness, {
+    this.monthlySales = const [],
+    this.monthlyOrders = const [],
+  });
 
   final Map<String, BusinessMetrics> byBusiness;
+
+  /// The last six months of platform-wide quick-sale revenue, oldest
+  /// first, and the matching count of standard orders.
+  ///
+  /// Derived from the very same order rows the per-business counts above
+  /// are folded from — there is no separate "platform sales" dataset, and
+  /// inventing one is how a dashboard ends up disagreeing with the records
+  /// behind it. A month with nothing in it is a real zero, not a gap.
+  final List<({String label, double value})> monthlySales;
+  final List<({String label, double value})> monthlyOrders;
 
   BusinessMetrics forBusiness(String businessId) =>
       byBusiness[businessId] ??
@@ -70,11 +84,18 @@ final adminMetricsProvider = FutureProvider<AdminMetrics>((ref) async {
   final orders = ref.watch(orderRepositoryProvider);
 
   final result = <String, BusinessMetrics>{};
+  // Kept so the platform series below is folded from exactly the rows that
+  // produced the per-business counts.
+  final allSales = <Order>[];
+  final allOrders = <Order>[];
+
   for (final business in kDemoBusinesses) {
     final employeeRows = await employees.listForBusiness(business.id);
     final productRows = await products.listForBusiness(business.id);
     final orderRows = await orders.listForBusiness(business.id, type: OrderType.standard);
     final saleRows = await orders.listForBusiness(business.id, type: OrderType.quickSale);
+    allSales.addAll(saleRows);
+    allOrders.addAll(orderRows);
     result[business.id] = BusinessMetrics(
       businessId: business.id,
       employeeCount: employeeRows.length,
@@ -84,5 +105,24 @@ final adminMetricsProvider = FutureProvider<AdminMetrics>((ref) async {
       salesTotal: saleRows.fold<double>(0, (total, o) => total + o.grandTotal),
     );
   }
-  return AdminMetrics(result);
+  final now = DateTime.now();
+  final monthlySales = <({String label, double value})>[];
+  final monthlyOrders = <({String label, double value})>[];
+  for (var i = 5; i >= 0; i--) {
+    final month = DateTime(now.year, now.month - i);
+    bool inMonth(Order o) => o.createdAt.year == month.year && o.createdAt.month == month.month;
+    // Same label shape the business dashboard's monthly series uses, so the
+    // two read alike across the product.
+    final label = '${month.month}/${month.year % 100}';
+    monthlySales.add((
+      label: label,
+      value: allSales.where(inMonth).fold<double>(0, (sum, o) => sum + o.grandTotal),
+    ));
+    monthlyOrders.add((
+      label: label,
+      value: allOrders.where(inMonth).length.toDouble(),
+    ));
+  }
+
+  return AdminMetrics(result, monthlySales: monthlySales, monthlyOrders: monthlyOrders);
 });

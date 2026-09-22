@@ -39,6 +39,11 @@ class NavItem {
   final String? moduleKey;
 }
 
+/// The product's own name, as the platform-level shell and its dashboard
+/// both display it. Not an l10n string: a product name is not translated,
+/// and `appName` is the older generic label the login screen still uses.
+const String platformBrandName = 'FactoryOS';
+
 /// The business application's sidebar (specification §6).
 final List<NavItem> businessNavItems = [
   NavItem(
@@ -155,18 +160,43 @@ final List<NavItem> businessNavItems = [
   ),
 ];
 
-/// The System Admin area's sidebar (specification §56/§57) — intentionally
-/// small; the admin console's own detail screens are a later phase.
+/// The System Admin area's navigation (specification §56/§57).
+///
+/// The four record overviews are cross-tenant summaries — "which business
+/// has how many products", not one business's product table — so they
+/// belong to the platform shell and never open a tenant's operational
+/// screens. They were always routes with real screens behind them; before,
+/// the only door in was a dashboard card.
 final List<NavItem> adminNavItems = [
   NavItem(
     route: AppRoutes.adminDashboard,
-    icon: Icons.admin_panel_settings_outlined,
+    icon: Icons.space_dashboard_outlined,
     labelBuilder: (l10n) => l10n.adminNavDashboard,
   ),
   NavItem(
     route: AppRoutes.adminBusinesses,
     icon: Icons.apartment_outlined,
     labelBuilder: (l10n) => l10n.adminNavBusinesses,
+  ),
+  NavItem(
+    route: AppRoutes.adminEmployees,
+    icon: Icons.people_outline,
+    labelBuilder: (l10n) => l10n.navEmployees,
+  ),
+  NavItem(
+    route: AppRoutes.adminProducts,
+    icon: Icons.inventory_2_outlined,
+    labelBuilder: (l10n) => l10n.navProducts,
+  ),
+  NavItem(
+    route: AppRoutes.adminOrders,
+    icon: Icons.receipt_long_outlined,
+    labelBuilder: (l10n) => l10n.navOrders,
+  ),
+  NavItem(
+    route: AppRoutes.adminSales,
+    icon: Icons.point_of_sale_outlined,
+    labelBuilder: (l10n) => l10n.navSales,
   ),
 ];
 
@@ -243,17 +273,31 @@ const List<String> primaryNavRoutes = [
   AppRoutes.reports,
 ];
 
+/// The System Admin area is small enough that every destination fits in
+/// the header, so its rail carries only the shell's own controls.
+const List<String> adminPrimaryNavRoutes = [
+  AppRoutes.adminDashboard,
+  AppRoutes.adminBusinesses,
+  AppRoutes.adminEmployees,
+  AppRoutes.adminProducts,
+  AppRoutes.adminOrders,
+  AppRoutes.adminSales,
+];
+
 /// ({header: [...], rail: [...]}) for an already-filtered module list.
-({List<NavItem> primary, List<NavItem> secondary}) splitNavItems(List<NavItem> items) {
+({List<NavItem> primary, List<NavItem> secondary}) splitNavItems(
+  List<NavItem> items, {
+  List<String> primaryRoutes = primaryNavRoutes,
+}) {
   final byRoute = {for (final item in items) item.route: item};
   final primary = [
-    for (final route in primaryNavRoutes)
+    for (final route in primaryRoutes)
       if (byRoute.containsKey(route)) byRoute[route]!,
   ];
-  final primaryRoutes = primary.map((i) => i.route).toSet();
+  final chosen = primary.map((i) => i.route).toSet();
   final secondary = [
     for (final item in items)
-      if (!primaryRoutes.contains(item.route)) item,
+      if (!chosen.contains(item.route)) item,
   ];
   return (primary: primary, secondary: secondary);
 }

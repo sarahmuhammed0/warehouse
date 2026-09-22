@@ -22,6 +22,12 @@
 
   "adminAreaLabel": "بەڕێوەبردنی سیستەم",
   "adminNavDashboard": "داشبۆردی بەڕێوەبەر",
+  "adminAccountsOnPlatform": "هەژمارەکان لەسەر پلاتفۆرم",
+  "adminAcrossAllBusinesses": "بۆ هەموو بزنسەکان",
+  "adminAccountHealth": "تەندروستی هەژمار",
+  "adminHealthHealthy": "باش",
+  "adminHealthNeedsReview": "پێویستی بە پێداچوونەوەیە",
+  "adminTotalBusinesses": "کۆی بزنسەکان",
   "adminNavBusinesses": "کۆمپانیاکان",
   "backToBusinessApp": "گەڕانەوە بۆ ئەپەکە",
 

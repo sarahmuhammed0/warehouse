@@ -162,7 +162,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         // distinguishable as the platform-level administration area".
         builder: (context, state, child) => AppShell(
           navItems: adminNavItems,
-          brandLabel: 'FactoryOS',
+          primaryRoutes: adminPrimaryNavRoutes,
+          brandLabel: platformBrandName,
           brandSubtitle: 'System Admin',
           brandIcon: Icons.shield_outlined,
           showSearch: false,

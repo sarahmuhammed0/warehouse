@@ -28,6 +28,7 @@ class BrandPanel extends StatelessWidget {
     this.icon,
     this.stats = const [],
     this.wide = false,
+    this.padding = const EdgeInsets.all(AppSpacing.xl),
     this.onTap,
   });
 
@@ -55,6 +56,10 @@ class BrandPanel extends StatelessWidget {
   /// themselves laid out — the caller always already knows whether it
   /// handed this panel a full-width band or a one-third column.
   final bool wide;
+
+  /// Tighter where the panel is nested inside a card rather than spanning
+  /// the page.
+  final EdgeInsetsGeometry padding;
 
   final VoidCallback? onTap;
 
@@ -146,7 +151,7 @@ class BrandPanel extends StatelessWidget {
     final spread = wide && stats.isNotEmpty;
 
     final content = Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
+      padding: padding,
       child: spread
           // The footer spans the whole panel rather than riding under the
           // headline column — otherwise its right-aligned item (the date)

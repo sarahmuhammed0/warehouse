@@ -12,6 +12,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/theme_controller.dart';
 import '../cards/app_icon_chip.dart';
 import '../search/global_search_bar.dart';
 import 'nav_items.dart';
@@ -35,6 +36,7 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
     this.brandIcon,
     this.onMenuTap,
     this.showSearch = true,
+    this.showThemeToggle = false,
   });
 
   /// Current section name (e.g. the active nav item's label) — §9's "page
@@ -53,6 +55,11 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
   final VoidCallback? onMenuTap;
 
   final bool showSearch;
+
+  /// Where the shell draws no rail — an area whose destinations all fit in
+  /// the header — the theme control has to live up here instead, rather
+  /// than disappear.
+  final bool showThemeToggle;
 
   @override
   Size get preferredSize => const Size.fromHeight(72);
@@ -136,6 +143,22 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
                     tooltip: l10n.search,
                     onTap: () => context.push(AppRoutes.search),
                   ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                if (showThemeToggle) ...[
+                  Builder(builder: (context) {
+                    final mode = ref.watch(themeModeProvider);
+                    final isDark = mode == ThemeMode.dark ||
+                        (mode == ThemeMode.system &&
+                            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+                    return _HeaderCircle(
+                      icon: isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                      tooltip: isDark ? 'Light mode' : 'Dark mode',
+                      onTap: () => ref
+                          .read(themeModeProvider.notifier)
+                          .setMode(isDark ? ThemeMode.light : ThemeMode.dark),
+                    );
+                  }),
                   const SizedBox(width: AppSpacing.sm),
                 ],
                 _NotificationBell(l10n: l10n),

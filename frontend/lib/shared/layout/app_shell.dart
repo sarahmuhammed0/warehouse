@@ -54,6 +54,7 @@ class AppShell extends ConsumerWidget {
     required this.child,
     this.brandSubtitle,
     this.brandIcon,
+    this.primaryRoutes = primaryNavRoutes,
     this.showSearch = true,
   });
 
@@ -64,6 +65,7 @@ class AppShell extends ConsumerWidget {
         brandLabel = null,
         brandSubtitle = null,
         brandIcon = null,
+        primaryRoutes = primaryNavRoutes,
         showSearch = true;
 
   /// `null` means "resolve the business nav live" — see the class comment.
@@ -75,6 +77,11 @@ class AppShell extends ConsumerWidget {
   /// one design system.
   final String? brandSubtitle;
   final IconData? brandIcon;
+
+  /// Which destinations ride the header's pill bar; everything else goes
+  /// to the rail. The System Admin area has few enough that they all fit
+  /// up top, so it passes its own list.
+  final List<String> primaryRoutes;
 
   final Widget child;
 
@@ -104,6 +111,7 @@ class AppShell extends ConsumerWidget {
         brandLabel: brandLabel,
         brandSubtitle: brandSubtitle,
         brandIcon: brandIcon,
+        primaryRoutes: primaryRoutes,
         currentPath: currentPath,
         pageContext: pageContext,
         showSearch: showSearch,
@@ -161,6 +169,7 @@ class _DesktopShell extends ConsumerWidget {
     required this.brandLabel,
     required this.brandSubtitle,
     required this.brandIcon,
+    required this.primaryRoutes,
     required this.currentPath,
     required this.pageContext,
     required this.child,
@@ -171,6 +180,7 @@ class _DesktopShell extends ConsumerWidget {
   final String brandLabel;
   final String? brandSubtitle;
   final IconData? brandIcon;
+  final List<String> primaryRoutes;
   final String currentPath;
   final String pageContext;
   final Widget child;
@@ -179,7 +189,11 @@ class _DesktopShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final split = splitNavItems(navItems);
+    final split = splitNavItems(navItems, primaryRoutes: primaryRoutes);
+    // An area small enough that every destination fits in the header gets
+    // no rail at all — a 68px white column holding two controls reads as a
+    // panel someone forgot to fill.
+    final hasRailNav = split.secondary.isNotEmpty;
     final themeMode = ref.watch(themeModeProvider);
     final isDark = themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
@@ -199,6 +213,7 @@ class _DesktopShell extends ConsumerWidget {
                 brandSubtitle: brandSubtitle,
                 brandIcon: brandIcon,
                 showSearch: showSearch,
+                showThemeToggle: !hasRailNav,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -206,31 +221,31 @@ class _DesktopShell extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (split.secondary.isNotEmpty) ...[
-                    SizedBox(
-                      width: AppRail.width,
-                      child: _ChromePanel(
-                        child: AppRail(
-                          items: split.secondary,
-                          currentPath: currentPath,
-                          footer: [
-                            RailActionButton(
-                              icon: isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                              tooltip: isDark ? 'Light mode' : 'Dark mode',
-                              onPressed: () => ref
-                                  .read(themeModeProvider.notifier)
-                                  .setMode(isDark ? ThemeMode.light : ThemeMode.dark),
-                            ),
-                            RailActionButton(
-                              icon: Icons.logout,
-                              tooltip: l10n.logout,
-                              onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-                            ),
-                          ],
-                        ),
+                  if (hasRailNav) ...[
+                  SizedBox(
+                    width: AppRail.width,
+                    child: _ChromePanel(
+                      child: AppRail(
+                        items: split.secondary,
+                        currentPath: currentPath,
+                        footer: [
+                          RailActionButton(
+                            icon: isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                            tooltip: isDark ? 'Light mode' : 'Dark mode',
+                            onPressed: () => ref
+                                .read(themeModeProvider.notifier)
+                                .setMode(isDark ? ThemeMode.light : ThemeMode.dark),
+                          ),
+                          RailActionButton(
+                            icon: Icons.logout,
+                            tooltip: l10n.logout,
+                            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.lg),
+                  ),
+                  const SizedBox(width: AppSpacing.lg),
                   ],
                   Expanded(child: child),
                 ],

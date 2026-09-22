@@ -23,6 +23,12 @@
 
   "adminAreaLabel": "System Admin",
   "adminNavDashboard": "Admin Dashboard",
+  "adminAccountsOnPlatform": "Accounts on the platform",
+  "adminAcrossAllBusinesses": "Across all businesses",
+  "adminAccountHealth": "Account health",
+  "adminHealthHealthy": "Healthy",
+  "adminHealthNeedsReview": "Needs review",
+  "adminTotalBusinesses": "Total businesses",
   "adminNavBusinesses": "Businesses",
   "backToBusinessApp": "Back to business app",
 
