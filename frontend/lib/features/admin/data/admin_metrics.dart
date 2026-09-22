@@ -52,8 +52,11 @@ class AdminMetrics {
 
   final Map<String, BusinessMetrics> byBusiness;
 
-  /// The last six months of platform-wide quick-sale revenue, oldest
-  /// first, and the matching count of standard orders.
+  /// The last twelve months of platform-wide quick-sale revenue, oldest
+  /// first, and the matching count of standard orders. The dashboard's
+  /// range control plots a tail of these rather than re-querying, so
+  /// switching period is instant and every period is folded from one pass
+  /// over the records.
   ///
   /// Derived from the very same order rows the per-business counts above
   /// are folded from — there is no separate "platform sales" dataset, and
@@ -74,6 +77,10 @@ class AdminMetrics {
   int get totalSalesRecords => _sum((m) => m.salesCount);
   double get totalSalesAmount => byBusiness.values.fold(0, (total, m) => total + m.salesTotal);
 }
+
+/// How far back the platform series reaches. The dashboard offers shorter
+/// ranges by taking a tail of it.
+const int kAdminMonthsTracked = 12;
 
 /// Not `.autoDispose`: this is watched by the dashboard and by every
 /// overview screen, and re-fetching it on each navigation would make the
@@ -108,7 +115,7 @@ final adminMetricsProvider = FutureProvider<AdminMetrics>((ref) async {
   final now = DateTime.now();
   final monthlySales = <({String label, double value})>[];
   final monthlyOrders = <({String label, double value})>[];
-  for (var i = 5; i >= 0; i--) {
+  for (var i = kAdminMonthsTracked - 1; i >= 0; i--) {
     final month = DateTime(now.year, now.month - i);
     bool inMonth(Order o) => o.createdAt.year == month.year && o.createdAt.month == month.month;
     // Same label shape the business dashboard's monthly series uses, so the

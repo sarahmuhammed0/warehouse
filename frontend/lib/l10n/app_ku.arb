@@ -28,6 +28,8 @@
   "adminHealthHealthy": "باش",
   "adminHealthNeedsReview": "پێویستی بە پێداچوونەوەیە",
   "adminTotalBusinesses": "کۆی بزنسەکان",
+  "adminRangeMonths": "دوایین {count} مانگ",
+  "refreshed": "نوێکرایەوە",
   "adminNavBusinesses": "کۆمپانیاکان",
   "backToBusinessApp": "گەڕانەوە بۆ ئەپەکە",
 

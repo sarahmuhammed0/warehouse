@@ -84,6 +84,7 @@ import 'package:warehouse_os_app/shared/dashboard/dashboard_cards.dart';
 import 'package:warehouse_os_app/shared/dashboard/simple_bar_chart.dart';
 import 'package:warehouse_os_app/theme/theme_controller.dart';
 import 'package:warehouse_os_app/shared/dashboard/metric_cards.dart';
+import 'package:warehouse_os_app/shared/dashboard/vertical_bar_chart.dart';
 import 'package:warehouse_os_app/shared/navigation/nav_items.dart';
 import 'package:warehouse_os_app/shared/buttons/app_button.dart';
 import 'package:warehouse_os_app/shared/feedback/app_empty_state.dart';
@@ -836,6 +837,50 @@ void main() {
       await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
       await tester.pumpAndSettle();
     }
+
+    testWidgets('The admin date-range control really re-plots the platform chart', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      int plottedBars() => tester
+          .widget<VerticalBarChart>(find.byType(VerticalBarChart))
+          .points
+          .length;
+      expect(plottedBars(), 6, reason: 'six months is the default range');
+
+      final chip = find.byKey(const ValueKey('adminRangeChip'));
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(PopupMenuItem<AdminRange>, 'Last 12 months'));
+      await tester.pumpAndSettle();
+
+      expect(plottedBars(), 12, reason: 'the chart plots the chosen range, not a fixed six');
+    });
+
+    testWidgets('Refresh re-folds the figures and says so', (tester) async {
+      final container = adminContainer();
+      addTearDown(container.dispose);
+      await pumpAdminDesktop(tester, container);
+
+      final refresh = find.byKey(const ValueKey('adminRefreshMetrics'));
+      await tester.ensureVisible(refresh);
+      await tester.pumpAndSettle();
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+
+      // Re-folding derived figures usually lands on the same numbers, so
+      // the confirmation is the only way a user can tell it ran at all.
+      expect(find.text('Refreshed'), findsOneWidget);
+      // ...and the figures are still the real ones afterwards.
+      final metrics = await container.read(adminMetricsProvider.future);
+      expect(
+        tester.widget<StatCard>(find.widgetWithText(StatCard, 'Products')).value,
+        '${metrics.totalProducts}',
+      );
+    });
 
     // Seed data (admin_repository.dart): 4 businesses, 3 active + 1
     // disabled ("Northern Distribution Center") — chosen so Active/Disabled
@@ -2003,6 +2048,34 @@ void main() {
           reason: 'quick action $i should stay compact, not become a full-width bar',
         );
       }
+    });
+
+    // The date-range pill and the admin's Refresh both look like controls.
+    // These two tests exist so they cannot quietly become decoration: each
+    // proves the control changes something real on the screen.
+    testWidgets('The date-range control really re-plots the overview chart', (tester) async {
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      // Six months by default — the series the chart opens on.
+      int plottedBars() => tester
+          .widget<VerticalBarChart>(find.byType(VerticalBarChart))
+          .points
+          .length;
+      expect(plottedBars(), 6);
+
+      final chip = find.byKey(const ValueKey('dashboardRangeChip'));
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+
+      // Seven days is a different series of a different length, so the
+      // bar count alone proves the chart really re-plotted.
+      await tester.tap(find.widgetWithText(PopupMenuItem<OverviewRange>, 'Daily sales (last 7 days)'));
+      await tester.pumpAndSettle();
+      expect(plottedBars(), 7);
     });
 
     testWidgets('The section collapses again', (tester) async {

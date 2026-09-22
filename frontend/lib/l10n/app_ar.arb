@@ -28,6 +28,8 @@
   "adminHealthHealthy": "سليم",
   "adminHealthNeedsReview": "يحتاج مراجعة",
   "adminTotalBusinesses": "إجمالي الشركات",
+  "adminRangeMonths": "آخر {count} أشهر",
+  "refreshed": "تم التحديث",
   "adminNavBusinesses": "الشركات",
   "backToBusinessApp": "العودة إلى التطبيق",
 

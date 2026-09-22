@@ -29,6 +29,9 @@
   "adminHealthHealthy": "Healthy",
   "adminHealthNeedsReview": "Needs review",
   "adminTotalBusinesses": "Total businesses",
+  "adminRangeMonths": "Last {count} months",
+  "@adminRangeMonths": {"description":"Date-range option on the System Admin dashboard.","placeholders":{"count":{"type":"int"}}},
+  "refreshed": "Refreshed",
   "adminNavBusinesses": "Businesses",
   "backToBusinessApp": "Back to business app",
 

@@ -10,7 +10,9 @@ import '../../shared/cards/app_card.dart';
 import '../../shared/cards/app_icon_chip.dart';
 import '../../shared/cards/brand_panel.dart';
 import '../../shared/dashboard/dashboard_cards.dart';
+import '../../shared/dashboard/date_range_chip.dart';
 import '../../shared/dashboard/metric_cards.dart';
+import '../../shared/feedback/app_toast.dart';
 import '../../shared/dashboard/vertical_bar_chart.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/navigation/nav_items.dart';
@@ -45,8 +47,30 @@ const _tileMetrics = [AdminMetric.products, AdminMetric.orders, AdminMetric.sale
 /// nobody measured, and there is no backup subsystem at all. Their slots
 /// carry platform figures that *are* derived from real records: account
 /// health, and the platform's own activity.
-class AdminDashboardScreen extends ConsumerWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  ConsumerState<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+/// How many of the tracked months the platform chart plots.
+enum AdminRange {
+  threeMonths(3),
+  sixMonths(6),
+  twelveMonths(12);
+
+  const AdminRange(this.months);
+  final int months;
+
+  /// A tail of the tracked series — never a re-query, so every range is
+  /// folded from the same single pass over the records.
+  List<({String label, double value})> tailOf(List<({String label, double value})> all) =>
+      all.length <= months ? all : all.sublist(all.length - months);
+}
+
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  AdminRange _range = AdminRange.sixMonths;
 
   /// Card chrome plus the chart, which is the tallest of the row's
   /// contents. Shared with the chart so the two cannot drift apart.
@@ -57,8 +81,15 @@ class AdminDashboardScreen extends ConsumerWidget {
   static const double _rowHeight = 360;
   static const double _chartHeight = 250;
 
+  /// The months the chosen range actually covers.
+  String? _spanOf(AdminMetrics? metrics) {
+    final series = _range.tailOf(metrics?.monthlySales ?? const []);
+    if (series.isEmpty) return null;
+    return '${series.first.label} — ${series.last.label}';
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final businesses = ref.watch(adminBusinessListControllerProvider);
     final authState = ref.watch(authControllerProvider);
@@ -81,7 +112,19 @@ class AdminDashboardScreen extends ConsumerWidget {
       subtitle: l10n.demoDataNotice,
       showBackButton: true,
       backFallbackRoute: AppRoutes.adminDashboard,
-      secondaryActions: [_RangeChip(metrics: metrics)],
+      secondaryActions: [
+        DateRangeChip<AdminRange>(
+          key: const ValueKey('adminRangeChip'),
+          options: [
+            (value: AdminRange.threeMonths, label: l10n.adminRangeMonths(3)),
+            (value: AdminRange.sixMonths, label: l10n.adminRangeMonths(6)),
+            (value: AdminRange.twelveMonths, label: l10n.adminRangeMonths(12)),
+          ],
+          selected: _range,
+          span: _spanOf(metrics),
+          onChanged: (value) => setState(() => _range = value),
+        ),
+      ],
       // The reference's primary action creates a business. This console has
       // no create-business route — only edit — and a button that opens
       // nothing is worse than no button (§57's "not one control is a
@@ -92,10 +135,13 @@ class AdminDashboardScreen extends ConsumerWidget {
         key: const ValueKey('adminRefreshMetrics'),
         label: l10n.refresh,
         icon: Icons.refresh,
-        onPressed: () {
+        onPressed: () async {
           ref.invalidate(adminMetricsProvider);
           ref.invalidate(adminRecentActivityProvider);
-          ref.read(adminBusinessListControllerProvider.notifier).reload();
+          await ref.read(adminBusinessListControllerProvider.notifier).reload();
+          // Re-folding derived figures usually lands on the same numbers,
+          // so without this the control looks broken even when it worked.
+          if (context.mounted) AppToast.success(context, l10n.refreshed);
         },
       ),
       body: Column(
@@ -109,6 +155,7 @@ class AdminDashboardScreen extends ConsumerWidget {
             disabled: disabled,
             employees: total(AdminMetric.employees),
             metrics: metrics,
+            range: _range,
             chartHeight: _chartHeight,
             rowHeight: _rowHeight,
           ),
@@ -151,40 +198,6 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-/// The date-range pill. It states the span the platform series actually
-/// covers — the first and last month the chart plots — rather than
-/// offering a picker over a range nothing else on the page responds to.
-class _RangeChip extends StatelessWidget {
-  const _RangeChip({required this.metrics});
-
-  final AdminMetrics? metrics;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final series = metrics?.monthlySales ?? const [];
-    final label = series.isEmpty ? '—' : '${series.first.label} — ${series.last.label}';
-
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: AppRadius.pillRadius,
-        border: Border.all(color: colors.borderStrong),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.calendar_today_outlined, size: 16, color: colors.textSecondary),
-          const SizedBox(width: AppSpacing.sm),
-          Text(label, style: AppTypography.button.copyWith(color: colors.textSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
 /// The reference's leading row: the accounts panel with the people figure
 /// beneath it, the platform sales chart, and a health card.
 class _OverviewRow extends StatelessWidget {
@@ -195,6 +208,7 @@ class _OverviewRow extends StatelessWidget {
     required this.disabled,
     required this.employees,
     required this.metrics,
+    required this.range,
     required this.chartHeight,
     required this.rowHeight,
   });
@@ -205,6 +219,7 @@ class _OverviewRow extends StatelessWidget {
   final int disabled;
   final String employees;
   final AdminMetrics? metrics;
+  final AdminRange range;
   final double chartHeight;
   final double rowHeight;
 
@@ -212,7 +227,7 @@ class _OverviewRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final accounts = _AccountsCard(l10n: l10n, total: total, active: active, disabled: disabled);
     final people = _PeopleCard(l10n: l10n, value: employees);
-    final chart = _PlatformSalesCard(l10n: l10n, metrics: metrics, height: chartHeight);
+    final chart = _PlatformSalesCard(l10n: l10n, metrics: metrics, range: range, height: chartHeight);
     final health = _AccountHealthCard(l10n: l10n, total: total, active: active, disabled: disabled);
 
     // Decided from the window, not measured with a `LayoutBuilder`: a
@@ -401,10 +416,16 @@ class _PeopleCard extends StatelessWidget {
 /// Platform sales over the last six months, switchable between revenue and
 /// order count — the reference's "Platform Sales" card.
 class _PlatformSalesCard extends StatefulWidget {
-  const _PlatformSalesCard({required this.l10n, required this.metrics, required this.height});
+  const _PlatformSalesCard({
+    required this.l10n,
+    required this.metrics,
+    required this.range,
+    required this.height,
+  });
 
   final AppLocalizations l10n;
   final AdminMetrics? metrics;
+  final AdminRange range;
   final double height;
 
   @override
@@ -418,16 +439,22 @@ class _PlatformSalesCardState extends State<_PlatformSalesCard> {
   int? _selected;
 
   @override
+  void didUpdateWidget(_PlatformSalesCard old) {
+    super.didUpdateWidget(old);
+    if (old.range != widget.range) _selected = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = widget.l10n;
     final m = widget.metrics;
-    final points = switch (_series) {
+    final points = widget.range.tailOf(switch (_series) {
       _Series.sales => m?.monthlySales ?? const [],
       _Series.orders => m?.monthlyOrders ?? const [],
-    };
+    });
 
     return SectionCard(
-      title: l10n.reportRevenue,
+      title: _series == _Series.sales ? l10n.reportRevenue : l10n.navOrders,
       subtitle: l10n.adminAcrossAllBusinesses,
       padding: const EdgeInsets.all(AppSpacing.lg),
       actions: [

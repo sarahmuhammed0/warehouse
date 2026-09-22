@@ -8,6 +8,7 @@ import '../../shared/buttons/app_button.dart';
 import '../../shared/cards/app_icon_chip.dart';
 import '../../shared/cards/brand_panel.dart';
 import '../../shared/dashboard/dashboard_cards.dart';
+import '../../shared/dashboard/date_range_chip.dart';
 import '../../shared/dashboard/metric_cards.dart';
 import '../../shared/dashboard/simple_bar_chart.dart';
 import '../../shared/dashboard/vertical_bar_chart.dart';
@@ -51,11 +52,18 @@ import 'data/dashboard_metrics.dart';
 /// neither requires module tiles nor forbids them — so this split is a UX
 /// decision, recorded in `docs/business-dashboard-audit.md` as a decision
 /// rather than presented as a spec requirement.
-class DashboardPlaceholderScreen extends ConsumerWidget {
+class DashboardPlaceholderScreen extends ConsumerStatefulWidget {
   const DashboardPlaceholderScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardPlaceholderScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardPlaceholderScreen> {
+  OverviewRange _range = OverviewRange.months;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final metrics = ref.watch(dashboardMetricsProvider).asData?.value;
     final authState = ref.watch(authControllerProvider);
@@ -68,7 +76,19 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
       subtitle: l10n.demoDataNotice,
       showBackButton: true,
       backFallbackRoute: AppRoutes.dashboard,
-      secondaryActions: [_TodayChip(l10n: l10n)],
+      secondaryActions: [
+        DateRangeChip<OverviewRange>(
+          key: const ValueKey('dashboardRangeChip'),
+          options: [
+            (value: OverviewRange.days, label: l10n.chartDailySales),
+            (value: OverviewRange.weeks, label: l10n.chartWeeklySales),
+            (value: OverviewRange.months, label: l10n.chartMonthlySales),
+          ],
+          selected: _range,
+          span: _range.spanOf(metrics),
+          onChanged: (value) => setState(() => _range = value),
+        ),
+      ],
       primaryAction: hasPermission(permissions, 'sales', 'create')
           ? AppButton(
               label: l10n.actionNewSale,
@@ -84,7 +104,7 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
         // first and the shortcuts sit at the very bottom; nothing follows
         // them but page padding.
         children: [
-          _OverviewRow(metrics: metrics, l10n: l10n),
+          _OverviewRow(metrics: metrics, l10n: l10n, range: _range),
           _Statistics(metrics: metrics, l10n: l10n),
           _Alerts(metrics: metrics, l10n: l10n),
           if (metrics != null)
@@ -102,6 +122,32 @@ class DashboardPlaceholderScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+enum OverviewRange {
+  days,
+  weeks,
+  months;
+
+  List<ChartPoint> seriesOf(DashboardMetrics? m) => switch (this) {
+        OverviewRange.days => m?.dailySales ?? const [],
+        OverviewRange.weeks => m?.weeklySales ?? const [],
+        OverviewRange.months => m?.monthlySales ?? const [],
+      };
+
+  String labelOf(AppLocalizations l10n) => switch (this) {
+        OverviewRange.days => l10n.chartDailySales,
+        OverviewRange.weeks => l10n.chartWeeklySales,
+        OverviewRange.months => l10n.chartMonthlySales,
+      };
+
+  /// The first and last point the chosen series plots, so the control can
+  /// state the dates it actually covers rather than only its own name.
+  String? spanOf(DashboardMetrics? m) {
+    final series = seriesOf(m);
+    if (series.isEmpty) return null;
+    return '${series.first.label} — ${series.last.label}';
   }
 }
 
@@ -138,43 +184,6 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-/// The date pill beside the greeting — the reference's date-range control,
-/// here showing the period the dashboard actually covers. It is a label,
-/// not a picker: the dashboard's figures are defined by §5 as today /
-/// this month / all time, so there is no range for a picker to change, and
-/// a control that changed nothing would be worse than none.
-class _TodayChip extends StatelessWidget {
-  const _TodayChip({required this.l10n});
-
-  final AppLocalizations l10n;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final now = DateTime.now();
-    final today =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: AppRadius.pillRadius,
-        border: Border.all(color: colors.borderStrong),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.calendar_today_outlined, size: 16, color: colors.textSecondary),
-          const SizedBox(width: AppSpacing.sm),
-          Text(today, style: AppTypography.button.copyWith(color: colors.textSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
 /// The overview row — the three cards the reference design leads with:
 /// today's revenue on the brand panel, a sales-overview chart, and the
 /// money still owed.
@@ -190,10 +199,11 @@ class _TodayChip extends StatelessWidget {
 /// grid but deliberately holds no `StatCard`: these are feature cards, and
 /// mixing them into the grid's rhythm would flatten both.
 class _OverviewRow extends StatelessWidget {
-  const _OverviewRow({required this.metrics, required this.l10n});
+  const _OverviewRow({required this.metrics, required this.l10n, required this.range});
 
   final DashboardMetrics? metrics;
   final AppLocalizations l10n;
+  final OverviewRange range;
 
   /// Card chrome (padding + header) plus the chart, which is the tallest
   /// of the three contents. Shared with [_SalesOverviewCard] so the chart
@@ -205,7 +215,7 @@ class _OverviewRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cards = <Widget>[
       _TodaysSalesCard(metrics: metrics, l10n: l10n),
-      _SalesOverviewCard(metrics: metrics, l10n: l10n),
+      _SalesOverviewCard(metrics: metrics, l10n: l10n, range: range),
       _OutstandingCard(metrics: metrics, l10n: l10n),
     ];
 
@@ -298,50 +308,36 @@ class _TodaysSalesCard extends ConsumerWidget {
 /// down the page: this one answers "how is the trend", that one is §5's
 /// ten-subject report switcher.
 class _SalesOverviewCard extends StatefulWidget {
-  const _SalesOverviewCard({required this.metrics, required this.l10n});
+  const _SalesOverviewCard({required this.metrics, required this.l10n, required this.range});
 
   final DashboardMetrics? metrics;
   final AppLocalizations l10n;
+  final OverviewRange range;
 
   @override
   State<_SalesOverviewCard> createState() => _SalesOverviewCardState();
 }
 
-enum _OverviewRange { weekly, monthly }
-
 class _SalesOverviewCardState extends State<_SalesOverviewCard> {
-  _OverviewRange _range = _OverviewRange.monthly;
   int? _selected;
+
+  @override
+  void didUpdateWidget(_SalesOverviewCard old) {
+    super.didUpdateWidget(old);
+    // A new period is a new series of a different length; keeping the old
+    // index would pick out an unrelated bar.
+    if (old.range != widget.range) _selected = null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = widget.l10n;
-    final m = widget.metrics;
-    final series = switch (_range) {
-      _OverviewRange.weekly => m?.weeklySales ?? const <ChartPoint>[],
-      _OverviewRange.monthly => m?.monthlySales ?? const <ChartPoint>[],
-    };
+    final series = widget.range.seriesOf(widget.metrics);
 
     return SectionCard(
       title: l10n.reportRevenue,
-      subtitle: _range == _OverviewRange.weekly ? l10n.chartWeeklySales : l10n.chartMonthlySales,
+      subtitle: widget.range.labelOf(l10n),
       padding: const EdgeInsets.all(AppSpacing.lg),
-      actions: [
-        AppSegmentedControl<_OverviewRange>(
-          segments: const [
-            (value: _OverviewRange.weekly, label: 'W', key: ValueKey('overviewWeekly')),
-            (value: _OverviewRange.monthly, label: 'M', key: ValueKey('overviewMonthly')),
-          ],
-          selected: _range,
-          // Switching range invalidates the selected column index — the
-          // two series are different lengths, and keeping the old index
-          // would highlight an unrelated bar.
-          onChanged: (value) => setState(() {
-            _range = value;
-            _selected = null;
-          }),
-        ),
-      ],
       child: VerticalBarChart(
         points: [for (final p in series) (label: p.label, value: p.value)],
         emptyLabel: l10n.dashboardNoChartData,
