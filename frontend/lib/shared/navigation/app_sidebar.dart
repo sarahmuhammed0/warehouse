@@ -10,29 +10,51 @@ import 'nav_items.dart';
 
 /// One sidebar widget, reused for both the business app and the System
 /// Admin area (different `items` lists, same visual language) — see
-/// `AppShell`/`AdminShell`. Supports a collapsed desktop state (icons only)
-/// and renders as a `Drawer` on mobile/tablet via the same widget (the
-/// caller decides which container it sits in — this widget only renders
-/// its own content).
+/// `AppShell`. Supports a collapsed desktop state (icons only) and renders
+/// as a `Drawer` on mobile/tablet via the same widget (the caller decides
+/// which container it sits in — this widget only renders its own content).
+///
+/// **Why this is still a labelled sidebar.** The design references put a
+/// short pill nav across the header, which works for the six destinations
+/// they show. This product has seventeen business modules, gated per role
+/// and per business type, and §8 is explicit that no route may be dropped
+/// and no second navigation menu may be added. So the sidebar keeps its
+/// labels and takes on the reference's *visual* language instead — a
+/// floating white panel, a brand lockup, and a filled pill for the active
+/// entry.
 class AppSidebar extends StatelessWidget {
   const AppSidebar({
     super.key,
     required this.items,
     required this.currentPath,
     required this.brandLabel,
+    this.brandSubtitle,
+    this.brandIcon,
     this.collapsed = false,
     this.onCollapseToggle,
+    this.onNavigate,
     this.footer,
   });
 
   final List<NavItem> items;
   final String currentPath;
   final String brandLabel;
+
+  /// The line under the brand name — how the System Admin area identifies
+  /// itself as platform-level rather than as one more business (§3).
+  final String? brandSubtitle;
+
+  /// Overrides the initial-letter brand tile. The System Admin area passes
+  /// a shield so the two shells are told apart at a glance.
+  final IconData? brandIcon;
+
   final bool collapsed;
   final VoidCallback? onCollapseToggle;
 
-  /// Placeholder slot for the future user/account area (§8: "user/account
-  /// area placeholder") — not real user data in Phase 1.
+  /// Fired after a nav item is selected — lets a `Drawer` host close
+  /// itself once navigation has happened.
+  final VoidCallback? onNavigate;
+
   final Widget? footer;
 
   @override
@@ -46,19 +68,30 @@ class AppSidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Brand(label: brandLabel, collapsed: collapsed),
-            const Divider(height: 1),
+            _Brand(
+              label: brandLabel,
+              subtitle: brandSubtitle,
+              icon: brandIcon,
+              collapsed: collapsed,
+            ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                padding: EdgeInsets.symmetric(
+                  horizontal: collapsed ? AppSpacing.sm : AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
                 children: [
                   for (final item in items)
                     _NavTile(
+                      key: ValueKey('nav:${item.route}'),
                       item: item,
                       label: item.labelBuilder(l10n),
                       selected: currentPath == item.route || currentPath.startsWith('${item.route}/'),
                       collapsed: collapsed,
-                      onTap: () => context.go(item.route),
+                      onTap: () {
+                        context.go(item.route);
+                        onNavigate?.call();
+                      },
                     ),
                 ],
               ),
@@ -73,36 +106,68 @@ class AppSidebar extends StatelessWidget {
   }
 }
 
+/// The brand lockup — a rounded-square accent tile plus the wordmark. On a
+/// business shell the tile carries the business's own initial; the System
+/// Admin area passes an icon instead.
 class _Brand extends StatelessWidget {
-  const _Brand({required this.label, required this.collapsed});
+  const _Brand({
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.collapsed,
+  });
 
   final String label;
+  final String? subtitle;
+  final IconData? icon;
   final bool collapsed;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+
+    final tile = Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: colors.primary, borderRadius: AppRadius.smRadius),
+      child: icon != null
+          ? Icon(icon, size: 20, color: colors.onPrimary)
+          : Text(
+              label.isNotEmpty ? label[0].toUpperCase() : 'W',
+              style: AppTypography.cardTitle.copyWith(color: colors.onPrimary, fontSize: 17),
+            ),
+    );
+
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.fromLTRB(
+        collapsed ? AppSpacing.md : AppSpacing.lg,
+        AppSpacing.lg,
+        collapsed ? AppSpacing.md : AppSpacing.lg,
+        AppSpacing.md,
+      ),
       child: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: colors.primary, borderRadius: AppRadius.smRadius),
-            child: Text(
-              label.isNotEmpty ? label[0].toUpperCase() : 'W',
-              style: AppTypography.cardTitle.copyWith(color: colors.onPrimary),
-            ),
-          ),
+          tile,
           if (!collapsed) ...[
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.sectionTitle.copyWith(color: colors.textPrimary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.sectionTitle.copyWith(color: colors.textPrimary),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.caption.copyWith(color: colors.textMuted),
+                    ),
+                ],
               ),
             ),
           ],
@@ -114,6 +179,7 @@ class _Brand extends StatelessWidget {
 
 class _NavTile extends StatelessWidget {
   const _NavTile({
+    super.key,
     required this.item,
     required this.label,
     required this.selected,
@@ -133,17 +199,18 @@ class _NavTile extends StatelessWidget {
     final fg = selected ? colors.primary : colors.textSecondary;
 
     final tile = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
         color: selected ? colors.selectedBg : Colors.transparent,
         borderRadius: AppRadius.mdRadius,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: AppRadius.mdRadius,
           onTap: onTap,
+          hoverColor: colors.surfaceMuted,
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: collapsed ? 0 : AppSpacing.md,
-              vertical: AppSpacing.sm + 2,
+              vertical: 10,
             ),
             child: collapsed
                 ? Center(child: Icon(item.icon, size: 20, color: fg))
@@ -157,7 +224,7 @@ class _NavTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.navLabel.copyWith(
                             color: fg,
-                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                           ),
                         ),
                       ),
@@ -188,11 +255,26 @@ class _CollapseToggle extends StatelessWidget {
     final icon = collapsed == isRtl ? Icons.chevron_left : Icons.chevron_right;
 
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      child: IconButton(
-        onPressed: onTap,
-        icon: Icon(icon, color: colors.textMuted),
-        tooltip: collapsed ? 'Expand' : 'Collapse',
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Align(
+        alignment: collapsed ? Alignment.center : AlignmentDirectional.centerStart,
+        child: Material(
+          color: colors.surfaceMuted,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: Tooltip(
+              message: collapsed ? 'Expand' : 'Collapse',
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Icon(icon, size: 18, color: colors.textSecondary),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

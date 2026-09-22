@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
+import '../../theme/app_elevation.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
@@ -22,9 +23,15 @@ import 'table_column.dart';
 ///    card-per-row list on mobile (§11: "mobile-friendly alternatives",
 ///    never a table simply overflowing the screen).
 ///
+/// Visually the table is one white surface with air in it: quiet small-caps
+/// headers, tall comfortable rows, a hover tint, and **no vertical rules
+/// at all** — §12's "avoid visually heavy grid lines, use whitespace
+/// instead". Columns are separated by spacing, which is what makes a
+/// twelve-column products table still readable.
+///
 /// Sorting/filtering/pagination are all *reported* via callbacks — this
 /// widget does no data fetching or in-memory sorting itself; that's a
-/// future module's repository's job (§26's server-side requirement).
+/// module's repository's job (§26's server-side requirement).
 class AppDataTable<T> extends StatelessWidget {
   const AppDataTable({
     super.key,
@@ -69,18 +76,46 @@ class AppDataTable<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return _LoadingRows(columnCount: columns.length);
+    if (loading) return _Surface(child: _LoadingRows(columnCount: columns.length));
 
     if (errorMessage != null) {
-      return AppErrorState(message: errorMessage!, onRetry: onRetry);
+      return _Surface(child: AppErrorState(message: errorMessage!, onRetry: onRetry));
     }
 
     if (rows.isEmpty) {
-      return AppEmptyState(icon: Icons.table_rows_outlined, title: emptyTitle, description: emptyDescription);
+      return _Surface(
+        child: AppEmptyState(
+          icon: Icons.table_rows_outlined,
+          title: emptyTitle,
+          description: emptyDescription,
+        ),
+      );
     }
 
     final isMobile = MediaQuery.sizeOf(context).width < AppBreakpoints.mobile;
-    return isMobile ? _CardList<T>(table: this) : _DesktopTable<T>(table: this);
+    return isMobile ? _CardList<T>(table: this) : _Surface(child: _DesktopTable<T>(table: this));
+  }
+}
+
+/// The white panel a table (or its loading/empty/error stand-in) sits on.
+/// Same radius and lift as [AppCard] — a table is a content surface like
+/// any other, and the two must not differ.
+class _Surface extends StatelessWidget {
+  const _Surface({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: AppRadius.cardRadius,
+        border: Border.all(color: colors.border),
+        boxShadow: AppElevation.cardShadow(colors, Theme.of(context).brightness),
+      ),
+      child: ClipRRect(borderRadius: AppRadius.cardRadius, child: child),
+    );
   }
 }
 
@@ -90,8 +125,11 @@ class _LoadingRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: List.generate(6, (_) => AppSkeletonRow(columns: columnCount.clamp(2, 5))),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        children: List.generate(6, (_) => AppSkeletonRow(columns: columnCount.clamp(2, 5))),
+      ),
     );
   }
 }
@@ -108,9 +146,14 @@ class _DesktopTable<T> extends StatelessWidget {
       showCheckboxColumn: table.selectable,
       sortColumnIndex: table.sortColumnIndex,
       sortAscending: table.sortAscending,
-      headingRowColor: WidgetStateProperty.all(colors.background),
-      headingTextStyle: AppTypography.tableHeader.copyWith(color: colors.textSecondary),
+      headingRowColor: WidgetStateProperty.all(colors.surfaceMuted),
+      headingTextStyle: AppTypography.tableHeader.copyWith(color: colors.textMuted),
       dataTextStyle: AppTypography.tableText.copyWith(color: colors.textPrimary),
+      headingRowHeight: 48,
+      dataRowMinHeight: 54,
+      dataRowMaxHeight: 64,
+      horizontalMargin: AppSpacing.xl,
+      columnSpacing: AppSpacing.xxl,
       dividerThickness: 1,
       columns: [
         for (var i = 0; i < table.columns.length; i++)
@@ -127,6 +170,13 @@ class _DesktopTable<T> extends StatelessWidget {
         for (final item in table.rows)
           DataRow(
             selected: table.selectedIds.contains(table.idOf(item)),
+            // Hover and selection are the only row decoration — §12's
+            // "hover state, selected state where needed".
+            color: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) return colors.accentSoft;
+              if (states.contains(WidgetState.hovered)) return colors.surfaceMuted;
+              return null;
+            }),
             onSelectChanged: table.selectable && table.onSelectionChanged != null
                 ? (selected) => _toggleSelection(item, selected ?? false)
                 : (table.onRowTap != null ? (_) => table.onRowTap!(item) : null),
@@ -140,15 +190,6 @@ class _DesktopTable<T> extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bordered = Container(
-          decoration: BoxDecoration(border: Border.all(color: colors.border), borderRadius: AppRadius.mdRadius),
-          clipBehavior: Clip.antiAlias,
-          child: Theme(
-            data: Theme.of(context).copyWith(dividerColor: colors.border),
-            child: dataTable,
-          ),
-        );
-
         // Always inside a horizontal scroller (§11: "only if the columns
         // genuinely don't fit" — found by measurement, not by guessing).
         // This used to branch on a hand-estimated `preferredWidth` and skip
@@ -168,7 +209,13 @@ class _DesktopTable<T> extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: bordered,
+            child: Theme(
+              // The divider is the single horizontal rule under the header
+              // and between rows; kept at the faintest border token so the
+              // table reads as banded whitespace rather than as a grid.
+              data: Theme.of(context).copyWith(dividerColor: colors.border),
+              child: dataTable,
+            ),
           ),
         );
       },
@@ -184,7 +231,8 @@ class _DesktopTable<T> extends StatelessWidget {
 }
 
 /// Mobile fallback — one card per row instead of a squeezed/scrolled table
-/// (§11's explicit requirement).
+/// (§11's explicit requirement, and §26's "tables may become card/list
+/// representations on small screens").
 class _CardList<T> extends StatelessWidget {
   const _CardList({required this.table});
   final AppDataTable<T> table;
@@ -196,46 +244,62 @@ class _CardList<T> extends StatelessWidget {
       children: [
         for (final item in table.rows)
           Container(
-            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-            padding: const EdgeInsets.all(AppSpacing.md),
+            margin: const EdgeInsets.only(bottom: AppSpacing.md),
             decoration: BoxDecoration(
               color: colors.card,
+              borderRadius: AppRadius.lgRadius,
               border: Border.all(color: colors.border),
-              borderRadius: AppRadius.mdRadius,
+              boxShadow: AppElevation.cardShadow(colors, Theme.of(context).brightness),
             ),
-            child: InkWell(
-              onTap: table.onRowTap != null ? () => table.onRowTap!(item) : null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
+            clipBehavior: Clip.antiAlias,
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: table.onRowTap != null ? () => table.onRowTap!(item) : null,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(child: table.columns.first.cellBuilder(context, item)),
-                      if (table.rowActionsBuilder != null) table.rowActionsBuilder!(context, item),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: DefaultTextStyle.merge(
+                              style: AppTypography.bodyStrong.copyWith(color: colors.textPrimary),
+                              child: table.columns.first.cellBuilder(context, item),
+                            ),
+                          ),
+                          if (table.rowActionsBuilder != null) table.rowActionsBuilder!(context, item),
+                        ],
+                      ),
+                      for (final column in table.columns.skip(1))
+                        if (column.showInMobileCard)
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.sm),
+                            // Both sides Flexible: neither the label nor the
+                            // value is bounded otherwise, so one long cell (a
+                            // full customer name, a formatted date) overflowed
+                            // the card on a phone. Found by running the
+                            // dashboard's drill-downs at 390px.
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    column.label,
+                                    style: AppTypography.caption.copyWith(color: colors.textMuted),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Flexible(child: column.cellBuilder(context, item)),
+                              ],
+                            ),
+                          ),
                     ],
                   ),
-                  for (final column in table.columns.skip(1))
-                    if (column.showInMobileCard)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        // Both sides Flexible: neither the label nor the
-                        // value is bounded otherwise, so one long cell (a
-                        // full customer name, a formatted date) overflowed
-                        // the card on a phone. Found by running the
-                        // dashboard's drill-downs at 390px.
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              child: Text(column.label, style: AppTypography.caption.copyWith(color: colors.textMuted)),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Flexible(child: column.cellBuilder(context, item)),
-                          ],
-                        ),
-                      ),
-                ],
+                ),
               ),
             ),
           ),

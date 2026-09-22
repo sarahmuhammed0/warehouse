@@ -70,6 +70,7 @@
   "noNotificationsYet": "No notifications yet",
 
   "dashboardKeyMetrics": "Key metrics",
+  "dashboardWelcomeBack": "Welcome back,",
   "dashboardRecentActivity": "Recent activity",
   "dashboardAlerts": "Alerts",
   "dashboardChartsPlaceholder": "Chart will render here once connected to real data",

@@ -13,6 +13,11 @@ enum AppButtonSize { medium, small }
 /// closed enum, not a free-form style override, specifically so a future
 /// screen can't invent a seventh ad-hoc button look — consistency across
 /// dozens of business screens is the point.
+///
+/// Buttons are pills in this design language. [AppButtonVariant.outline] is
+/// a *white* pill with a hairline rather than a transparent one, because
+/// the surfaces it sits on are themselves white or near-white and a
+/// transparent outline button on a white card has no edge to speak of.
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -41,13 +46,14 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final height = size == AppButtonSize.small ? 34.0 : 42.0;
-    final horizontalPadding = size == AppButtonSize.small ? AppSpacing.md : AppSpacing.lg;
+    final small = size == AppButtonSize.small;
+    final height = small ? 36.0 : 44.0;
+    final horizontalPadding = small ? AppSpacing.lg : AppSpacing.xl;
 
     final (background, foreground, border) = switch (variant) {
       AppButtonVariant.primary => (colors.primary, colors.onPrimary, null),
-      AppButtonVariant.secondary => (colors.selectedBg, colors.primary, null),
-      AppButtonVariant.outline => (Colors.transparent, colors.textPrimary, colors.border),
+      AppButtonVariant.secondary => (colors.accentSoft, colors.primary, null),
+      AppButtonVariant.outline => (colors.surface, colors.textPrimary, colors.borderStrong),
       AppButtonVariant.text => (Colors.transparent, colors.primary, null),
       AppButtonVariant.destructive => (colors.errorBg, colors.error, null),
     };
@@ -62,7 +68,7 @@ class AppButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 17, color: foreground),
+                Icon(icon, size: small ? 16 : 17, color: foreground),
                 const SizedBox(width: AppSpacing.sm),
               ],
               // Flexible + ellipsis, not a bare Text: `mainAxisSize.min`
@@ -81,18 +87,21 @@ class AppButton extends StatelessWidget {
             ],
           );
 
-    final button = SizedBox(
+    return SizedBox(
       height: height,
       width: expand ? double.infinity : null,
       child: Material(
         color: _disabled ? colors.disabledBg : background,
         shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.mdRadius,
-          side: border != null ? BorderSide(color: _disabled ? colors.disabledBg : border) : BorderSide.none,
+          borderRadius: AppRadius.pillRadius,
+          side: border != null
+              ? BorderSide(color: _disabled ? colors.disabledBg : border)
+              : BorderSide.none,
         ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: AppRadius.mdRadius,
           onTap: _disabled ? null : onPressed,
+          hoverColor: foreground.withValues(alpha: 0.07),
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Center(
@@ -108,7 +117,10 @@ class AppButton extends StatelessWidget {
               child: _disabled && !loading
                   ? DefaultTextStyle.merge(
                       style: TextStyle(color: colors.disabled),
-                      child: IconTheme.merge(data: IconThemeData(color: colors.disabled), child: content),
+                      child: IconTheme.merge(
+                        data: IconThemeData(color: colors.disabled),
+                        child: content,
+                      ),
                     )
                   : content,
             ),
@@ -116,8 +128,6 @@ class AppButton extends StatelessWidget {
         ),
       ),
     );
-
-    return button;
   }
 }
 
@@ -141,12 +151,90 @@ class AppIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final button = IconButton(
-      icon: Icon(icon),
+      icon: Icon(icon, size: 19),
       onPressed: onPressed,
       color: color ?? colors.textSecondary,
       disabledColor: colors.disabled,
-      splashRadius: 20,
+      style: IconButton.styleFrom(
+        hoverColor: colors.surfaceMuted,
+        shape: const CircleBorder(),
+      ),
     );
     return tooltip == null ? button : Tooltip(message: tooltip, child: button);
+  }
+}
+
+/// A segmented pill toggle — the `Weekly | Monthly` control in the
+/// reference. One row, one selected segment filled with the brand accent,
+/// the whole thing seated on a muted track.
+///
+/// Used wherever a small, closed set of views share one panel. It is not a
+/// replacement for tabs across a *page*; it switches the contents of a
+/// single card.
+class AppSegmentedControl<T> extends StatelessWidget {
+  const AppSegmentedControl({
+    super.key,
+    required this.segments,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final List<({T value, String label, Key? key})> segments;
+  final T selected;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.surfaceMuted,
+        borderRadius: AppRadius.pillRadius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final segment in segments)
+            _Segment(
+              key: segment.key,
+              label: segment.label,
+              selected: segment.value == selected,
+              onTap: () => onChanged(segment.value),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  const _Segment({super.key, required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Material(
+      color: selected ? colors.primary : Colors.transparent,
+      borderRadius: AppRadius.pillRadius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+          child: Text(
+            label,
+            style: AppTypography.button.copyWith(
+              color: selected ? colors.onPrimary : colors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -10,9 +10,13 @@ class BreadcrumbItem {
   final VoidCallback? onTap;
 }
 
-/// Optional breadcrumb trail (§10/§6). A `Row` naturally reverses its
-/// visual order under RTL `Directionality` — no manual mirroring needed
-/// here (§21).
+/// Optional breadcrumb trail (§10/§6). A `Wrap` reverses the *order* of
+/// the crumbs under RTL `Directionality` on its own — but the separator
+/// glyph between them does not follow, because `Icons.chevron_right` is a
+/// literal right-pointing chevron, not a directional-aware icon. Under
+/// Arabic or Kurdish the trail therefore read right-to-left while its
+/// arrows still pointed right, i.e. backwards. Picked explicitly here, the
+/// same way `PaginationBar` and the sidebar's collapse toggle do it (§25).
 class Breadcrumbs extends StatelessWidget {
   const Breadcrumbs({super.key, required this.items});
 
@@ -21,6 +25,9 @@ class Breadcrumbs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final separator = isRtl ? Icons.chevron_left : Icons.chevron_right;
+
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
@@ -28,7 +35,7 @@ class Breadcrumbs extends StatelessWidget {
           if (i > 0)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-              child: Icon(Icons.chevron_right, size: 16, color: colors.textMuted),
+              child: Icon(separator, size: 16, color: colors.textMuted),
             ),
           _Crumb(item: items[i], isLast: i == items.length - 1),
         ],

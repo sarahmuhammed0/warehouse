@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../buttons/app_button.dart';
@@ -60,14 +61,23 @@ class PaginationBar extends StatelessWidget {
             children: [
               Text(l10n.rowsPerPage, style: AppTypography.caption.copyWith(color: colors.textMuted)),
               const SizedBox(width: AppSpacing.sm),
-              DropdownButton<int>(
-                value: pageSize,
-                underline: const SizedBox.shrink(),
-                style: AppTypography.label.copyWith(color: colors.textPrimary),
-                items: [
-                  for (final size in pageSizeOptions) DropdownMenuItem(value: size, child: Text('$size')),
-                ],
-                onChanged: loading ? null : (value) => value == null ? null : onPageSizeChanged!(value),
+              Container(
+                padding: const EdgeInsetsDirectional.only(start: AppSpacing.md, end: AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: colors.surfaceMuted,
+                  borderRadius: AppRadius.pillRadius,
+                ),
+                child: DropdownButton<int>(
+                  value: pageSize,
+                  underline: const SizedBox.shrink(),
+                  isDense: true,
+                  borderRadius: AppRadius.mdRadius,
+                  style: AppTypography.label.copyWith(color: colors.textPrimary),
+                  items: [
+                    for (final size in pageSizeOptions) DropdownMenuItem(value: size, child: Text('$size')),
+                  ],
+                  onChanged: loading ? null : (value) => value == null ? null : onPageSizeChanged!(value),
+                ),
               ),
             ],
           ),

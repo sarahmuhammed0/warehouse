@@ -15,6 +15,7 @@ import '../../shared/forms/selection_controls.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/layout/responsive/responsive_layout.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/theme_controller.dart';
@@ -40,7 +41,6 @@ class _SettingsPlaceholderScreenState extends ConsumerState<SettingsPlaceholderS
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final colors = context.colors;
 
     final sections = <_SettingsSection, (IconData, String)>{
       _SettingsSection.general: (Icons.palette_outlined, 'Appearance'),
@@ -55,18 +55,23 @@ class _SettingsPlaceholderScreenState extends ConsumerState<SettingsPlaceholderS
       _SettingsSection.backup: (Icons.backup_outlined, l10n.settingsBackupLabel),
     };
 
-    final nav = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final entry in sections.entries)
-          ListTile(
-            selected: _section == entry.key,
-            selectedTileColor: colors.selectedBg,
-            leading: Icon(entry.value.$1, size: 20),
-            title: Text(entry.value.$2, style: AppTypography.body),
-            onTap: () => setState(() => _section = entry.key),
-          ),
-      ],
+    // A settings index is navigation, not data — so it gets the sidebar's
+    // pill language rather than a stack of `ListTile`s, and sits on its own
+    // card so the selected pill has a surface to be selected *on* (§20).
+    final nav = AppCard(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final entry in sections.entries)
+            _SectionTile(
+              icon: entry.value.$1,
+              label: entry.value.$2,
+              selected: _section == entry.key,
+              onTap: () => setState(() => _section = entry.key),
+            ),
+        ],
+      ),
     );
 
     final content = switch (_section) {
@@ -102,6 +107,61 @@ class _SettingsPlaceholderScreenState extends ConsumerState<SettingsPlaceholderS
             const SizedBox(width: AppSpacing.lg),
             Expanded(child: content),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One entry in the settings index. Same pill as `AppSidebar`'s nav tile —
+/// this is the same kind of control doing the same job one level down, and
+/// it would be strange for the two to look different.
+class _SectionTile extends StatelessWidget {
+  const _SectionTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final fg = selected ? colors.primary : colors.textSecondary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Material(
+        color: selected ? colors.selectedBg : Colors.transparent,
+        borderRadius: AppRadius.mdRadius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: colors.surfaceMuted,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: fg),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.navLabel.copyWith(
+                      color: fg,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -274,9 +334,10 @@ class _PdfSection extends ConsumerWidget {
           SettingsField(label: 'Footer text', initialValue: settings.pdfFooterText, maxLines: 2, onChanged: (v) => controller.update((s) => s.copyWith(pdfFooterText: v))),
           const Divider(),
           Text('Live preview', style: AppTypography.sectionTitle),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(border: Border.all(color: context.colors.border), borderRadius: BorderRadius.circular(8)),
+          // A preview nested inside a settings card is exactly what
+          // `AppPanel` is for — a muted well, not a second bordered box
+          // (§33: not every element needs a card).
+          AppPanel(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 6,

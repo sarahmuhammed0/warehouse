@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
+import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../buttons/app_button.dart';
@@ -29,12 +30,21 @@ class AppErrorState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, size: 40, color: colors.error),
-          const SizedBox(height: AppSpacing.md),
+          Container(
+            width: 56,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.errorBg,
+              borderRadius: AppRadius.lgRadius,
+            ),
+            child: Icon(Icons.error_outline, size: 26, color: colors.error),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: AppTypography.sectionTitle.copyWith(color: colors.textPrimary),
+            style: AppTypography.cardTitle.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(

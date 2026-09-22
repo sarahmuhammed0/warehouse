@@ -6,9 +6,10 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_typography.dart';
 
 /// Global search (§17/§32) — lives in the top bar, visible on every screen.
-/// No backend to query yet (Phase 1 has no products/orders/customers), so
-/// `onSubmitted` is currently unused by any caller; the field itself is
-/// real and functional, just not wired to a query yet.
+///
+/// A borderless pill on a muted fill rather than an outlined field: it sits
+/// in the header chrome next to circular icon buttons, and an outlined
+/// input there reads as a form control dropped into the navigation.
 class GlobalSearchBar extends StatelessWidget {
   const GlobalSearchBar({super.key, this.onSubmitted});
 
@@ -20,20 +21,31 @@ class GlobalSearchBar extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
 
     return SizedBox(
-      height: 38,
+      height: 40,
       child: TextField(
         onSubmitted: onSubmitted,
+        textAlignVertical: TextAlignVertical.center,
         style: AppTypography.body.copyWith(color: colors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
           hintText: l10n.searchPlaceholder,
           prefixIcon: Icon(Icons.search, size: 19, color: colors.textMuted),
-          border: OutlineInputBorder(
-            borderRadius: AppRadius.mdRadius,
-            borderSide: BorderSide(color: colors.border),
-          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
           filled: true,
-          fillColor: colors.background,
+          fillColor: colors.surfaceMuted,
+          border: const OutlineInputBorder(
+            borderRadius: AppRadius.pillRadius,
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: const OutlineInputBorder(
+            borderRadius: AppRadius.pillRadius,
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppRadius.pillRadius,
+            borderSide: BorderSide(color: colors.primary, width: 1.5),
+          ),
         ),
       ),
     );

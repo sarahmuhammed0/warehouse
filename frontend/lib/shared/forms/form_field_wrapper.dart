@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
+import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 
 /// The shared label chrome every field in this file uses (§12) — a
@@ -24,7 +25,7 @@ class FormFieldWrapper extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: RichText(
             text: TextSpan(
               style: AppTypography.formLabel.copyWith(color: colors.textSecondary),

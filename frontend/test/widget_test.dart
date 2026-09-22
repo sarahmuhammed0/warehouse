@@ -122,10 +122,13 @@ void main() {
 
     // The dashboard placeholder screen's title.
     expect(find.text('Dashboard'), findsWidgets);
-    // A couple of other sidebar nav items should be visible on desktop
-    // width (persistent sidebar, not a drawer).
-    expect(find.text('Products'), findsOneWidget);
-    expect(find.text('Settings'), findsOneWidget);
+    // Two other modules must be reachable on desktop width (persistent
+    // navigation, not a drawer). Products rides the header's labelled pill
+    // bar; Settings rides the icon rail, which is why this asks by nav key
+    // rather than by label.
+    expect(find.byKey(const ValueKey('nav:/products')), findsOneWidget);
+    expect(find.text('Products'), findsOneWidget, reason: 'primary modules keep their label');
+    expect(find.byKey(const ValueKey('nav:/settings')), findsOneWidget);
   });
 
   testWidgets('App shell builds on a mobile-width screen with a drawer instead of a persistent sidebar', (
@@ -653,7 +656,7 @@ void main() {
 
       expect(find.text('Dashboard'), findsWidgets);
 
-      await tester.tap(find.byIcon(Icons.account_circle_outlined));
+      await tester.tap(find.byKey(const ValueKey('accountMenu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Logout'));
       await tester.pumpAndSettle();
@@ -749,26 +752,23 @@ void main() {
       addTearDown(container.dispose);
       await pumpDesktop(tester, container);
 
-      // The sidebar owns the module names; the dashboard owns the figures.
+      // Navigation owns the module names; the dashboard owns the figures.
       // The original bug this guards against was the two rendering as the
       // same string on one screen.
-      expect(find.text('Products'), findsOneWidget); // sidebar only
-      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Products'), findsOneWidget); // the header pill only
+      expect(find.byKey(const ValueKey('nav:/settings')), findsOneWidget);
 
-      // "Total products" is one of the six headline figures, so it is on
-      // screen from the start and must not read as the sidebar's
-      // "Products".
-      expect(find.text('Total products'), findsOneWidget);
-
-      // "Total categories" is a reference figure, so it sits in the
-      // collapsed section — and expanding must not duplicate a sidebar
-      // label either.
+      // "Total products" and "Total categories" are reference figures now,
+      // so neither is on screen until the section is expanded...
+      expect(find.text('Total products'), findsNothing);
       expect(find.text('Total categories'), findsNothing);
+
+      // ...and expanding must not make any of them read as a nav label.
       await tester.tap(find.byKey(const ValueKey('toggleMoreStatistics')));
       await tester.pumpAndSettle();
+      expect(find.text('Total products'), findsOneWidget);
       expect(find.text('Total categories'), findsOneWidget);
-      expect(find.text('Categories'), findsOneWidget, reason: 'sidebar label must stay unique');
-      expect(find.text('Products'), findsOneWidget, reason: 'expanding must not duplicate the sidebar label');
+      expect(find.text('Products'), findsOneWidget, reason: 'expanding must not duplicate the nav label');
     });
 
     testWidgets('Settings: switching to the Security section shows password-policy fields', (tester) async {
@@ -1779,11 +1779,11 @@ void main() {
       await pumpApp(tester, demoContainer);
       await loginAsDemoRole(tester, 'Sales Staff');
 
-      expect(find.text('Sales'), findsWidgets); // nav item (+ possibly a card label)
-      expect(find.text('Customers'), findsOneWidget);
-      expect(find.text('Inventory'), findsNothing);
-      expect(find.text('Production'), findsNothing);
-      expect(find.text('Settings'), findsNothing);
+      expect(find.byKey(const ValueKey('nav:/sales')), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav:/customers')), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav:/inventory')), findsNothing);
+      expect(find.byKey(const ValueKey('nav:/production')), findsNothing);
+      expect(find.byKey(const ValueKey('nav:/settings')), findsNothing);
     });
 
     testWidgets('Warehouse Manager demo sidebar shows Inventory but not Production/Settings', (tester) async {
@@ -1792,14 +1792,14 @@ void main() {
       await pumpApp(tester, demoContainer);
       await loginAsDemoRole(tester, 'Warehouse Manager');
 
-      expect(find.text('Inventory'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav:/inventory')), findsOneWidget);
       // Warehouse Manager's role (spec §23: "Inventory, products, transfers,
       // stock") also grants view-only Sales/Orders visibility in the seeded
       // permission set — so Sales isn't asserted absent here, unlike Sales
       // Staff's own test above. Production and Settings are the two this
       // role genuinely has no grant for.
-      expect(find.text('Production'), findsNothing);
-      expect(find.text('Settings'), findsNothing);
+      expect(find.byKey(const ValueKey('nav:/production')), findsNothing);
+      expect(find.byKey(const ValueKey('nav:/settings')), findsNothing);
     });
 
     testWidgets('Accountant demo sees the Purchase Cost column on Products (financial.view)', (tester) async {
@@ -1936,19 +1936,23 @@ void main() {
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
-      // Six cards, not fifteen — the wall of equal-weight numbers is what
-      // made the three that matter impossible to spot.
-      expect(find.byType(StatCard), findsNWidgets(6));
-      for (final label in ['Total products', 'Total stock quantity', 'Low Stock', 'Out of Stock', 'Today sales', 'Pending orders']) {
+      // Four cards, not fifteen — and every one of the four needs acting
+      // on today. A figure a module screen already answers ('Total
+      // products' is the Products list) is not repeated on the front page.
+      expect(find.byType(StatCard), findsNWidgets(4));
+      for (final label in ['Low Stock', 'Out of Stock', 'Pending orders', 'Today orders']) {
         expect(find.widgetWithText(StatCard, label), findsOneWidget);
       }
       // Reference figures are not on screen yet...
+      expect(find.widgetWithText(StatCard, 'Total products'), findsNothing);
       expect(find.widgetWithText(StatCard, 'Total categories'), findsNothing);
       expect(find.widgetWithText(StatCard, 'Total suppliers'), findsNothing);
 
-      // ...but nothing was deleted: one tap brings all of them back.
+      // ...but nothing was deleted: one tap brings all of them back, and
+      // §5's full fifteen are still there.
       await expandMoreStatistics(tester);
       expect(find.byType(StatCard), findsNWidgets(16));
+      expect(find.widgetWithText(StatCard, 'Total products'), findsOneWidget);
       expect(find.widgetWithText(StatCard, 'Total categories'), findsOneWidget);
       expect(find.widgetWithText(StatCard, 'Total suppliers'), findsOneWidget);
     });
@@ -2008,7 +2012,7 @@ void main() {
       await expandMoreStatistics(tester);
       expect(find.byType(StatCard), findsNWidgets(16));
       await expandMoreStatistics(tester);
-      expect(find.byType(StatCard), findsNWidgets(6));
+      expect(find.byType(StatCard), findsNWidgets(4));
     });
 
     // ---- the dashboard is not a second sidebar (§2) ---------------------
@@ -2032,13 +2036,13 @@ void main() {
       await pumpDashboard(tester, container);
 
       // Every headline card is a drill-down — that is the rule that
-      // decides which six are headline in the first place.
-      for (final label in ['Low Stock', 'Out of Stock', 'Today sales', 'Pending orders']) {
+      // decides which four are headline in the first place.
+      for (final label in ['Low Stock', 'Out of Stock', 'Pending orders', 'Today orders']) {
         expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
       }
       // ...and the collapsed ones keep theirs once expanded.
       await expandMoreStatistics(tester);
-      for (final label in ['Completed orders', 'Cancelled orders', 'Returned orders', 'Today orders', 'This month sales']) {
+      for (final label in ['Completed orders', 'Cancelled orders', 'Returned orders', 'Today sales', 'This month sales']) {
         expect(cardNamed(tester, label).onTap, isNotNull, reason: '"$label" should drill into its own records');
       }
     });
@@ -2115,10 +2119,14 @@ void main() {
     });
 
     testWidgets("Today sales opens Sales filtered to today", (tester) async {
+      // 'Today sales' is a reference figure now — the headline four are
+      // the ones that need acting on, and revenue is already the subject
+      // of the overview row's brand panel.
       final container = businessContainer();
       addTearDown(container.dispose);
       await pumpDashboard(tester, container);
 
+      await expandMoreStatistics(tester);
       await tapCard(tester, 'Today sales');
 
       expect(find.byType(SalesPlaceholderScreen), findsOneWidget);
@@ -2818,7 +2826,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Dashboard'), findsWidgets);
 
-      await tester.tap(find.byIcon(Icons.account_circle_outlined));
+      await tester.tap(find.byKey(const ValueKey('accountMenu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Logout'));
       await tester.pumpAndSettle();

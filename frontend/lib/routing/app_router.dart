@@ -156,8 +156,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       ShellRoute(
-        builder: (context, state, child) =>
-            AppShell(navItems: adminNavItems, brandLabel: 'System Admin', showSearch: false, child: child),
+        // The platform-level shell. Same design system as the business
+        // side, but it says what it is and wears a shield rather than a
+        // business initial — §3's "System Admin should remain visually
+        // distinguishable as the platform-level administration area".
+        builder: (context, state, child) => AppShell(
+          navItems: adminNavItems,
+          brandLabel: 'FactoryOS',
+          brandSubtitle: 'System Admin',
+          brandIcon: Icons.shield_outlined,
+          showSearch: false,
+          child: child,
+        ),
         routes: [
           GoRoute(path: AppRoutes.adminDashboard, builder: (context, state) => const AdminDashboardScreen()),
           GoRoute(path: AppRoutes.adminBusinesses, builder: (context, state) => const AdminBusinessesScreen()),

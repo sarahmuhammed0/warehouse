@@ -8,14 +8,20 @@ import '../../theme/app_typography.dart';
 /// A real bar chart over real numbers (spec §5's "visual reports").
 ///
 /// Deliberately built from plain widgets rather than by adding a charting
-/// package: Phase 1 recorded a decision not to take a chart dependency, and
-/// the dashboard's series are small (7 days, 6 months, top 6 products), so
-/// a `Column` of proportional bars renders them honestly with no new
-/// third-party surface. It replaces a placeholder that read "Chart will
-/// render here once connected to real data" — the data was always there.
+/// package: the dashboard's series are small (7 days, 6 months, top 6
+/// products), so a `Column` of proportional bars renders them honestly with
+/// no new third-party surface.
 ///
-/// Horizontal bars, not vertical: the labels are product and category names,
-/// which do not fit under a vertical column at dashboard widths.
+/// Horizontal bars, not vertical: the labels are product and category
+/// names, which do not fit under a vertical column at dashboard widths.
+/// The reference design's chart is vertical, but it plots six short month
+/// abbreviations — a different problem. What is adopted from it instead is
+/// the *treatment*: fully rounded capsule bars on a pale track, no
+/// gridlines, muted labels, and a single bar picked out in full strength.
+///
+/// That highlighted bar is the series maximum, not decoration — it answers
+/// "which was the biggest?" without the reader having to scan the value
+/// column, which is the same question the reference's dark bar answers.
 class SimpleBarChart extends StatelessWidget {
   const SimpleBarChart({
     super.key,
@@ -40,8 +46,10 @@ class SimpleBarChart extends StatelessWidget {
 
     if (points.isEmpty || points.every((p) => p.value == 0)) {
       return SizedBox(
-        height: 120,
-        child: Center(child: Text(emptyLabel, style: AppTypography.caption.copyWith(color: colors.textMuted))),
+        height: 140,
+        child: Center(
+          child: Text(emptyLabel, style: AppTypography.caption.copyWith(color: colors.textMuted)),
+        ),
       );
     }
 
@@ -49,49 +57,61 @@ class SimpleBarChart extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: AppSpacing.sm,
+      spacing: AppSpacing.md,
       children: [
         for (final point in points)
           Row(
             children: [
               SizedBox(
-                width: 96,
+                width: 104,
                 child: Text(
                   point.label,
                   style: AppTypography.caption.copyWith(color: colors.textSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     // `max` is non-zero here (the all-zero case returned
                     // above), so this division is safe.
                     final fraction = point.value / max;
+                    final isPeak = point.value == max;
                     return Stack(
                       children: [
                         Container(
-                          height: 18,
-                          decoration: BoxDecoration(color: colors.border.withValues(alpha: 0.35), borderRadius: AppRadius.smRadius),
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: colors.surfaceMuted,
+                            borderRadius: AppRadius.pillRadius,
+                          ),
                         ),
-                        Container(
-                          height: 18,
-                          width: (constraints.maxWidth * fraction).clamp(2.0, constraints.maxWidth),
-                          decoration: BoxDecoration(color: colors.primary, borderRadius: AppRadius.smRadius),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          height: 20,
+                          width: (constraints.maxWidth * fraction).clamp(4.0, constraints.maxWidth),
+                          decoration: BoxDecoration(
+                            color: isPeak ? colors.primary : colors.primary.withValues(alpha: 0.28),
+                            borderRadius: AppRadius.pillRadius,
+                          ),
                         ),
                       ],
                     );
                   },
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.md),
               SizedBox(
-                width: 72,
+                width: 78,
                 child: Text(
                   format(point.value),
                   textAlign: TextAlign.end,
-                  style: AppTypography.caption.copyWith(color: colors.textPrimary),
+                  style: AppTypography.caption.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

@@ -219,3 +219,41 @@ bool _hasNavPermission(Set<String>? permissions, String permissionKey) {
   if (permissions == null) return true;
   return permissions.contains(permissionKey);
 }
+
+/// How the shell splits one module list across its two navigation surfaces
+/// (§7/§8's app-shell redesign): a labelled pill bar across the header for
+/// the destinations a business opens all day, and an icon rail down the
+/// side for everything else.
+///
+/// The split is a partition, never a copy. Every enabled module appears in
+/// exactly one of the two, so there is no second menu offering the same
+/// destination twice — which is the thing §8 actually forbids, as opposed
+/// to having two *surfaces*, which the reference designs themselves use.
+///
+/// [primaryNavRoutes] is ordered by how often a module is opened rather
+/// than by the sidebar's old top-to-bottom order, and the header keeps that
+/// order. Anything not listed — and anything listed but filtered out by
+/// role or business type — falls through to the rail untouched.
+const List<String> primaryNavRoutes = [
+  AppRoutes.dashboard,
+  AppRoutes.products,
+  AppRoutes.inventory,
+  AppRoutes.sales,
+  AppRoutes.orders,
+  AppRoutes.reports,
+];
+
+/// ({header: [...], rail: [...]}) for an already-filtered module list.
+({List<NavItem> primary, List<NavItem> secondary}) splitNavItems(List<NavItem> items) {
+  final byRoute = {for (final item in items) item.route: item};
+  final primary = [
+    for (final route in primaryNavRoutes)
+      if (byRoute.containsKey(route)) byRoute[route]!,
+  ];
+  final primaryRoutes = primary.map((i) => i.route).toSet();
+  final secondary = [
+    for (final item in items)
+      if (!primaryRoutes.contains(item.route)) item,
+  ];
+  return (primary: primary, secondary: secondary);
+}

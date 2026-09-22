@@ -6,10 +6,14 @@ import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
 import '../../shared/cards/app_card.dart';
+import '../../shared/cards/app_icon_chip.dart';
 import '../../shared/forms/app_text_field.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../shared/tables/app_data_table.dart';
 import '../../shared/tables/table_column.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_elevation.dart';
+import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../auth/presentation/providers/permission_providers.dart';
@@ -109,7 +113,10 @@ class _ReportsPlaceholderScreenState extends State<ReportsPlaceholderScreen> wit
         children: [
           TabBar(controller: _tabController, tabs: const [Tab(text: 'Operational'), Tab(text: 'Business')]),
           SizedBox(
-            height: 420,
+            // Exactly the height the tiles need at this width, rather than
+            // a fixed 420 that left a field of empty card below them once
+            // the grid reflowed to six across.
+            height: _ReportGrid.heightFor(context, 6),
             child: TabBarView(
               controller: _tabController,
               children: [
@@ -142,31 +149,112 @@ class _ReportsPlaceholderScreenState extends State<ReportsPlaceholderScreen> wit
   }
 }
 
+/// The grid of report tiles.
+///
+/// Each tile is a small, squarish card with its icon and label stacked and
+/// centred — these are twelve equivalent choices, and a centred stack reads
+/// as a menu of peers, where the left-aligned icon-beside-text layout the
+/// stat cards use reads as a list of figures.
+///
+/// Column count follows the window rather than being fixed at three, so the
+/// tiles stay tile-sized instead of stretching into banners on a wide
+/// monitor.
 class _ReportGrid extends StatelessWidget {
   const _ReportGrid({required this.reports});
   final List<(IconData, String, VoidCallback)> reports;
 
+  /// Every tile is this tall. A fixed height rather than an aspect ratio:
+  /// a tile holds a 40px chip and up to two lines of label, which is a
+  /// constant amount of content, and tying its height to its width instead
+  /// made the tiles grow into panels on a wide monitor.
+  static const double tileHeight = 116;
+
+  static int columnsFor(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width >= 1500) return 6;
+    if (width >= 1100) return 4;
+    if (width >= 700) return 3;
+    return 2;
+  }
+
+  /// The exact height a grid of [count] tiles needs here, so the caller can
+  /// size the fixed-height viewport a `TabBarView` requires.
+  static double heightFor(BuildContext context, int count) {
+    final rows = (count / columnsFor(context)).ceil();
+    return rows * tileHeight + (rows - 1) * AppSpacing.md;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      mainAxisSpacing: AppSpacing.md,
-      crossAxisSpacing: AppSpacing.md,
-      childAspectRatio: 1.6,
-      children: [
-        for (final (icon, label, onTap) in reports)
-          AppCard(
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      itemCount: reports.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columnsFor(context),
+        mainAxisSpacing: AppSpacing.md,
+        crossAxisSpacing: AppSpacing.md,
+        mainAxisExtent: tileHeight,
+      ),
+      itemBuilder: (context, i) {
+        final (icon, label, onTap) = reports[i];
+        return _ReportTile(icon: icon, label: label, onTap: onTap);
+      },
+    );
+  }
+}
+
+/// One report tile. Not an [AppCard]: a card lays its content out from the
+/// top, and these tiles need their icon and label centred in a fixed-height
+/// cell. Same surface treatment, different content alignment.
+class _ReportTile extends StatelessWidget {
+  const _ReportTile({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: AppRadius.cardRadius,
+        border: Border.all(color: colors.border),
+        boxShadow: context.cardShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: AppRadius.cardRadius,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
             onTap: onTap,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 28),
-                const SizedBox(height: 8),
-                Text(label, textAlign: TextAlign.center, style: AppTypography.bodyStrong),
-              ],
+            hoverColor: colors.primary.withValues(alpha: 0.04),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  AppIconChip(icon: icon, size: 38, iconSize: 19),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.label.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }

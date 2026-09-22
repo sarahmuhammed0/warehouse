@@ -52,22 +52,29 @@ class AppFilterBar extends StatelessWidget {
         ),
         for (final filter in activeFilters)
           Container(
-            padding: const EdgeInsets.only(left: AppSpacing.md, right: AppSpacing.xs),
-            height: 34,
+            padding: const EdgeInsetsDirectional.only(start: AppSpacing.md, end: AppSpacing.xs),
+            height: 36,
             decoration: BoxDecoration(
-              color: colors.selectedBg,
+              color: colors.accentSoft,
               borderRadius: AppRadius.pillRadius,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(filter.label, style: AppTypography.label.copyWith(color: colors.primary)),
+                Text(
+                  filter.label,
+                  style: AppTypography.label.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 2),
                 InkWell(
                   onTap: filter.onRemove,
                   borderRadius: AppRadius.pillRadius,
                   child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(Icons.close, size: 15, color: colors.primary),
+                    padding: const EdgeInsets.all(5),
+                    child: Icon(Icons.close, size: 14, color: colors.primary),
                   ),
                 ),
               ],

@@ -21,7 +21,7 @@ Future<T?> showAppOverlayPanel<T>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.75,
@@ -36,13 +36,13 @@ Future<T?> showAppOverlayPanel<T>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Dismiss',
-    barrierColor: Colors.black.withValues(alpha: 0.3),
+    barrierColor: Colors.black.withValues(alpha: 0.28),
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (context, _, _) => Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Material(
         color: context.colors.surface,
-        borderRadius: const BorderRadiusDirectional.horizontal(start: Radius.circular(AppRadius.lg)),
+        borderRadius: const BorderRadiusDirectional.horizontal(start: Radius.circular(AppRadius.xl)),
         child: SizedBox(
           width: panelWidth,
           height: double.infinity,

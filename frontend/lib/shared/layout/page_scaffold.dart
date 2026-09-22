@@ -7,17 +7,22 @@ import '../../theme/app_typography.dart';
 import 'breadcrumbs.dart';
 import 'responsive/responsive_layout.dart';
 
-/// The standard page layout (§10) every future module builds its screens
-/// on: title/subtitle/breadcrumbs → primary+secondary actions → an optional
+/// The standard page layout (§10) every module builds its screens on:
+/// title/subtitle/breadcrumbs → primary+secondary actions → an optional
 /// search/filter row → the content area. Deliberately does not know about
 /// loading/empty/error — `body` is just a widget, and a feature passes
 /// `AppLoading.page()` / `AppEmptyState(...)` / `AppErrorState(...)` /
 /// `AppDataTable(...)` for it depending on its own state. That keeps this
 /// widget decoupled from any particular state-management shape.
+///
+/// Page padding is deliberately modest: on desktop the shell already
+/// insets the content area, and doubling both gutters pushes every table
+/// away from the edge it should be using.
 class PageScaffold extends StatelessWidget {
   const PageScaffold({
     super.key,
     required this.title,
+    this.titleWidget,
     this.subtitle,
     this.breadcrumbs,
     this.showBackButton = false,
@@ -30,6 +35,13 @@ class PageScaffold extends StatelessWidget {
   });
 
   final String title;
+
+  /// Renders in place of [title] when a page needs a headline richer than
+  /// one string — the dashboards' two-tone greeting. [title] is still
+  /// required and still carries the page's name for anything reading the
+  /// page semantically rather than looking at it.
+  final Widget? titleWidget;
+
   final String? subtitle;
   final List<BreadcrumbItem>? breadcrumbs;
 
@@ -56,14 +68,20 @@ class PageScaffold extends StatelessWidget {
     final isMobile = context.isMobile;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? AppSpacing.lg : AppSpacing.xl),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? AppSpacing.lg : AppSpacing.md,
+        isMobile ? AppSpacing.lg : AppSpacing.xs,
+        isMobile ? AppSpacing.lg : AppSpacing.md,
+        AppSpacing.xxl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: AppSpacing.lg,
+        spacing: AppSpacing.xl,
         children: [
           if (breadcrumbs != null) Breadcrumbs(items: breadcrumbs!),
           _HeaderRow(
             title: title,
+            titleWidget: titleWidget,
             subtitle: subtitle,
             showBackButton: showBackButton,
             backFallbackRoute: backFallbackRoute,
@@ -73,8 +91,8 @@ class PageScaffold extends StatelessWidget {
           ),
           if (searchBar != null || filterBar != null)
             Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [?searchBar, ?filterBar],
             ),
@@ -88,6 +106,7 @@ class PageScaffold extends StatelessWidget {
 class _HeaderRow extends StatelessWidget {
   const _HeaderRow({
     required this.title,
+    required this.titleWidget,
     required this.subtitle,
     required this.showBackButton,
     required this.backFallbackRoute,
@@ -97,6 +116,7 @@ class _HeaderRow extends StatelessWidget {
   });
 
   final String title;
+  final Widget? titleWidget;
   final String? subtitle;
   final bool showBackButton;
   final String? backFallbackRoute;
@@ -110,9 +130,10 @@ class _HeaderRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(title, style: AppTypography.pageTitle.copyWith(color: colors.textPrimary)),
+        titleWidget ??
+            Text(title, style: AppTypography.pageTitle.copyWith(color: colors.textPrimary)),
         if (subtitle != null) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Text(subtitle!, style: AppTypography.body.copyWith(color: colors.textMuted)),
         ],
       ],
@@ -123,8 +144,11 @@ class _HeaderRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _BackButton(fallbackRoute: backFallbackRoute),
-              const SizedBox(width: AppSpacing.xs),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: _BackButton(fallbackRoute: backFallbackRoute),
+              ),
+              const SizedBox(width: AppSpacing.md),
               Flexible(child: titleText),
             ],
           )
@@ -137,7 +161,7 @@ class _HeaderRow extends StatelessWidget {
       // squeezing into the same row as a long page title (§5).
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: AppSpacing.sm,
+        spacing: AppSpacing.md,
         children: [
           titleBlock,
           Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.sm, children: actions),
@@ -146,7 +170,7 @@ class _HeaderRow extends StatelessWidget {
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: titleBlock),
         if (actions.isNotEmpty)
@@ -173,19 +197,32 @@ class _BackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final icon = isRtl ? Icons.arrow_forward : Icons.arrow_back;
 
-    return IconButton(
-      icon: Icon(icon),
-      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-      onPressed: () {
-        if (context.canPop()) {
-          context.pop();
-        } else if (fallbackRoute != null) {
-          context.go(fallbackRoute!);
-        }
-      },
+    return Material(
+      color: colors.surface,
+      shape: CircleBorder(side: BorderSide(color: colors.border)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else if (fallbackRoute != null) {
+            context.go(fallbackRoute!);
+          }
+        },
+        child: Tooltip(
+          message: MaterialLocalizations.of(context).backButtonTooltip,
+          child: SizedBox(
+            width: 38,
+            height: 38,
+            child: Icon(icon, size: 18, color: colors.textSecondary),
+          ),
+        ),
+      ),
     );
   }
 }

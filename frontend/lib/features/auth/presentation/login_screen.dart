@@ -8,6 +8,7 @@ import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/forms/app_text_field.dart';
 import '../../../theme/app_colors.dart';
+import '../../../theme/app_radius.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_typography.dart';
 import '../data/demo_auth_repository.dart';
@@ -203,8 +204,8 @@ class _DemoModeCardState extends State<_DemoModeCard> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: colors.infoBg, borderRadius: BorderRadius.circular(6)),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+                decoration: BoxDecoration(color: colors.infoBg, borderRadius: AppRadius.pillRadius),
                 child: Text(
                   l10n.demoModeIndicator,
                   style: AppTypography.statusBadge.copyWith(color: colors.info),
@@ -263,7 +264,7 @@ class _Branding extends StatelessWidget {
           width: 56,
           height: 56,
           alignment: Alignment.center,
-          decoration: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: colors.primary, borderRadius: AppRadius.mdRadius),
           child: Text('W', style: AppTypography.pageTitle.copyWith(color: colors.onPrimary)),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -287,7 +288,7 @@ class _Banner extends StatelessWidget {
     final (fg, bg) = tone == _BannerTone.error ? (colors.error, colors.errorBg) : (colors.info, colors.infoBg);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: bg, borderRadius: AppRadius.mdRadius),
       child: Text(message, style: AppTypography.caption.copyWith(color: fg)),
     );
   }
