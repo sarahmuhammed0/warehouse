@@ -2,7 +2,18 @@
 
 Multi-tenant Factory / Warehouse / Storage management system.
 
-**Status: Frontend-first phase — the full business-module UI is built.**
+**Status: Phase 3 — Database + Backend Foundation.** The full operational
+database schema (43 tables) and the shared backend machinery every business
+module will use are in place: transactions, parameterised data access,
+validation, error mapping, pagination, and allowlisted filtering/sorting.
+**No business-module API exists yet** — that is later phases, deliberately.
+The Flutter app therefore still runs in Demo Mode with the backend off,
+exactly as before. Read
+[`docs/backend-phase3.md`](docs/backend-phase3.md) for the design and
+[`docs/phase3-traceability.md`](docs/phase3-traceability.md) for what is
+verified versus what still needs a live database.
+
+**Previously: frontend-first phase — the full business-module UI is built.**
 Backend development is deliberately paused this phase (per explicit
 instruction) in favor of completing the Flutter frontend for every module
 the specification describes: Products (incl. variants), Categories,
@@ -85,9 +96,29 @@ credentials. Either path is valid — what matters is that `backend/.env`
 points at an isolated MySQL 8.x instance on port 3307, not at MariaDB on
 3306. See [`docs/environment.md`](docs/environment.md) and
 [`docs/database.md`](docs/database.md) for the full story, including the
-exact provisioning SQL used and the **current honest verification status**
-(as of this phase, the app database user could not yet connect — migrations
-and integration tests were validated statically only, not run live).
+exact provisioning SQL used and the **current honest verification status**.
+
+Phase 3 added the full operational schema — 43 tables across 18 migrations —
+and a repeatable way to finish provisioning:
+
+```bash
+cd backend
+npm run db:provision   # prompts for the MySQL administrator password (hidden,
+                       # never logged or written to disk); reads everything else
+                       # from .env, and grants the app user only what it needs
+npm run migrate
+npm run db:verify      # read-only: prints the server's own version, engine,
+                       # charset, grants and every table
+```
+
+**As of this phase the app database user still cannot connect**
+(`ER_ACCESS_DENIED_ERROR`), because the database and user have never been
+provisioned on this MySQL instance. Migrations and integration tests are
+therefore validated statically only, not run live — see
+[`docs/phase3-traceability.md`](docs/phase3-traceability.md)'s "Live
+verification status" for the exact breakdown. Read
+[`docs/backend-phase3.md`](docs/backend-phase3.md) before changing the
+schema.
 
 ## Environment variables
 
@@ -119,8 +150,10 @@ flutter pub get
 
 # Database (pick one)
 #   A) Docker available: cp .env.example .env at the repo root, then `npm run dev:db`
-#   B) Otherwise: provision a MySQL 8.x instance yourself on 127.0.0.1:3307 —
-#      see docs/database.md's "Engine" section for the exact SQL used here.
+#   B) Otherwise: point backend/.env at a MySQL 8.x instance on 127.0.0.1:3307,
+#      then run: cd backend && npm run db:provision
+#      (prompts for the MySQL administrator password; creates the database
+#       and the app user with least-privilege grants)
 ```
 
 ## Starting the development environment
@@ -133,7 +166,7 @@ npm run dev:db:logs          # optional: watch it come up / confirm healthy
 # Backend
 npm run dev:backend          # http://localhost:4000
 # Run migrations once the database is reachable:
-cd backend && npm run migrate
+cd backend && npm run migrate && npm run db:verify
 
 # Frontend
 cd frontend && flutter run -d chrome     # or -d windows / a connected device
@@ -159,6 +192,9 @@ cd frontend && flutter run -d chrome     # or -d windows / a connected device
 | `npm run test:unit` | unit tests only — no live database required |
 | `npm run test:integration` | integration tests — skip cleanly (not fake-pass) if MySQL is unreachable |
 | `npm run migrate` / `migrate:rollback` / `migrate:status` | Knex migrations |
+| `npm run migrate:make <name>` | scaffold a new migration in `database/migrations/` |
+| `npm run db:provision` | create the database + app user; prompts for the administrator password (hidden), reads the rest from `.env` |
+| `npm run db:verify` | read-only report of what the live server actually says: version, port, engine, charset, grants, tables |
 | `npm run seed` | runs `database/seeds/system/001_system_admin.js` |
 
 The frontend is a standalone Flutter project (`frontend/pubspec.yaml`), not
@@ -275,9 +311,17 @@ level, not papered over per screen.
 warehouse-os/
 ├── backend/
 │   └── src/
-│       ├── config/, db/                  env, connection pool (+ runInTransaction)
+│   ├── scripts/                           db-provision.mjs (create db + user, hidden
+│   │                                        password prompt), db-verify.mjs (read-only)
+│   └── src/
+│       ├── config/, db/                  env; pool (+ runInTransaction, withConnection,
+│       │                                   queryOne/queryAll/queryCount); pagination.js;
+│       │                                   listQuery.js (allowlisted filter/search/sort)
 │       ├── middleware/                    authenticate, requireAccountType, authorize,
-│       │                                   validate, errorHandler
+│       │                                   validate (reports every failing field),
+│       │                                   errorHandler (+ databaseError mapping)
+│       ├── validation/                     common.js — reusable id/money/quantity/
+│       │                                    date/enum/list-query schemas
 │       ├── modules/
 │       │   ├── auth/                        login/refresh/logout/me/change-password —
 │       │   │                                 account-adapter-parametrized (business user)
@@ -286,12 +330,16 @@ warehouse-os/
 │       ├── routes/, utils/                  route mounting; phone/token/password/
 │       │                                     requestInfo/logger/AppError utilities
 │       └── tests/
-│           ├── unit/                          31 tests, no live DB required
+│           ├── unit/                          67 tests, no live DB required
 │           └── integration/                    login/session/tenant-isolation/
-│                                                 admin-business-creation — needs MySQL
+│                                                 admin-business-creation/schema-integrity/
+│                                                 transaction-rollback — needs MySQL
 ├── database/
-│   ├── migrations/                    6 migrations — businesses, users, system_admins,
-│   │                                   refresh_tokens (×2), login_attempts, audit_logs
+│   ├── migrations/                    18 migrations — 6 for identity/auth (Phase 2),
+│   │                                   12 for the operational schema (Phase 3): RBAC,
+│   │                                   configuration, locations, master data, inventory,
+│   │                                   parties, purchases, orders, returns, production,
+│   │                                   system. 43 tables total.
 │   └── seeds/system/                   bootstraps one System Admin from env vars
 ├── frontend/
 │   └── lib/
@@ -321,7 +369,7 @@ warehouse-os/
 │   └── test/
 │       ├── fakes/fake_auth.dart              test doubles — never referenced by
 │       │                                      production code (main.dart)
-│       └── widget_test.dart                  136 tests total
+│       └── widget_test.dart                  139 tests total
 ├── docs/
 │   ├── architecture.md, environment.md, state-management.md,
 │   │   database-access-strategy.md, ui-architecture.md, localization.md,
@@ -329,8 +377,12 @@ warehouse-os/
 │   ├── authentication.md                Phase 2 — login/token/session design + deviations
 │   ├── multi-tenancy.md                  Phase 2 — isolation enforcement + System Admin boundary
 │   ├── security.md                        Phase 2 — full checklist review
-│   ├── database.md                         Phase 2 — schema, migrations, verification status
-│   ├── phase2-traceability.md               Every Phase 2 requirement → file → status
+│   ├── database.md                         Phase 2 + Phase 3 — schema map, migrations,
+│   │                                         verification status
+│   ├── backend-phase3.md                    Phase 3 — the schema and backend foundation
+│   │                                         design, and why each decision went that way
+│   ├── phase3-traceability.md                Every Phase 3 requirement → file → evidence
+│   ├── phase2-traceability.md                 Every Phase 2 requirement → file → status
 │   ├── frontend-coverage.md                 This phase — every spec section → screen → status
 │   ├── frontend-backend-contract-notes.md    This phase — what each module expects a real API to look like
 │   └── frontend-demo-mode.md                 This phase — the frontend-only demo mode architecture
@@ -390,3 +442,32 @@ history entries, most report types' live queries, barcode *scanning* vs.
 *preview*) that are UI scaffolding without a data layer yet, and
 `docs/frontend-backend-contract-notes.md` for exactly what each module
 expects a real API to look like when backend work resumes.
+
+## What Phase 3 deliberately does not include
+
+Phase 3's scope is the **foundation**: the schema, and the machinery every
+business module will share. Explicitly excluded, and not a gap:
+
+- **No business-module API.** No endpoint, controller, service or repository
+  for Products, Categories, Inventory, Sales, Orders, Customers, Suppliers,
+  Purchases, Returns, Production, Reports or PDF generation. `backend/src/modules/`
+  still holds only `auth`, `admin-auth`, `businesses` and `health`.
+- **No RBAC enforcement.** The schema (`permissions`, `roles`,
+  `role_permissions`, `users.role_id`) is ready and the `permissions`
+  catalogue is deliberately **empty** — deciding what each built-in role
+  grants belongs to the RBAC phase.
+- **No document-number allocation service, no status-transition rules, no
+  backup execution, no notification generation.** Each has its storage; each
+  needs its own phase.
+- **Demo Mode is untouched.** Every `Local*Repository` still exists and the
+  Flutter app still runs with the backend off. Converting the frontend to
+  real API repositories is a later phase; no frontend file changed this
+  phase.
+- **Phase 2's authentication was not rewritten.** Two additive schema
+  changes only: `audit_logs.module` and `users.role_id`.
+- **MariaDB on port 3306 was not touched** — not started, stopped,
+  reconfigured, or connected to.
+
+See [`docs/phase3-traceability.md`](docs/phase3-traceability.md) for the
+requirement-by-requirement breakdown, including which items are verified and
+which are still waiting on a live database connection.

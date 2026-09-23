@@ -85,3 +85,52 @@ environment ended up using. As of the last check performed this phase,
 `GET /api/health/db` still reports `DATABASE_UNREACHABLE`
 (`ER_ACCESS_DENIED_ERROR` for `warehouse_app`) — see `docs/database.md`'s
 "Verification status" for the full honest breakdown.
+
+## Update (Phase 3): the same instance, now with a repeatable way in
+
+Phase 3 changed nothing about the environment itself. The target is still
+the native **MySQL80** service on `127.0.0.1:3307`, still configured only
+through `backend/.env`, and **MariaDB on 3306 was again never started,
+stopped, reconfigured, or connected to**. Worth recording precisely: during
+this phase nothing was listening on 3306 at all — a state this phase
+neither created nor changed.
+
+What Phase 3 added is a way to finish the provisioning that Phase 2 left
+open, without anyone pasting a password into a terminal, a chat log, or a
+file:
+
+| Command (in `backend/`) | What it does |
+|---|---|
+| `npm run db:provision` | Creates `warehouse_os_dev` and the `warehouse_app` user. Prompts for the **administrator** password with hidden input; reads host, port, database, user and the *app* password from `.env`. Refuses to run if the server it reaches identifies itself as MariaDB. |
+| `npm run db:verify` | Read-only. Prints the server's own version, port, engine, isolation level, charset, effective user, its grants, and every table with its engine and collation. |
+
+Two details in `db:provision` are deliberate:
+
+- **It reads the app password from `.env` rather than asking for it.** The
+  credential the application authenticates with then has exactly one source
+  of truth, so provisioning cannot create a user whose password differs from
+  the one the app uses — which is a plausible reading of how Phase 2's
+  attempt ended up denied.
+- **It grants a specific privilege list, not `ALL PRIVILEGES`** — no
+  `GRANT OPTION`, no `SUPER`, nothing outside `warehouse_os_dev.*`. This is
+  narrower than the SQL recorded in `docs/database.md`, on purpose.
+
+It also validates every identifier it interpolates against
+`/^[A-Za-z0-9_]+$/` before quoting it, because a database or user name from
+`.env` reaches `CREATE DATABASE` as SQL text and cannot be a bound
+parameter.
+
+### Status at the end of Phase 3
+
+`warehouse_app` still cannot connect: `ER_ACCESS_DENIED_ERROR`, so
+`GET /api/health/db` still correctly returns 503 `DATABASE_UNREACHABLE`.
+Provisioning needs the MySQL administrator password, which only the user
+has. Three administrative credentials that the repository itself documents
+(the `MYSQL_ROOT_PASSWORD` env value, the root `.env` development password,
+and an empty password) were each tried once and denied; no further guessing
+was attempted, and the throwaway probe script was deleted rather than
+committed.
+
+Running `npm run db:provision` is therefore the one remaining step before
+migrations and integration tests can execute — see
+`docs/phase3-traceability.md`'s "Live verification status".

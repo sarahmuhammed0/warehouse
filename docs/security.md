@@ -67,3 +67,48 @@ given).
   the database provisioning described in `docs/database.md` — see that
   file and the final report's "MySQL Verification" section for exact
   status.
+
+---
+
+# Security review — Phase 3 additions
+
+Phase 3 added no authentication or authorization code. What it added is
+schema and shared data-access machinery, and the security questions those
+raise are different ones. Same key: ✅ built and verified; 🟡 built,
+verification needs the live database; ❌ not built this phase.
+
+| Item | Status | Evidence |
+|---|---|---|
+| SQL injection — values | ✅ | Every runtime query is a parameterised `mysql2` call. `pool.js` sets `multipleStatements: false`, removing the class of attack that turns one bound statement into two. |
+| SQL injection — **identifiers** | ✅ | The harder half, and the reason `src/db/listQuery.js` exists: `ORDER BY ?` is not valid SQL, so a naive `?sort=` handler interpolates client text and no amount of value binding makes it safe. Column names come only from a developer-written `defineListSpec`; clients send *keys*, and an unknown key is ignored. `tests/unit/listQuery.test.js` fires injection attempts at filter keys, sort keys and sort direction — 3 dedicated assertions. |
+| Sort direction | ✅ | Mapped through a two-entry table, so only the literals `ASC`/`DESC` can reach SQL. `'asc; DROP TABLE users--'` falls back to the default. |
+| Spec safety checked before runtime | ✅ | `defineListSpec` validates every column against `/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/` at module load, so an unsafe spec fails at server start, not when a customer first filters a list. |
+| LIKE metacharacters | ✅ | `%`, `_` and `\` in a search term are escaped, so a search for `100%` finds that text instead of matching everything. |
+| Unbounded result sets | ✅ | `parsePagination` clamps `pageSize` to 100 rather than trusting it — an unbounded page size is a denial of service the client would otherwise get to choose. |
+| Mass assignment | ✅ | `validate`/`validateRequest` replace `req.body`/`req.query`/`req.params` with the *parsed* value, so unknown keys are dropped before a controller sees them. |
+| Error messages leak no internals | ✅ | `src/utils/databaseError.js` maps only the driver errors a client can act on. Messages never contain the SQL, the table or column names, the constraint name, the driver's text, or any value from the row. A unit test asserts that none of `uq_products_sku`, the conflicting value, the table name or `Duplicate entry` survives into the message. |
+| Error messages leak no *existence* | ✅ | The conflicting value is withheld specifically because echoing it back could confirm that another tenant's record exists. |
+| Syntax/access errors stay generic | ✅ | `toAppError` returns `null` for `ER_PARSE_ERROR`, `ER_ACCESS_DENIED_ERROR` and `ER_NO_SUCH_TABLE`, sending them down the generic-500 path where the detail is logged server-side only. |
+| Tenant isolation — expressible in the schema | 🟡 | `business_id` plus a real FK on all 32 business-owned tables, including child tables where it is technically redundant, so the isolation predicate never depends on remembering a join. `schema.integrity.test.js` asserts all 32, and asserts the platform tables have **no** tenant column. |
+| Tenant isolation — enforced | 🔶 | `buildWhere` applies the tenant scope first, before any client-supplied filter, and `businessId` still comes only from `req.auth` (Phase 2's rule, unchanged). Endpoint-level enforcement for business modules arrives with those modules. |
+| Invalid data rejected by the database itself | 🟡 | CHECK constraints on every quantity, price, cost and refund; `ck_payment_exactly_one_parent`; `ck_bom_not_self_referencing`. This matters because "never trust the frontend" has to hold for bugs in our own service code too. Proven refusing an invalid row in `transaction.rollback.test.js`. |
+| Partial writes | 🟡 | `runInTransaction` commits or rolls back, releases the connection either way, and preserves the original error. Four tests, including 15 consecutive failures to prove the pool is not leaked. |
+| Money precision | 🟡 | `DECIMAL(14,2)`/`(14,3)` everywhere, `decimalNumbers: false` so a value arrives as an exact string instead of a lossy float. The schema test asserts there is **no** FLOAT or DOUBLE column anywhere in the database. |
+| No credentials committed | ✅ | `.env` remains git-ignored (confirmed in `git status` this phase). `db-provision.mjs` prompts for the administrator password with hidden TTY input and never writes it to disk, a log, or shell history; no credential appears in any tracked file, and the throwaway credential-probe script used during diagnosis was deleted rather than committed. |
+| Least privilege for the app user | ✅ | `db-provision.mjs` grants a specific privilege list on `warehouse_os_dev.*` only — no `GRANT OPTION`, no `SUPER`, nothing on `*.*`. Narrower than Phase 2's recorded `GRANT ALL PRIVILEGES`, deliberately. |
+| Identifier injection in provisioning | ✅ | Database and user names come from `.env` and reach `CREATE DATABASE`/`CREATE USER` as SQL text, where they cannot be bound parameters — so each is validated against `/^[A-Za-z0-9_]+$/` before being backtick-quoted. |
+| Wrong-server protection | ✅ | `db-provision.mjs` refuses to run if the server it reaches reports `version_comment` containing "mariadb", so a misconfigured port cannot make this project write to the MariaDB instance. |
+| Audit trail cannot be quietly edited away | 🟡 | `audit_logs`, `inventory_movements`, `order_edits` and `login_attempts` have no `deleted_at` and nothing deletes from them; the schema test asserts the absence. `audit_logs` gained the `module` field the spec requires. |
+| RBAC enforcement middleware | ❌ | Later phase. The schema (`permissions`, `roles`, `role_permissions`, `users.role_id`) is ready, and the `permissions` catalogue is deliberately left **empty** — populating it is the RBAC phase's decision to make. |
+| Live SQL-injection behaviour against a real MySQL server | 🟡 | The unit tests prove the SQL that gets *built*; confirming the server's behaviour needs the provisioned database. |
+
+## Carried-forward gaps, restated honestly
+
+- Helmet and CORS are still Phase 0 configuration, re-verified this phase
+  only by observing the headers on a live response (`Strict-Transport-Security`,
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`,
+  `RateLimit-Policy: 100;w=60`). A line-by-line audit of that configuration
+  still has not been performed.
+- Everything requiring a live database connection remains unverified for the
+  same reason as Phase 2 — see `docs/environment.md`'s Phase 3 update and
+  `docs/phase3-traceability.md`'s "Live verification status".

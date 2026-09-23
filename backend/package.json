@@ -2,7 +2,7 @@
   "name": "warehouse-os-backend",
   "version": "0.0.0",
   "private": true,
-  "description": "Warehouse OS API — Node.js + Express backend (Phase 2: authentication + multi-tenancy foundation).",
+  "description": "Warehouse OS API — Node.js + Express backend (Phase 3: database + backend foundation).",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -14,7 +14,10 @@
     "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:status": "knex migrate:status",
-    "seed": "knex seed:run"
+    "seed": "knex seed:run",
+    "migrate:make": "knex migrate:make",
+    "db:provision": "node scripts/db-provision.mjs",
+    "db:verify": "node scripts/db-verify.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
