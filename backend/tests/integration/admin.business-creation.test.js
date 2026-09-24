@@ -1,9 +1,9 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
 
 import { app } from "../../src/app.js";
-import { pool } from "../../src/db/pool.js";
+import { pool, closePool } from "../../src/db/pool.js";
 import { requireDatabase, testPhone, createTestSystemAdmin, cleanupTestData } from "./helpers.js";
 
 test("POST /api/admin/businesses (System-Admin-only business + initial owner creation)", async (t) => {
@@ -105,4 +105,12 @@ test("POST /api/admin/businesses (System-Admin-only business + initial owner cre
       .send({ name: "", businessType: "not-real" });
     assert.equal(res.status, 422);
   });
+});
+
+// Close the shared pool once this file's tests are done, or `node --test`
+// never exits: an open mysql2 pool keeps the event loop alive. This was
+// invisible while the database was unreachable, because every test skipped
+// before opening a connection.
+after(async () => {
+  await closePool();
 });

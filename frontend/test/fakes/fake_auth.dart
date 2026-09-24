@@ -33,6 +33,7 @@ const testBusiness = AuthBusiness(
 class InMemoryTokenStorage implements TokenStorage {
   String? _accessToken;
   String? _refreshToken;
+  String? _accountType;
 
   @override
   Future<void> save({required String accessToken, required String refreshToken}) async {
@@ -49,9 +50,15 @@ class InMemoryTokenStorage implements TokenStorage {
   Future<String?> readRefreshToken() async => _refreshToken;
 
   @override
+  Future<void> saveAccountType(String accountType) async => _accountType = accountType;
+  @override
+  Future<String?> readAccountType() async => _accountType;
+
+  @override
   Future<void> clear() async {
     _accessToken = null;
     _refreshToken = null;
+    _accountType = null;
   }
 }
 

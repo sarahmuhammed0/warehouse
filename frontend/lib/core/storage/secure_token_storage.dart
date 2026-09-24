@@ -9,6 +9,19 @@ abstract class TokenStorage {
   Future<void> saveAccessToken(String accessToken);
   Future<String?> readAccessToken();
   Future<String?> readRefreshToken();
+
+  /// Which of the backend's two identity systems this stored session belongs
+  /// to. Persisted because refresh and logout live on different routes per
+  /// account type (`/api/auth/*` vs `/api/admin/auth/*`) — without it, a page
+  /// reload would restore a System Admin's session by asking the
+  /// business-user route to refresh a token it has never seen, and silently
+  /// log them out.
+  ///
+  /// Stored as a plain string rather than the `AccountType` enum so this
+  /// core-layer interface does not depend on a feature's model.
+  Future<void> saveAccountType(String accountType);
+  Future<String?> readAccountType();
+
   Future<void> clear();
 }
 
@@ -42,6 +55,7 @@ class SecureTokenStorage implements TokenStorage {
 
   static const _accessTokenKey = 'warehouse_os.access_token';
   static const _refreshTokenKey = 'warehouse_os.refresh_token';
+  static const _accountTypeKey = 'warehouse_os.account_type';
 
   @override
   Future<void> save({required String accessToken, required String refreshToken}) async {
@@ -58,8 +72,14 @@ class SecureTokenStorage implements TokenStorage {
   Future<String?> readRefreshToken() => _storage.read(key: _refreshTokenKey);
 
   @override
+  Future<void> saveAccountType(String accountType) => _storage.write(key: _accountTypeKey, value: accountType);
+  @override
+  Future<String?> readAccountType() => _storage.read(key: _accountTypeKey);
+
+  @override
   Future<void> clear() async {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
+    await _storage.delete(key: _accountTypeKey);
   }
 }

@@ -99,7 +99,7 @@ export async function up(knex) {
 
     // The pair IS the row — a composite primary key, so the same permission
     // cannot be granted to the same role twice.
-    table.primary(["role_id", "permission_id"], { constraintName: "pk_role_permissions" });
+    table.primary(["role_id", "permission_id"], "pk_role_permissions");
     table.index("permission_id", "idx_role_permissions_permission");
   });
 

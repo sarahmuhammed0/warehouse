@@ -213,7 +213,7 @@ export async function up(knex) {
     // Presentation only. The business's authoritative currency/timezone
     // live on `businesses`; these let one template render differently
     // (§28 lists both as template settings).
-    table.char("currency", 3).nullable();
+    table.specificType("currency", "CHAR(3)").nullable();
     table.string("date_format", 32).notNullable().defaultTo("YYYY-MM-DD");
 
     table.json("enabled_fields").nullable();

@@ -171,6 +171,24 @@
   "statusInStock": "In Stock",
   "statusDisabled": "Disabled",
 
+  "loginAsLabel": "Sign in as",
+
+  "loginAsBusiness": "Business",
+
+  "loginAsSystemAdmin": "System Admin",
+
+  "loginSubtitleAdmin": "Sign in to the platform admin console",
+
+  "forgotPassword": "Forgot password?",
+
+  "forgotPasswordTitle": "Recovering your password",
+
+  "forgotPasswordBody": "For security, passwords cannot be reset from this screen. Ask your system administrator to set a new password for your account, then sign in with it and change it from Settings.",
+
+  "forgotPasswordAdminBody": "Ask another system administrator to reset your password. If you are the only administrator, the password must be reset directly on the server.",
+
+  "forgotPasswordClose": "Got it",
+
   "fieldName": "Name",
   "fieldCode": "Code",
   "fieldSku": "SKU",

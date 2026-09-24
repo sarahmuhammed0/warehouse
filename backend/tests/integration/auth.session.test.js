@@ -1,4 +1,5 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
+import { closePool } from "../../src/db/pool.js";
 import assert from "node:assert/strict";
 import request from "supertest";
 
@@ -114,4 +115,12 @@ test("Session lifecycle: /me, logout, refresh, change-password", async (t) => {
     const refreshAfterLogout = await request(app).post("/api/auth/refresh").send({ refreshToken: freshRefresh });
     assert.equal(refreshAfterLogout.status, 401);
   });
+});
+
+// Close the shared pool once this file's tests are done, or `node --test`
+// never exits: an open mysql2 pool keeps the event loop alive. This was
+// invisible while the database was unreachable, because every test skipped
+// before opening a connection.
+after(async () => {
+  await closePool();
 });

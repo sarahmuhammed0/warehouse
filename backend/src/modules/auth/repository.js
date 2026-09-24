@@ -78,7 +78,10 @@ export async function findSystemAdminPasswordHash(id) {
 
 export async function findBusinessById(id) {
   const [rows] = await pool.query(
-    `SELECT id, name, business_type, logo_url, currency, language, timezone, status
+    // `rejection_reason` is read so a refused registration's owner can be
+    // told why at login. It never reaches a response body: `safeBusiness` in
+    // authService is an allowlist and does not include it.
+    `SELECT id, name, business_type, logo_url, currency, language, timezone, status, rejection_reason
        FROM businesses WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
     [id]
   );
@@ -178,6 +181,12 @@ export async function writeAuditLog({
   businessId = null,
   actorType,
   actorId = null,
+  // §30 requires every audit record to name the module it came from, and
+  // requires filtering by it, so the column is NOT NULL. It defaults to
+  // "auth" because that is where every caller in this repository lives;
+  // any other module must pass its own name, or its events all file
+  // themselves under authentication.
+  module = "auth",
   action,
   description,
   ip = null,
@@ -186,8 +195,8 @@ export async function writeAuditLog({
 }) {
   await pool.query(
     `INSERT INTO audit_logs
-       (business_id, actor_type, actor_id, action, description, ip_address, reference_type, reference_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [businessId, actorType, actorId, action, description, ip, referenceType, referenceId]
+       (business_id, actor_type, actor_id, module, action, description, ip_address, reference_type, reference_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [businessId, actorType, actorId, module, action, description, ip, referenceType, referenceId]
   );
 }

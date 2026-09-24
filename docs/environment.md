@@ -90,10 +90,18 @@ environment ended up using. As of the last check performed this phase,
 
 Phase 3 changed nothing about the environment itself. The target is still
 the native **MySQL80** service on `127.0.0.1:3307`, still configured only
-through `backend/.env`, and **MariaDB on 3306 was again never started,
-stopped, reconfigured, or connected to**. Worth recording precisely: during
-this phase nothing was listening on 3306 at all — a state this phase
-neither created nor changed.
+through `backend/.env`, and **port 3306 was again never started, stopped,
+reconfigured, or connected to**.
+
+Recorded precisely, because it changed mid-phase and an earlier draft of
+this document said otherwise: 3306 was unoccupied during the first part of
+Phase 3, and by the closing checks a separate `mysqld.exe` from an unrelated
+local stack (`…\new web\mysql\bin\mysqld.exe`) was listening on it. Neither
+state was created or changed by this project — the observation is read-only,
+from `Get-NetTCPConnection`, and no client of ours has ever opened a
+connection to that port. What matters for isolation is unchanged: this
+project's `DB_PORT` is 3307, and 3307 is served by PID-verified `mysqld`
+under the `MySQL80` service.
 
 What Phase 3 added is a way to finish the provisioning that Phase 2 left
 open, without anyone pasting a password into a terminal, a chat log, or a
@@ -120,6 +128,40 @@ It also validates every identifier it interpolates against
 `.env` reaches `CREATE DATABASE` as SQL text and cannot be a bound
 parameter.
 
+### The one documented exception to centralized configuration
+
+Every environment variable in this project is declared in
+`backend/src/config/env.js`, and nothing else reads `process.env` — the app,
+`knexfile.js`, both `scripts/`, and the System Admin seed all import `env`.
+
+**The MySQL administrator password is the exception, and is deliberately not
+configuration at all.** `env.provisioning` declares only the two non-secret
+values provisioning needs:
+
+| Variable | Default | Why it is safe to store |
+|---|---|---|
+| `MYSQL_ADMIN_USER` | `root` | A username, not a credential |
+| `MYSQL_ADMIN_SSL` | unset (`false`) | A transport flag |
+
+The password itself is read from a hidden terminal prompt at the moment it is
+needed and exists only in one local variable for the life of that process. It
+is never placed in `.env`, in `env`, in a log line, in an argument list, or in
+shell history. Do not add a `MYSQL_ADMIN_PASSWORD` variable: an administrator
+credential in a dotenv file is readable by every process and every tool that
+later prints configuration, which is exactly what the prompt avoids.
+
+A consequence worth knowing before you run it: because the password comes
+from the TTY, `db:provision` **cannot** be run from a pipe, a CI step, or any
+tool that captures output. It checks `process.stdin.isTTY` and stops with an
+explanatory message rather than falling back to something weaker. Run it in a
+real terminal window.
+
+`env.seed` (`SEED_ADMIN_PHONE` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME`)
+is a narrower exception in the other direction: declared in `env.js` so all
+env-var names live in one file, but read only by `npm run seed` — the
+application never touches it, and with the values unset the seed does nothing
+rather than create a guessable default account.
+
 ### Status at the end of Phase 3
 
 `warehouse_app` still cannot connect: `ER_ACCESS_DENIED_ERROR`, so
@@ -134,3 +176,11 @@ committed.
 Running `npm run db:provision` is therefore the one remaining step before
 migrations and integration tests can execute — see
 `docs/phase3-traceability.md`'s "Live verification status".
+
+The server side of this is confirmed fine, so the remaining work really is
+just the database and the user: `mysqld` is listening on 3307 (PID-verified,
+`MySQL80` service, `Running`, start type `Automatic`). At the close of the
+phase the following were re-run and still fail at the connection, exactly as
+recorded above — `npm run migrate:status`, `npm run db:verify` and
+`npm run test:integration` (0 passed, 22 skipped, 0 failed). Skipped is not
+passed, and none of them is reported as such anywhere in these docs.

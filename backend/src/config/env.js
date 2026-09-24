@@ -55,6 +55,42 @@ export const env = {
     refreshTokenTtl: process.env.JWT_REFRESH_TTL || "30d",
     bcryptSaltRounds: readInt("BCRYPT_SALT_ROUNDS", 12),
   },
+
+  // Public business self-registration. The endpoint is unauthenticated AND
+  // it writes, so it is rate limited per IP per hour — without that, one
+  // script can fill an administrator's approval queue, which is a denial of
+  // service against a person rather than a server.
+  //
+  // Strict in production; lenient elsewhere, because in development and in
+  // the integration tests the same limit only obstructs — several
+  // registrations in a row is exactly what those tests do. Override with
+  // REGISTRATION_RATE_LIMIT.
+  registration: {
+    rateLimitPerHour: readInt("REGISTRATION_RATE_LIMIT", nodeEnv === "production" ? 5 : 200),
+  },
+
+  // One-time bootstrap of the first System Admin (`npm run seed`). Read here
+  // so the seed script does not reach into `process.env` on its own. The
+  // application never reads these — only the seed does, and with neither
+  // value set it deliberately does nothing rather than create a guessable
+  // default account.
+  seed: {
+    adminPhone: process.env.SEED_ADMIN_PHONE || "",
+    adminPassword: process.env.SEED_ADMIN_PASSWORD || "",
+    adminName: process.env.SEED_ADMIN_NAME || "System Administrator",
+  },
+
+  // Administrator-only, used exclusively by `npm run db:provision`.
+  //
+  // The administrator PASSWORD is deliberately absent, and must stay absent:
+  // it is read from a hidden terminal prompt at the moment it is needed and
+  // never stored in `.env`, in this object, in a log, or in shell history.
+  // Only the two non-secret values below are configuration, so only they
+  // belong here. See docs/environment.md, "The one documented exception".
+  provisioning: {
+    adminUser: process.env.MYSQL_ADMIN_USER || "root",
+    useSsl: process.env.MYSQL_ADMIN_SSL === "true",
+  },
 };
 
 // Fail fast, loudly, at startup — not three requests into production — if a

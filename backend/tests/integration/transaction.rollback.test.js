@@ -7,9 +7,9 @@
 // business operations that will use this machinery belong to later phases.
 // What is proven here is the machinery.
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { pool, runInTransaction, queryOne, queryCount } from "../../src/db/pool.js";
+import { pool, runInTransaction, queryOne, queryCount, closePool } from "../../src/db/pool.js";
 import { requireDatabase, cleanupTestData, testPhone } from "./helpers.js";
 
 /** A business row, created inside whichever connection is passed. */
@@ -157,4 +157,12 @@ test("a CHECK constraint refuses an invalid row — §54 enforced by the databas
   } finally {
     if (businessId) await cleanupTestData({ businessIds: [businessId] });
   }
+});
+
+// Close the shared pool once this file's tests are done, or `node --test`
+// never exits: an open mysql2 pool keeps the event loop alive. This was
+// invisible while the database was unreachable, because every test skipped
+// before opening a connection.
+after(async () => {
+  await closePool();
 });

@@ -12,14 +12,14 @@
 //     npx knex seed:run --specific=system/001_system_admin.js
 
 import bcrypt from "bcryptjs";
-
-const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS) || 12;
+// Read through the backend's own config module rather than `process.env`, so
+// the cost factor here can never drift from the one the login path verifies
+// against, and every env-var name in the project is declared in one file.
+import { env } from "../../../backend/src/config/env.js";
 
 /** @param {import('knex').Knex} knex */
 export async function seed(knex) {
-  const phone = process.env.SEED_ADMIN_PHONE;
-  const password = process.env.SEED_ADMIN_PASSWORD;
-  const name = process.env.SEED_ADMIN_NAME || "System Administrator";
+  const { adminPhone: phone, adminPassword: password, adminName: name } = env.seed;
 
   if (!phone || !password) {
     console.log(
@@ -35,7 +35,7 @@ export async function seed(knex) {
     return;
   }
 
-  const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+  const password_hash = await bcrypt.hash(password, env.auth.bcryptSaltRounds);
   await knex("system_admins").insert({ name, phone, password_hash, status: "active" });
   console.log(`[seed:system_admin] Created System Admin ${phone}.`);
 }

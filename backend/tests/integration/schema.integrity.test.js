@@ -8,9 +8,9 @@
 // Skips (never fakes a pass) when the database is unreachable — see
 // helpers.js.
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { pool } from "../../src/db/pool.js";
+import { pool, closePool } from "../../src/db/pool.js";
 import { requireDatabase } from "./helpers.js";
 
 /** Every table the specification's §37 list requires, as built. */
@@ -418,4 +418,112 @@ test("audit_logs carries every field §30 lists, including module", async (t) =>
     assert.ok(cols.has(column), `audit_logs.${column} is missing (§30)`);
   }
   assert.equal(cols.get("module").IS_NULLABLE, "NO", "module must be required of every writer");
+});
+
+test("products carries product_type, and NOT the columns the spec never asked for", async (t) => {
+  if (!(await requireDatabase(t))) return;
+
+  // product_type was documented as existing before it did, and the two
+  // columns asserted absent below were invented outright. Nothing caught
+  // either, because no test read this column list. This is that test.
+  const cols = await columns("products");
+
+  // Required to implement §21 ("Raw materials decrease / Finished goods
+  // increase") given that raw materials and finished goods share this table.
+  assert.ok(cols.has("product_type"), "products.product_type is missing (§21)");
+
+  // §47 puts the negative-stock switch in a business setting — "only
+  // through an explicit business setting" — so a per-product override must
+  // not exist, or the business-level rule can be bypassed per row.
+  assert.ok(
+    !cols.has("allow_negative_stock"),
+    "products.allow_negative_stock must NOT exist — §47 makes this a business setting"
+  );
+
+  // Never mentioned anywhere in the specification.
+  assert.ok(!cols.has("track_inventory"), "products.track_inventory must NOT exist — not in the specification");
+});
+
+test("§54's 'prevent negative quantities' is enforced by the database", async (t) => {
+  if (!(await requireDatabase(t))) return;
+
+  const [rows] = await pool.query(
+    `SELECT CONSTRAINT_NAME FROM information_schema.CHECK_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = DATABASE()`
+  );
+  const present = new Set(rows.map((row) => row.CONSTRAINT_NAME));
+
+  for (const name of [
+    // Quantities entered by a user, on every document that has them.
+    "ck_order_item_quantity_positive",
+    "ck_purchase_item_quantity_positive",
+    "ck_return_item_quantity_positive",
+    "ck_transfer_item_quantity_positive",
+    "ck_bom_quantity_positive",
+    "ck_production_planned_positive",
+    // The stock ledger: a movement is a positive magnitude, direction comes
+    // from movement_type.
+    "ck_movement_quantity_positive",
+    // Product stock policy and money.
+    "ck_products_min_stock_not_negative",
+    "ck_products_reorder_level_not_negative",
+    "ck_products_max_stock_not_negative",
+    "ck_products_selling_price_not_negative",
+    "ck_products_purchase_cost_not_negative",
+    // Reserved stock is never negative under any business setting.
+    "ck_inventory_reserved_not_negative",
+  ]) {
+    assert.ok(present.has(name), `missing CHECK constraint ${name} (§54)`);
+  }
+});
+
+test("inventory.quantity is deliberately NOT check-constrained — §47 needs it signed", async (t) => {
+  if (!(await requireDatabase(t))) return;
+
+  // §54 says prevent negative quantities; §47 says negative inventory is
+  // allowed "only through an explicit business setting". A CHECK on the
+  // level would make §47 unimplementable, so the rule lives in the stock
+  // service instead. This asserts nobody "helpfully" adds the constraint
+  // later and silently breaks that setting.
+  const [rows] = await pool.query(
+    `SELECT CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME LIKE 'ck_inventory%'`
+  );
+  const clauses = rows.map((row) => String(row.CHECK_CLAUSE).replace(/`/g, ""));
+
+  const constrainsLevel = clauses.some((c) => /\bquantity\b/.test(c) && !/reserved_quantity/.test(c));
+  assert.ok(
+    !constrainsLevel,
+    `inventory.quantity must stay unconstrained so §47's business setting can work; found: ${clauses.join(" | ")}`
+  );
+});
+
+test("product status and type enums use the specification's own words", async (t) => {
+  if (!(await requireDatabase(t))) return;
+
+  // An ENUM the client cannot satisfy is a 100% failure rate on that field,
+  // so the values are asserted literally. `archived` is §45's verbatim
+  // term; `discontinued` appears nowhere in the specification.
+  const cols = await columns("products");
+
+  const enumValues = (columnType) => [...columnType.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+
+  assert.deepEqual(
+    enumValues(cols.get("status").COLUMN_TYPE),
+    ["active", "archived", "inactive"],
+    "products.status must use §45's 'archived'; 'inactive' is the one documented addition"
+  );
+  assert.deepEqual(
+    enumValues(cols.get("product_type").COLUMN_TYPE),
+    ["finished_good", "raw_material"],
+    "products.product_type must be exactly §21's two terms"
+  );
+});
+
+// Close the shared pool once this file's tests are done, or `node --test`
+// never exits: an open mysql2 pool keeps the event loop alive. This was
+// invisible while the database was unreachable, because every test skipped
+// before opening a connection.
+after(async () => {
+  await closePool();
 });

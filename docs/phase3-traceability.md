@@ -32,7 +32,7 @@ specification PDF.
 | Spec | Requirement | Foundation implemented | Evidence | Status |
 |---|---|---|---|---|
 | §7 | Categories, hierarchical, per-business codes | `categories` with self-referencing `parent_id`, `uq_categories_code` scoped to `business_id`, `deleted_at` + `status` | `…120040_create_master_data_tables.js`; `schema.integrity.test.js` asserts existence, tenancy, soft delete | 🔶 storage ✅ / category API later |
-| §8, §42 | Products with all listed fields, per-product stock policy | `products` — identity, pricing, unit, category, tax, reorder level, `track_inventory`, `allow_negative_stock`, `default_location_id` | same migration; schema test asserts no FLOAT/DOUBLE on money | 🔶 |
+| §8, §42 | Products with all listed fields, per-product stock policy | `products` — identity, pricing, unit, category, tax, stock levels, `product_type`, `track_inventory`, `allow_negative_stock`, `default_location_id` | same migration; schema test asserts no FLOAT/DOUBLE on money, that the three stock-policy columns exist, and that both enums hold exactly the values the client sends | 🔶 |
 | §8 | Product current / available quantity | **Derived, not stored** — `SUM(inventory.quantity)`, minus `reserved_quantity` | `docs/backend-phase3.md` §5; `products` deliberately has no quantity column | 🔶 |
 | §9 | Product variants | `product_variants` with its own SKU/barcode/pricing and per-variant uniqueness | `…120040`; `uq_variants_sku`, `uq_variants_barcode` | 🔶 |
 | §8 | Product images | `product_images` with `is_primary` + `sort_order`, `CASCADE` from the product | `…120040` | 🔶 |
@@ -135,7 +135,7 @@ specification PDF.
 | No business module API implemented | No route, controller or service for any business module exists — `backend/src/modules/` still holds only `auth`, `admin-auth`, `businesses`, `health` | ✅ verified by inspection |
 | Demo Mode still available; `Local*Repository` classes intact | No file under `frontend/lib/` was modified this phase | ✅ verified by `git status` |
 | Frontend not redesigned or broken | `flutter analyze` and `flutter test` re-run this phase | see "Frontend regression check" |
-| MariaDB on 3306 untouched | Never started, stopped, reconfigured, or connected to. Observed: nothing is listening on 3306 — a state this phase neither created nor changed | ✅ |
+| Port 3306 untouched | Never started, stopped, reconfigured, or connected to. Observed read-only via `Get-NetTCPConnection`: unoccupied earlier in the phase, and by the closing checks a separate `mysqld.exe` from an unrelated local stack (`…\new web\mysql\bin`) was listening on it — neither state created nor changed by this project. `DB_PORT` is 3307, served by PID-verified `mysqld` under the `MySQL80` service | ✅ |
 | No credentials committed | `.env` files remain git-ignored; `db-provision.mjs` prompts for the administrator password with hidden input and never writes it anywhere | ✅ verified against `git status` and `.gitignore` |
 | Phase 2 auth not rewritten | Two additive schema changes only (`audit_logs.module`, `users.role_id`); no auth code, token design or route guard altered | ✅ verified by `git diff` |
 | Old commits not rewritten | One new commit; no rebase, amend or force-push | ✅ |
@@ -145,10 +145,14 @@ specification PDF.
 ## Live verification status
 
 Everything below needs an authenticated MySQL connection as `warehouse_app`
-on `127.0.0.1:3307`. **As of hand-off that connection still fails with
+on `127.0.0.1:3307`. **That connection still fails with
 `ER_ACCESS_DENIED_ERROR`** — the same wall Phase 2 documented
 (`docs/database.md`), because the database and application user have never
 been provisioned on this MySQL instance.
+
+The MySQL 8 server itself is confirmed up and correct: PID-verified `mysqld`
+listening on 3307 under the `MySQL80` service. What is missing is the
+database and the app user, not the server.
 
 | Check | Status |
 |---|---|
@@ -157,28 +161,93 @@ been provisioned on this MySQL instance.
 | Server boots; envelope, validation, 404 and security headers correct | ✅ observed on a running server |
 | `GET /api/health/db` correctly reports the database as unreachable | ✅ observed — 503 `DATABASE_UNREACHABLE`, which is the *correct* behaviour, not a passing database check |
 | A MySQL 8 instance identified on 3307 | ✅ observed — native `mysqld`, Windows service `MySQL80` |
-| `npm run db:provision` (create the database + app user) | ❌ not run — needs the MySQL administrator password, which only the user has |
-| `npm run migrate` (apply all 18 migrations) | ❌ not run — blocked by the above |
-| `npm run migrate:status` / `npm run migrate:rollback` | ❌ not run — blocked |
-| `npm run db:verify` (live engine / charset / grants / table report) | ❌ not run — blocked |
-| `npm run test:integration` (schema integrity + transaction rollback) | 🟡 written; **skips cleanly** via `requireDatabase(t)` rather than fake-passing |
-| Live constraint enforcement (unique, CHECK, FK), live rollback, live tenant-column audit | 🟡 the tests that prove these are written and ready to run |
+| All backend configuration flows through `src/config/env.js` | ✅ verified — `grep -rn "process\.env" backend database` returns matches in `env.js` only (plus two comments naming it) |
+| `npm run db:provision` (create the database + app user) | ❌ **not run** — it correctly refuses to continue without an interactive terminal, and the administrator password is the user's alone. This is the one blocking step |
+| `npm run migrate` (apply all 18 migrations) | ❌ **not run** — blocked by the above |
+| `npm run migrate:status` | ❌ **attempted, failed at connection** — `Access denied for user 'warehouse_app'@'localhost'`. Confirms `knexfile.js` now loads config correctly; says nothing about the migrations themselves |
+| `npm run migrate:rollback` | ❌ **not run** — blocked |
+| `npm run db:verify` (live engine / charset / grants / table report) | ❌ **attempted, failed at connection** — same `ER_ACCESS_DENIED_ERROR` |
+| 43 tables exist; engine, charset, collation, FKs, tenant columns, indexes, CHECK constraints, soft-delete and append-only rules, grants | ❌ **not verified** — every one of these assertions lives in `schema.integrity.test.js`, which cannot run until the database exists |
+| `npm run test:integration` (schema integrity + transaction rollback) | ❌ **0 passed, 22 skipped, 0 failed** — skipped is *not* passed. `requireDatabase(t)` refuses to fake a pass and attaches the real driver error |
+| Live constraint enforcement (unique, CHECK, FK), live rollback, live tenant-isolation audit | ❌ **not verified** — the tests are written and ready; none has executed against a server |
 
-To unblock, in `backend/`:
+### The one blocking step, and why I cannot take it
+
+`npm run db:provision` reads its hidden password from the TTY. Run from any
+tool that captures output — including the one used to build this phase —
+`process.stdin.isTTY` is false and the script stops with a clear message
+rather than falling back to something less safe. That refusal is correct and
+was left in place: the alternatives (an env var, a CLI flag, a piped
+heredoc) would all put an administrator password somewhere it can be read
+later.
+
+So this must be run by a human, in a real terminal window, in `backend/`:
 
 ```
-npm run db:provision     # prompts for the MySQL administrator password
+npm run db:provision     # type the MySQL administrator password at the prompt
 npm run migrate
+npm run migrate:status
 npm run db:verify
+npm run test:unit
 npm run test:integration
 ```
 
-The provisioning script reads host, port, database, user and the app password
-from `backend/.env`, so the only thing it asks for is the administrator
-password — which is never echoed, logged, or written to disk.
+The prompt asks for the administrator password and nothing else — host,
+port, database, app user and the app's own password all come from
+`backend/.env`. Nothing typed there is echoed, logged, or written to disk.
+
+Until those commands have actually run, every ❌ above stays ❌. **Phase 3 is
+therefore not fully verified**, and this document will not say otherwise
+before the output exists.
 
 ## Frontend regression check
 
-Phase 3 changed no frontend file. `flutter analyze` and `flutter test` were
-re-run to confirm it, and no test was modified to make anything pass — see
-the Phase 3 final report for the exact figures.
+Phase 3 changed no frontend file. Re-run at the close of the phase:
+`flutter analyze` → **no issues found**; `flutter test` → **139/139
+passing**. No test was modified, and no frontend file was touched, so there
+was no regression to fix.
+
+## Corrections made while closing Phase 3
+
+Recorded because each was a defect in work this phase had already reported
+as done, not a new feature:
+
+- **The configuration claim was false when written.** `docs/backend-phase3.md`
+  said nothing outside `src/config/env.js` reads `process.env`, while
+  `knexfile.js`, `scripts/db-provision.mjs` and
+  `database/seeds/system/001_system_admin.js` all did. All three now import
+  `env`. The seed's own `BCRYPT_SALT_ROUNDS` read was the one with teeth: it
+  could have hashed the bootstrap System Admin's password at a different
+  cost factor than the login path verifies against.
+- **Backspace was broken in the password prompt.** `readHidden` compared
+  against an empty string where the DEL byte (``) belonged, so on a
+  Unix terminal an erased character stayed in the password — silently, since
+  there is no echo to reveal it. It also treated a whole `data` chunk as one
+  character, so a pasted password containing the trailing newline would have
+  been submitted with the newline inside it. Both fixed, plus Ctrl-D and
+  stray control characters now handled.
+- **A "nothing is listening on 3306" observation went stale.** Corrected
+  above and in `docs/environment.md` rather than left standing.
+- **Three `products` columns were documented before they existed.** The row
+  above for §8/§42 listed `track_inventory` and `allow_negative_stock`, and
+  §47's row claimed `allow_negative_stock` enforced the no-negative-stock
+  rule. Neither column was in the migration. `product_type` was missing too,
+  while the Flutter model has required it all along — and §21 needs it,
+  since a bill of materials is only meaningful if raw materials and finished
+  goods can be told apart. All three added to
+  `…120040_create_master_data_tables.js`, with `allow_negative_stock`
+  nullable so `NULL` can mean "inherit the business-wide setting".
+- **`products.status` had a value the app cannot send.** The enum was
+  `active/inactive/archived`; the Flutter model and the specification use
+  `discontinued`, and `archived` duplicated what `deleted_at` already
+  records. Changed to `active/inactive/discontinued`.
+- **Why both slipped, and what now catches them:** nothing read the
+  `products` column list, and `docs/backend-phase3.md`'s status-field table
+  omitted `products.status` entirely, so neither the missing columns nor the
+  wrong enum value contradicted anything. Two tests were added to
+  `schema.integrity.test.js` asserting the three columns exist, that
+  `allow_negative_stock` is nullable, and that both enums contain exactly
+  the values the client sends. The doc table now lists the products enums.
+  Editing the original migration rather than adding a patch migration is
+  safe here for one specific reason: these migrations have never been
+  applied to any database, so there is no environment to drift from.

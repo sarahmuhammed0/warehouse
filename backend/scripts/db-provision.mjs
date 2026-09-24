@@ -37,7 +37,9 @@ function readHidden(prompt) {
     if (!stdin.isTTY) {
       reject(
         new Error(
-          "No interactive terminal. Run this from a real terminal so the password can be typed without being echoed."
+          "No interactive terminal, so the password cannot be typed without being echoed. " +
+            "Run `npm run db:provision` directly in a terminal window (not through a " +
+            "pipe, a CI step, or a tool that captures output)."
         )
       );
       return;
@@ -46,23 +48,36 @@ function readHidden(prompt) {
     stdin.resume();
     stdin.setEncoding("utf8");
     let value = "";
-    const onData = (char) => {
-      // Enter (CR/LF) ends input; Ctrl-C aborts; Backspace/DEL edits.
-      if (char === "\r" || char === "\n") {
-        stdin.setRawMode(false);
-        stdin.pause();
-        stdin.removeListener("data", onData);
-        process.stdout.write("\n");
-        resolve(value);
-      } else if (char === "") {
-        stdin.setRawMode(false);
-        stdin.pause();
-        stdin.removeListener("data", onData);
-        process.stdout.write("\n");
-        reject(new Error("Aborted."));
-      } else if (char === "" || char === "\b") {
-        value = value.slice(0, -1);
-      } else {
+
+    const finish = (settle, arg) => {
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdin.removeListener("data", onData);
+      process.stdout.write("\n");
+      settle(arg);
+    };
+
+    // Raw mode delivers chunks, not single keystrokes — a fast typist or a
+    // paste arrives as several characters at once, possibly including the
+    // terminating newline. Each character is therefore handled on its own;
+    // treating a whole chunk as one "char" would append the Enter to the
+    // password instead of ending input.
+    const onData = (chunk) => {
+      for (const char of chunk) {
+        // Enter (CR/LF) ends input; Ctrl-C and Ctrl-D abort.
+        if (char === "\r" || char === "\n") return finish(resolve, value);
+        if (char === "" || char === "") return finish(reject, new Error("Aborted."));
+        // Backspace: Windows consoles send BS (0x08), Unix terminals send
+        // DEL (0x7f). Both must edit, or a character the user erased stays
+        // in the password on one platform or the other — silently, since
+        // there is no echo to reveal it.
+        if (char === "" || char === "\b") {
+          value = value.slice(0, -1);
+          continue;
+        }
+        // Drop any other control character (arrow keys arrive as escape
+        // sequences) rather than letting it into the password.
+        if (char < " ") continue;
         value += char;
       }
     };
@@ -87,7 +102,6 @@ if (!password) {
 }
 
 const db = identifier(database, "DB_NAME");
-const appUser = identifier(user, "DB_USER");
 
 console.log(`Provisioning on ${host}:${port}`);
 console.log(`  database  ${database}`);
@@ -96,7 +110,10 @@ console.log("");
 
 let admin;
 try {
-  const adminUser = process.env.MYSQL_ADMIN_USER || "root";
+  // Non-secret configuration, read through the same module as everything
+  // else. The administrator PASSWORD is deliberately not configuration: it
+  // exists only in the local variable below, only while this process runs.
+  const { adminUser, useSsl } = env.provisioning;
   const adminPassword = await readHidden(`MySQL password for '${adminUser}'@${host}:${port}: `);
 
   admin = await mysql.createConnection({
@@ -108,7 +125,7 @@ try {
     // Provisioning talks to a local server over loopback; allow the
     // caching_sha2_password handshake to fetch the server's public key
     // rather than failing when the connection is not TLS.
-    ...(process.env.MYSQL_ADMIN_SSL === "true" ? { ssl: {} } : {}),
+    ...(useSsl ? { ssl: {} } : {}),
   });
 
   const [[serverInfo]] = await admin.query("SELECT VERSION() AS version, @@port AS port");

@@ -160,6 +160,24 @@
   "statusInStock": "متوفر",
   "statusDisabled": "معطل",
 
+  "loginAsLabel": "تسجيل الدخول كـ",
+
+  "loginAsBusiness": "منشأة",
+
+  "loginAsSystemAdmin": "مسؤول النظام",
+
+  "loginSubtitleAdmin": "تسجيل الدخول إلى لوحة إدارة النظام",
+
+  "forgotPassword": "نسيت كلمة المرور؟",
+
+  "forgotPasswordTitle": "استعادة كلمة المرور",
+
+  "forgotPasswordBody": "لأسباب أمنية، لا يمكن إعادة تعيين كلمة المرور من هذه الشاشة. اطلب من مسؤول النظام تعيين كلمة مرور جديدة لحسابك، ثم سجّل الدخول بها وقم بتغييرها من الإعدادات.",
+
+  "forgotPasswordAdminBody": "اطلب من مسؤول نظام آخر إعادة تعيين كلمة المرور. إذا كنت المسؤول الوحيد، فيجب إعادة التعيين على الخادم مباشرة.",
+
+  "forgotPasswordClose": "حسناً",
+
   "fieldName": "الاسم",
   "fieldCode": "الرمز",
   "fieldSku": "رمز الصنف (SKU)",

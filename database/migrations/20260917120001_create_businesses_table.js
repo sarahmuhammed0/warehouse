@@ -43,7 +43,7 @@ export async function up(knex) {
     table.string("tax_number", 100).nullable();
     table.string("registration_number", 100).nullable();
 
-    table.char("currency", 3).notNullable().defaultTo("USD");
+    table.specificType("currency", "CHAR(3)").notNullable().defaultTo("USD");
     table.string("language", 10).notNullable().defaultTo("en");
     table.string("timezone", 64).notNullable().defaultTo("UTC");
 

@@ -103,16 +103,43 @@ export async function login(adapter, { phone: rawPhone, password, ip, userAgent 
   if (adapter.accountType === "business_user") {
     business = await findBusinessById(account.business_id);
     if (!business || business.status !== "active") {
+      // Only `active` gets in. The status tells the owner of a
+      // self-registered business something genuinely useful — whether they
+      // are waiting, or were turned down — and saying "disabled" for all
+      // three is both wrong and unhelpful.
+      //
+      // This is reached only AFTER the password has been verified above, so
+      // it cannot be used to discover which phone numbers have accounts —
+      // the same rule the disabled-account branch follows (§58).
+      const blocked = {
+        pending: {
+          code: "BUSINESS_PENDING_APPROVAL",
+          message: "Your registration is still awaiting approval. You will be able to sign in once it is approved.",
+          audit: "Login blocked: business registration is awaiting approval.",
+        },
+        rejected: {
+          code: "BUSINESS_REJECTED",
+          message: business?.rejection_reason
+            ? `Your registration was not approved: ${business.rejection_reason}`
+            : "Your registration was not approved. Contact the platform administrator.",
+          audit: "Login blocked: business registration was rejected.",
+        },
+      }[business?.status] ?? {
+        code: "BUSINESS_DISABLED",
+        message: "This business account has been disabled.",
+        audit: "Login blocked: business is disabled.",
+      };
+
       await repo.recordLoginAttempt({ accountType: adapter.accountType, phone, success: false, ip });
       await repo.writeAuditLog({
         businessId: account.business_id,
         actorType: adapter.accountType,
         actorId: account.id,
         action: "auth.login_blocked",
-        description: "Login blocked: business is disabled.",
+        description: blocked.audit,
         ip,
       });
-      throw new AppError("BUSINESS_DISABLED", "This business account has been disabled.", 403);
+      throw new AppError(blocked.code, blocked.message, 403);
     }
   }
 

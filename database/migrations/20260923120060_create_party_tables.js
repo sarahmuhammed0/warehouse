@@ -130,7 +130,7 @@ export async function up(knex) {
     table.timestamp("created_at").notNullable().defaultTo(knex.fn.now());
     table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
 
-    table.primary(["supplier_id", "product_id"], { constraintName: "pk_supplier_products" });
+    table.primary(["supplier_id", "product_id"], "pk_supplier_products");
     table.index(["business_id", "product_id"], "idx_supplier_products_product");
   });
 }

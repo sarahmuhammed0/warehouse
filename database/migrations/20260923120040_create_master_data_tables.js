@@ -140,6 +140,17 @@ export async function up(knex) {
     table.string("image_url", 500).nullable();
     table.text("description").nullable();
     table.string("short_description", 500).nullable();
+    // §45 names the soft-delete vocabulary for important records verbatim:
+    // "active / archived / deleted_at". `archived` is therefore the spec's
+    // word and is used as-is.
+    //
+    // DEVIATION (documented): `inactive` is not in the specification. §8 and
+    // §7 both list "Status" as a product/category field without enumerating
+    // its values, and §45's pair cannot express a product that is
+    // temporarily not offered but must still appear in catalogue management
+    // — distinct from archived, which §45 pairs with `deleted_at` for
+    // records withdrawn from every list. Kept as the minimum third value,
+    // not as a redesign of §45's pattern.
     table
       .enu("status", ["active", "inactive", "archived"], {
         useNative: true,
@@ -148,11 +159,35 @@ export async function up(knex) {
       .notNullable()
       .defaultTo("active");
 
+    // DEVIATION (required by implementation): §8's field list has no
+    // "product type". It is added because §21 cannot be implemented without
+    // it — "Raw materials decrease / Finished goods increase" requires
+    // knowing which a product is, and the Phase 3 decision that raw
+    // materials ARE products (one table, one stock ledger) puts both kinds
+    // in this table. The values are §21's own two terms, nothing more.
+    table
+      .enu("product_type", ["finished_good", "raw_material"], {
+        useNative: true,
+        enumName: "product_type_enum",
+      })
+      .notNullable()
+      .defaultTo("finished_good");
+
     // Stock rules (§8, §44). The *levels* are product policy and belong
     // here; the *quantities* are per-location state and do not.
     table.decimal("min_stock", 14, 3).notNullable().defaultTo(0);
     table.decimal("max_stock", 14, 3).nullable();
     table.decimal("reorder_level", 14, 3).notNullable().defaultTo(0);
+
+    // Deliberately NO per-product `allow_negative_stock` column. §47 is
+    // explicit that negative inventory is enabled "only through an explicit
+    // business setting", so the switch lives once in `business_settings`
+    // under `inventory.allow_negative_stock`. A per-product override would
+    // be a second place to say the same thing, and a way to defeat the
+    // business-level rule §47 asks for.
+    //
+    // Deliberately NO `track_inventory` column either: the specification
+    // never mentions untracked or non-stock products.
 
     // Financial information (§8)
     table.decimal("purchase_cost", 14, 2).nullable();
@@ -196,6 +231,24 @@ export async function up(knex) {
     table.index(["business_id", "category_id"], "idx_products_category");
     table.index(["business_id", "name"], "idx_products_name");
   });
+
+  // §54: "Prevent invalid: Negative quantities" / "Invalid prices". These
+  // are stock *policy* levels and money, none of which has a meaning below
+  // zero, and none of which §47's negative-inventory setting applies to —
+  // that setting is about the actual level in `inventory`, not about what a
+  // product's reorder threshold may be. `max_stock` is checked only when
+  // present, since NULL means "no ceiling configured".
+  await knex.raw(`
+    ALTER TABLE products
+      ADD CONSTRAINT ck_products_min_stock_not_negative     CHECK (min_stock >= 0),
+      ADD CONSTRAINT ck_products_reorder_level_not_negative CHECK (reorder_level >= 0),
+      ADD CONSTRAINT ck_products_max_stock_not_negative     CHECK (max_stock IS NULL OR max_stock >= 0),
+      ADD CONSTRAINT ck_products_purchase_cost_not_negative CHECK (purchase_cost IS NULL OR purchase_cost >= 0),
+      ADD CONSTRAINT ck_products_selling_price_not_negative CHECK (selling_price IS NULL OR selling_price >= 0),
+      ADD CONSTRAINT ck_products_wholesale_not_negative     CHECK (wholesale_price IS NULL OR wholesale_price >= 0),
+      ADD CONSTRAINT ck_products_discount_not_negative      CHECK (discount_price IS NULL OR discount_price >= 0),
+      ADD CONSTRAINT ck_products_tax_rate_not_negative      CHECK (tax_rate IS NULL OR tax_rate >= 0)
+  `);
 
   // --------------------------------------------------------------------
   // product_variants — §9.

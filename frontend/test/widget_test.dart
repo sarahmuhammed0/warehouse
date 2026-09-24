@@ -2784,6 +2784,73 @@ void main() {
       expect(repo, isA<ApiAuthRepository>());
     });
 
+    test('backend mode targets the right identity system for each account type', () {
+      // The backend keeps business users and System Admins in separate tables
+      // behind separate routes, so sending an admin's credentials to /auth
+      // can only ever 401 — which is exactly what happened before this was
+      // wired up. These assert the repository carries the account type
+      // through, which is what selects the base path.
+      final client = ApiClient();
+
+      final business = buildAuthRepository(AppMode.backend, client, AccountType.businessUser);
+      expect((business as ApiAuthRepository).accountType, AccountType.businessUser);
+
+      final admin = buildAuthRepository(AppMode.backend, client, AccountType.systemAdmin);
+      expect((admin as ApiAuthRepository).accountType, AccountType.systemAdmin);
+    });
+
+    test('the account type defaults to a business user, and fails safe', () {
+      // A wrong default must ask the ordinary route, never the privileged
+      // one, and must not be sticky across a fresh container.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      expect(container.read(selectedAccountTypeProvider), AccountType.businessUser);
+    });
+
+    test('selecting System Admin swaps the repository to the admin routes', () {
+      // Proves the selector is wired all the way through: choosing an account
+      // type must change which identity system the next login talks to, not
+      // merely which button looks pressed.
+      //
+      // `AppMode.backend` is passed explicitly rather than read from
+      // `AppModeConfig`, because `flutter test` compiles in demo mode — going
+      // through the provider here would only ever build the demo repository
+      // and the assertion would be vacuous.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final client = ApiClient();
+
+      final before = buildAuthRepository(
+        AppMode.backend,
+        client,
+        container.read(selectedAccountTypeProvider),
+      );
+      expect((before as ApiAuthRepository).accountType, AccountType.businessUser);
+
+      container.read(selectedAccountTypeProvider.notifier).select(AccountType.systemAdmin);
+
+      final after = buildAuthRepository(
+        AppMode.backend,
+        client,
+        container.read(selectedAccountTypeProvider),
+      );
+      expect((after as ApiAuthRepository).accountType, AccountType.systemAdmin);
+    });
+
+    test('the account type survives a reload, so an admin session can refresh', () async {
+      // Without persisting it, restoring a stored System Admin session asks
+      // the business-user route to refresh a token it has never seen — the
+      // session silently dies on every page reload.
+      final storage = InMemoryTokenStorage();
+      await storage.saveAccountType(accountTypeToStorage(AccountType.systemAdmin));
+      expect(accountTypeFromStorage(await storage.readAccountType()), AccountType.systemAdmin);
+
+      // And clearing the session must clear it too, so the next login starts
+      // from the safe default rather than inheriting the admin route.
+      await storage.clear();
+      expect(accountTypeFromStorage(await storage.readAccountType()), AccountType.businessUser);
+    });
+
     test('DemoAuthRepository resolves login/refresh/me without any HTTP client', () async {
       // No ApiClient/Dio instance exists anywhere in this test — proves the
       // demo path genuinely never reaches for the network, not just that it

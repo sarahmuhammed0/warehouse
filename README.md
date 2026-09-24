@@ -2,16 +2,29 @@
 
 Multi-tenant Factory / Warehouse / Storage management system.
 
-**Status: Phase 3 — Database + Backend Foundation.** The full operational
-database schema (43 tables) and the shared backend machinery every business
-module will use are in place: transactions, parameterised data access,
-validation, error mapping, pagination, and allowlisted filtering/sorting.
-**No business-module API exists yet** — that is later phases, deliberately.
-The Flutter app therefore still runs in Demo Mode with the backend off,
-exactly as before. Read
+**Status: Phase 3 — Database + Backend Foundation, written but NOT yet
+verified against a live database.** The full operational schema (43 tables
+across 18 migrations) and the shared backend machinery every business module
+will use are written: transactions, parameterised data access, validation,
+error mapping, pagination, and allowlisted filtering/sorting. Unit tests pass
+(67/67) and the frontend is unaffected (`flutter analyze` clean, 139/139
+tests).
+
+**One step is outstanding and it blocks the rest:** the development database
+and its application user have never been provisioned on this machine's MySQL
+instance, so **no migration has ever been applied and the integration tests
+have never run** — see "Database" below for the command to fix that, which
+has to be typed by a human because it prompts for the MySQL administrator
+password.
+
+**No business-module API exists yet** — no products, categories, inventory,
+sales, orders, customers, suppliers, purchases, returns, production, reports
+or PDF endpoints, and no RBAC enforcement. Those are later phases,
+deliberately. The Flutter app therefore still runs in Demo Mode with the
+backend off, exactly as before. Read
 [`docs/backend-phase3.md`](docs/backend-phase3.md) for the design and
-[`docs/phase3-traceability.md`](docs/phase3-traceability.md) for what is
-verified versus what still needs a live database.
+[`docs/phase3-traceability.md`](docs/phase3-traceability.md) for exactly what
+is verified versus what still needs a live database.
 
 **Previously: frontend-first phase — the full business-module UI is built.**
 Backend development is deliberately paused this phase (per explicit
@@ -101,22 +114,31 @@ exact provisioning SQL used and the **current honest verification status**.
 Phase 3 added the full operational schema — 43 tables across 18 migrations —
 and a repeatable way to finish provisioning:
 
+Run these **in a real terminal window** — `db:provision` reads its password
+from the TTY and will refuse to run through a pipe or a tool that captures
+output:
+
 ```bash
 cd backend
 npm run db:provision   # prompts for the MySQL administrator password (hidden,
                        # never logged or written to disk); reads everything else
                        # from .env, and grants the app user only what it needs
 npm run migrate
+npm run migrate:status
 npm run db:verify      # read-only: prints the server's own version, engine,
                        # charset, grants and every table
+npm run test:integration
 ```
 
-**As of this phase the app database user still cannot connect**
-(`ER_ACCESS_DENIED_ERROR`), because the database and user have never been
-provisioned on this MySQL instance. Migrations and integration tests are
-therefore validated statically only, not run live — see
+**The app database user still cannot connect** (`ER_ACCESS_DENIED_ERROR`),
+because the database and user have never been provisioned on this MySQL
+instance — the MySQL 8 server itself is up and verified on 3307, only the
+schema and the user are missing. So **migrations have never been applied and
+the integration tests have never executed** (0 passed, 22 skipped, 0
+failed — skipped is not passed). Everything about the schema is validated
+statically only. See
 [`docs/phase3-traceability.md`](docs/phase3-traceability.md)'s "Live
-verification status" for the exact breakdown. Read
+verification status" for the per-check breakdown. Read
 [`docs/backend-phase3.md`](docs/backend-phase3.md) before changing the
 schema.
 
@@ -132,6 +154,11 @@ schema.
 | `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Token lifetimes (`15m` / `30d` in dev) |
 | `BCRYPT_SALT_ROUNDS` | Password hashing cost factor (`12`) |
 | `SEED_ADMIN_PHONE` / `SEED_ADMIN_PASSWORD` / `SEED_ADMIN_NAME` | Optional — bootstraps exactly one System Admin via `npm run seed`; no hardcoded credentials, no-ops if unset |
+| `MYSQL_ADMIN_USER` / `MYSQL_ADMIN_SSL` | Optional, used only by `npm run db:provision` (defaults: `root`, off). **There is deliberately no `MYSQL_ADMIN_PASSWORD`** — the administrator password is typed at a hidden prompt and never stored; see [`docs/environment.md`](docs/environment.md)'s "The one documented exception" |
+
+Every variable above is declared in `backend/src/config/env.js`, which is the
+only file in the project that reads `process.env` — the app, `knexfile.js`,
+both `backend/scripts/`, and the System Admin seed all import `env` from it.
 
 Root `.env` (git-ignored; copy from root `.env.example`) is read only by
 `docker-compose.yml`, for machines using the Docker path.

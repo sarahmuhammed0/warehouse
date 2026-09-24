@@ -27,8 +27,25 @@ reconfigured, queried or connected to. `docs/environment.md` covers the
 isolation policy; nothing in this phase changed it.
 
 Everything above comes from `backend/.env`, read through
-`backend/src/config/env.js`. Nothing in the codebase reads `process.env`
-directly outside that file, so "which database" has one answer.
+`backend/src/config/env.js`, so "which database" has one answer.
+
+`env.js` is the only file in the project that reads `process.env`. That was
+stated before it was true: `knexfile.js` had its own copy of the five `DB_*`
+names and defaults, `db-provision.mjs` read `MYSQL_ADMIN_*` on its own, and
+the System Admin seed read `SEED_ADMIN_*` plus its own
+`BCRYPT_SALT_ROUNDS`. A second set of names and defaults is exactly the
+drift this rule exists to prevent — the seed could have hashed at a
+different cost factor than the login path verifies with — so all three now
+import `env`, and the claim is enforceable by `grep -rn "process\.env"`.
+
+**The one documented exception: the administrator password.** `env.provisioning`
+holds only `adminUser` and `useSsl`, both non-secret. The administrator
+password is deliberately *not* configuration and must not be added to it: it
+is read from a hidden terminal prompt at the moment it is needed, lives in
+one local variable for the life of that process, and never reaches `.env`,
+the `env` object, a log, or shell history. `env.seed` is a second, narrower
+exception in the other direction — it is declared in `env.js` for naming
+consistency, but only `npm run seed` reads it; the application never does.
 
 ### Provisioning
 
@@ -280,6 +297,9 @@ and belong to the module phases; the schema provides the vocabulary.
 | `production_orders.status` | planned, in_progress, completed, cancelled | §22 |
 | `stock_transfers.status` | draft, pending, in_transit, completed, cancelled | §11 |
 | `purchases.status` | draft, pending, completed, cancelled | §20 |
+| `products.status` | active, inactive, discontinued | §8 |
+| `products.product_type` | finished_good, raw_material, component | §21 |
+| `categories.status` | active, inactive | §7 |
 | `businesses.status`, `users.status` | active, disabled | §2/§3 |
 | `inventory_movements.movement_type` | purchase, sale, return, damage, adjustment, transfer, production, manual_increase, manual_decrease | §12 |
 | `payments.method` | cash, bank_transfer, card, other | §13 |

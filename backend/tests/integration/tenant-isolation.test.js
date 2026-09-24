@@ -8,7 +8,8 @@
 // future tenant-scoped module will be built on
 // (`req.auth.businessId`/`requireAccountType`).
 
-import { test } from "node:test";
+import { test, after } from "node:test";
+import { closePool } from "../../src/db/pool.js";
 import assert from "node:assert/strict";
 import request from "supertest";
 import jwt from "jsonwebtoken";
@@ -117,4 +118,12 @@ test("Multi-tenant isolation", async (t) => {
   await t.test("sanity: env.auth.jwtSecret is actually configured for this test run", () => {
     assert.ok(env.auth.jwtSecret && env.auth.jwtSecret.length > 0);
   });
+});
+
+// Close the shared pool once this file's tests are done, or `node --test`
+// never exits: an open mysql2 pool keeps the event loop alive. This was
+// invisible while the database was unreachable, because every test skipped
+// before opening a connection.
+after(async () => {
+  await closePool();
 });

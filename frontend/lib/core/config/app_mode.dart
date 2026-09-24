@@ -25,3 +25,9 @@ class AppModeConfig {
   static bool get isDemo => mode == AppMode.demo;
   static bool get isBackend => mode == AppMode.backend;
 }
+
+// A `LOGIN_AS` compile-time flag briefly lived here to make the System Admin
+// route reachable in backend mode. It was replaced by the login screen's own
+// account-type selector (`selectedAccountTypeProvider`) — a hidden mode that
+// can only be chosen by relaunching the app is not usable, and the person
+// signing in is the only one who knows which account type they hold.

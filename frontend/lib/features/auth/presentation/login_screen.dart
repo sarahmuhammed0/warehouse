@@ -11,6 +11,7 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_radius.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_typography.dart';
+import '../data/auth_models.dart';
 import '../data/demo_auth_repository.dart';
 import 'providers/auth_controller.dart';
 import 'providers/auth_state.dart';
@@ -59,12 +60,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.read(authControllerProvider.notifier).login(phone: phone, password: kDemoPassword);
   }
 
+  /// §4 requires a "Forgot password" affordance. §2 makes resetting passwords
+  /// a System Admin responsibility and the specification describes no
+  /// self-service reset — there is no email column on a user and no SMS
+  /// channel — so this explains the real recovery route instead of pretending
+  /// to send something.
+  ///
+  /// §58: the text is identical whatever was typed in the phone field, and
+  /// nothing is sent to the server, so this cannot reveal whether an account
+  /// exists.
+  void _showForgotPassword() {
+    final l10n = AppLocalizations.of(context)!;
+    final isAdmin = ref.read(selectedAccountTypeProvider) == AccountType.systemAdmin;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('forgotPasswordDialog'),
+        title: Text(l10n.forgotPasswordTitle, style: AppTypography.cardTitle),
+        content: Text(
+          isAdmin ? l10n.forgotPasswordAdminBody : l10n.forgotPasswordBody,
+          style: AppTypography.body.copyWith(color: context.colors.textSecondary),
+        ),
+        actions: [
+          AppButton(
+            label: l10n.forgotPasswordClose,
+            variant: AppButtonVariant.text,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context)!;
     final authState = ref.watch(authControllerProvider);
     final isAuthenticating = authState is AuthAuthenticating;
+    final accountType = ref.watch(selectedAccountTypeProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -78,7 +112,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: AppSpacing.lg,
               children: [
-                _Branding(colors: colors, l10n: l10n),
+                _Branding(
+                  colors: colors,
+                  l10n: l10n,
+                  // The subtitle is the confirmation of which identity system
+                  // is selected. Without it the only signal is which of two
+                  // buttons is filled, which is easy to miss — and the cost
+                  // of missing it is a 401 that looks like a wrong password.
+                  subtitle: AppModeConfig.isBackend && accountType == AccountType.systemAdmin
+                      ? l10n.loginSubtitleAdmin
+                      : l10n.loginSubtitle,
+                ),
                 if (authState is AuthSessionExpired)
                   _Banner(message: l10n.sessionExpiredMessage, tone: _BannerTone.info),
                 if (AppModeConfig.isDemo)
@@ -107,6 +151,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: AppSpacing.md,
                       children: [
+                        // Only in backend mode: the two account types are two
+                        // separate backend routes. In demo mode the demo card
+                        // above already offers both, and DemoAuthRepository
+                        // picks by phone number, so a selector here would be
+                        // a control that changes nothing.
+                        if (AppModeConfig.isBackend)
+                          _AccountTypeSelector(
+                            l10n: l10n,
+                            selected: accountType,
+                            enabled: !isAuthenticating,
+                            onChanged: (type) {
+                              ref.read(authControllerProvider.notifier).clearError();
+                              ref.read(selectedAccountTypeProvider.notifier).select(type);
+                            },
+                          ),
                         AppTextField(
                           label: l10n.phoneNumber,
                           controller: _phoneController,
@@ -130,6 +189,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           onPressed: isAuthenticating ? null : _submit,
                           loading: isAuthenticating,
                           expand: true,
+                        ),
+                        // §4 lists "Forgot password" among the login screen's
+                        // elements. Placed after the button so it cannot be
+                        // mistaken for the primary action.
+                        Align(
+                          alignment: AlignmentDirectional.center,
+                          child: AppButton(
+                            key: const ValueKey('forgotPasswordLink'),
+                            label: l10n.forgotPassword,
+                            variant: AppButtonVariant.text,
+                            size: AppButtonSize.small,
+                            onPressed: isAuthenticating ? null : _showForgotPassword,
+                          ),
                         ),
                       ],
                     ),
@@ -251,10 +323,75 @@ class _DemoModeCardState extends State<_DemoModeCard> {
   }
 }
 
+/// Business vs System Admin. Built from the existing `AppButton` rather than
+/// a new segmented-control widget, so it introduces no visual language of its
+/// own: the chosen side is a filled primary button, the other an outline —
+/// the same pairing used elsewhere in the app.
+///
+/// This exists because the backend keeps the two account types in separate
+/// tables behind separate routes, so the client must send credentials to one
+/// or the other. Sending an admin's phone to the business route can only
+/// ever return 401.
+class _AccountTypeSelector extends StatelessWidget {
+  const _AccountTypeSelector({
+    required this.l10n,
+    required this.selected,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final AppLocalizations l10n;
+  final AccountType selected;
+  final bool enabled;
+  final ValueChanged<AccountType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final isBusiness = selected == AccountType.businessUser;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: AppSpacing.xs,
+      children: [
+        Text(l10n.loginAsLabel, style: AppTypography.label.copyWith(color: colors.textSecondary)),
+        Row(
+          spacing: AppSpacing.sm,
+          children: [
+            Expanded(
+              child: AppButton(
+                key: const ValueKey('loginAsBusiness'),
+                label: l10n.loginAsBusiness,
+                icon: Icons.storefront_outlined,
+                variant: isBusiness ? AppButtonVariant.primary : AppButtonVariant.outline,
+                size: AppButtonSize.small,
+                expand: true,
+                onPressed: enabled ? () => onChanged(AccountType.businessUser) : null,
+              ),
+            ),
+            Expanded(
+              child: AppButton(
+                key: const ValueKey('loginAsSystemAdmin'),
+                label: l10n.loginAsSystemAdmin,
+                icon: Icons.admin_panel_settings_outlined,
+                variant: isBusiness ? AppButtonVariant.outline : AppButtonVariant.primary,
+                size: AppButtonSize.small,
+                expand: true,
+                onPressed: enabled ? () => onChanged(AccountType.systemAdmin) : null,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _Branding extends StatelessWidget {
-  const _Branding({required this.colors, required this.l10n});
+  const _Branding({required this.colors, required this.l10n, required this.subtitle});
   final AppColors colors;
   final AppLocalizations l10n;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -269,7 +406,12 @@ class _Branding extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(l10n.loginTitle, style: AppTypography.pageTitle.copyWith(color: colors.textPrimary)),
-        Text(l10n.loginSubtitle, style: AppTypography.body.copyWith(color: colors.textMuted)),
+        Text(
+          subtitle,
+          key: const ValueKey('loginSubtitle'),
+          textAlign: TextAlign.center,
+          style: AppTypography.body.copyWith(color: colors.textMuted),
+        ),
       ],
     );
   }

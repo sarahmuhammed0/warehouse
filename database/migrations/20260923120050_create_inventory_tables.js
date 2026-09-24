@@ -98,13 +98,20 @@ export async function up(knex) {
       ADD UNIQUE KEY uq_inventory_slot (product_id, variant_key, warehouse_id, location_key)
   `);
 
-  // §47: stock must not go negative unless the business opts in, and
-  // reserved stock can never exceed what is physically present. Enforced by
-  // the database as well as the service, because §35's "never trust the
-  // frontend" applies just as much to a bug in our own service layer. The
-  // opt-in for negative stock is a business setting, and a business that
-  // enables it does so through a service path that clamps at zero rather
-  // than by removing this constraint.
+  // §54 forbids negative quantities; §47 permits negative *inventory*, but
+  // "only through an explicit business setting". Those two only reconcile if
+  // the level and the constraint are separated:
+  //
+  //   reserved_quantity  — CHECK >= 0 here. Reserving a negative amount is
+  //                        meaningless under any business setting.
+  //   quantity           — deliberately NOT constrained in the database.
+  //                        A CHECK (quantity >= 0) would make §47's setting
+  //                        impossible to honour: no service code could ever
+  //                        write the negative level the business enabled.
+  //                        The non-negative rule is therefore enforced in
+  //                        the stock service, which is the only layer that
+  //                        can read `inventory.allow_negative_stock` and
+  //                        decide. It refuses by default.
   await knex.raw(`
     ALTER TABLE inventory
       ADD CONSTRAINT ck_inventory_reserved_not_negative CHECK (reserved_quantity >= 0)
@@ -210,6 +217,22 @@ export async function up(knex) {
     // "what did this order do to stock" — the audit trail from a document.
     table.index(["reference_type", "reference_id"], "idx_movements_reference");
   });
+
+  // §54: "Prevent invalid: Negative quantities". A movement's quantity is a
+  // magnitude — §12's `movement_type` already carries the direction
+  // (purchase/return/manual_increase add; sale/damage/manual_decrease
+  // subtract), and `quantity_before`/`quantity_after` record the effect.
+  // Allowing a negative magnitude would let the same movement be expressed
+  // two ways, which makes the ledger impossible to sum reliably. Zero is
+  // refused too: a movement that changes nothing is not a movement.
+  //
+  // `quantity_before`/`quantity_after` are deliberately unconstrained —
+  // they are observations of the level, which §47 allows to be negative
+  // when the business has enabled it.
+  await knex.raw(`
+    ALTER TABLE inventory_movements
+      ADD CONSTRAINT ck_movement_quantity_positive CHECK (quantity > 0)
+  `);
 
   // --------------------------------------------------------------------
   // stock_transfers / stock_transfer_items — §11's location-to-location

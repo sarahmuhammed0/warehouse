@@ -5,18 +5,20 @@
 // file exists solely so `npx knex migrate:*` has somewhere to read
 // connection settings and the migrations directory from.
 //
-// Reads the same environment variables as the app itself (backend/.env) —
-// one source of truth for "which database," never a second, hand-typed
-// connection string.
+// Reads its connection settings from the app's own config module
+// (`src/config/env.js`), not from `process.env` directly — one source of
+// truth for "which database," never a second, hand-typed connection string,
+// and no second set of env-var names and defaults to drift out of step with
+// the first. `env.js` loads `backend/.env` itself.
 
-import "dotenv/config";
+import { env } from "./src/config/env.js";
 
 const connection = {
-  host: process.env.DB_HOST || "127.0.0.1",
-  port: Number(process.env.DB_PORT) || 3307,
-  database: process.env.DB_NAME || "warehouse_os_dev",
-  user: process.env.DB_USER || "warehouse_app",
-  password: process.env.DB_PASSWORD || "",
+  host: env.db.host,
+  port: env.db.port,
+  database: env.db.database,
+  user: env.db.user,
+  password: env.db.password,
 };
 
 /** @type {import('knex').Knex.Config} */

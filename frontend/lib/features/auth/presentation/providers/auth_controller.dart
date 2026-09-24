@@ -16,17 +16,55 @@ import 'auth_state.dart';
 /// test/widget_test.dart's "Demo/backend mode selection" group).
 AuthRepository buildAuthRepository(AppMode mode, ApiClient client, AccountType accountType) {
   return switch (mode) {
-    // Business-user login only in backend mode — Phase 2's Flutter UI
-    // deliberately doesn't build a separate System Admin login screen (see
-    // docs/authentication.md "Flutter scope"); the backend fully supports
-    // it, this just never points at AccountType.systemAdmin in this phase.
+    // `accountType` picks which of the backend's two identity systems to
+    // talk to — business users and System Admins live in separate tables
+    // behind separate routes, so there is no endpoint that accepts both.
+    // See docs/authentication.md "Flutter scope".
     AppMode.backend => ApiAuthRepository(client, accountType: accountType),
     AppMode.demo => DemoAuthRepository(),
   };
 }
 
+/// Which identity system the next login (and the current session's refresh
+/// and logout) talks to. A runtime choice because the login screen offers
+/// it — §4's login screen belongs to a business, and the two account types
+/// live in separate backend tables behind separate routes, so something has
+/// to pick one and only the person signing in knows which they are.
+///
+/// Defaults to a business user: that is the overwhelmingly common case, and
+/// a wrong default must fail safe by asking the ordinary route rather than
+/// the privileged one.
+///
+/// Restored from storage on startup by `AuthController._restoreSession` —
+/// see `TokenStorage.saveAccountType` for why a reload would otherwise log
+/// a System Admin straight back out.
+class SelectedAccountType extends Notifier<AccountType> {
+  @override
+  AccountType build() => AccountType.businessUser;
+
+  void select(AccountType type) => state = type;
+}
+
+final selectedAccountTypeProvider =
+    NotifierProvider<SelectedAccountType, AccountType>(SelectedAccountType.new);
+
+/// Serializes [AccountType] for [TokenStorage], which is core-layer and must
+/// not import a feature's models. Kept next to the enum's only two users so
+/// the two halves cannot drift.
+String accountTypeToStorage(AccountType type) =>
+    type == AccountType.systemAdmin ? 'system_admin' : 'business_user';
+
+AccountType accountTypeFromStorage(String? raw) =>
+    raw == 'system_admin' ? AccountType.systemAdmin : AccountType.businessUser;
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return buildAuthRepository(AppModeConfig.mode, ref.watch(apiClientProvider), AccountType.businessUser);
+  return buildAuthRepository(
+    AppModeConfig.mode,
+    ref.watch(apiClientProvider),
+    // Ignored in demo mode, where the demo repository recognises the admin
+    // identity from the phone number it is given and switches by itself.
+    ref.watch(selectedAccountTypeProvider),
+  );
 });
 
 final secureTokenStorageProvider = Provider<TokenStorage>((ref) => SecureTokenStorage());
@@ -56,6 +94,13 @@ class AuthController extends Notifier<AuthState> {
       state = const AuthUnauthenticated();
       return;
     }
+    // Point the repository at the identity system this stored session
+    // actually belongs to, BEFORE `_repo` is read below. Skipping this asks
+    // the business-user route to refresh a System Admin's token, which
+    // fails and silently logs them out on every reload.
+    ref
+        .read(selectedAccountTypeProvider.notifier)
+        .select(accountTypeFromStorage(await _storage.readAccountType()));
     try {
       final tokens = await _repo.refresh(refreshToken);
       await _storage.save(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken);
@@ -72,6 +117,9 @@ class AuthController extends Notifier<AuthState> {
     try {
       final session = await _repo.login(phone: phone, password: password);
       await _storage.save(accessToken: session.accessToken, refreshToken: session.refreshToken);
+      // Remember which identity system this session came from, so a reload
+      // refreshes it against the same one.
+      await _storage.saveAccountType(accountTypeToStorage(ref.read(selectedAccountTypeProvider)));
       state = AuthAuthenticated(account: session.account, business: session.business);
     } on Failure catch (e) {
       state = AuthError(e.message);

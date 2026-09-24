@@ -214,12 +214,22 @@ Each is explained at length in `backend-phase3.md`; flagged here so nobody
 |---|---|
 | Every migration parses (`node --check`) | ✅ all 18 clean |
 | Backend unit tests (67, of which 29 are new this phase) | ✅ 67/67 passing, no database needed |
-| Schema integrity against a live database (`schema.integrity.test.js` — 43 tables, engine/charset, tenant columns, soft-delete vs. append-only, no FLOAT/DOUBLE, unique + named indexes, audit fields) | 🟡 written; skips cleanly when the database is unreachable |
-| Transaction rollback against a live database (`transaction.rollback.test.js`) | 🟡 same |
-| `npm run migrate` actually run | ❌ not yet — `warehouse_app` still gets `ER_ACCESS_DENIED_ERROR`; the database and user have never been provisioned on this instance |
-| `npm run migrate:rollback` / `migrate:status` | ❌ blocked by the above |
-| `npm run db:verify` | ❌ blocked by the above |
+| MySQL 8 server reachable on 3307 | ✅ PID-verified `mysqld`, `MySQL80` service |
+| Schema integrity against a live database (`schema.integrity.test.js` — 43 tables, engine/charset, tenant columns, soft-delete vs. append-only, no FLOAT/DOUBLE, unique + named indexes, audit fields) | ❌ **not verified** — 0 passed, skipped because the database is unreachable |
+| Transaction rollback against a live database (`transaction.rollback.test.js`) | ❌ **not verified** — same |
+| `npm run migrate` actually run | ❌ **not run** — `warehouse_app` gets `ER_ACCESS_DENIED_ERROR`; the database and user have never been provisioned on this instance |
+| `npm run migrate:status` | ❌ **attempted, fails at connection** — proves `knexfile.js` loads its config, nothing about the migrations |
+| `npm run migrate:rollback` | ❌ **not run** — blocked |
+| `npm run db:verify` | ❌ **attempted, fails at connection** |
 
-Phase 3 added `npm run db:provision` specifically to close this out — see
-`docs/environment.md`'s Phase 3 update. Nothing above is reported as
-verified against a live database, because none of it has been.
+**Not one statement about this schema has been checked against a running
+MySQL server.** The 43 tables, the engine and collation, every foreign key,
+tenant column, index, CHECK constraint and grant listed above are what the
+migrations are *written* to produce; whether MySQL accepts them is unknown
+until `npm run migrate` runs. Treat this section's ❌ rows as the honest
+state of the phase, not as pessimism.
+
+`npm run db:provision` exists to close this out and is the only blocking
+step — it needs the MySQL administrator password typed at its hidden prompt
+in a real terminal. See `docs/environment.md`'s Phase 3 update and
+`docs/phase3-traceability.md`'s "The one blocking step".

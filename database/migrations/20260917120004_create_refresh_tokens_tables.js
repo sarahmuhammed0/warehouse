@@ -17,7 +17,7 @@ export async function up(knex) {
   await knex.schema.createTable("refresh_tokens", (table) => {
     table.bigIncrements("id").unsigned().primary();
     table.bigInteger("user_id").unsigned().notNullable().references("id").inTable("users").onDelete("CASCADE");
-    table.char("token_hash", 64).notNullable();
+    table.specificType("token_hash", "CHAR(64)").notNullable();
     table.timestamp("expires_at").notNullable();
     table.timestamp("revoked_at").nullable();
     table
@@ -44,7 +44,7 @@ export async function up(knex) {
       .references("id")
       .inTable("system_admins")
       .onDelete("CASCADE");
-    table.char("token_hash", 64).notNullable();
+    table.specificType("token_hash", "CHAR(64)").notNullable();
     table.timestamp("expires_at").notNullable();
     table.timestamp("revoked_at").nullable();
     table
