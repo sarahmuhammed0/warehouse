@@ -11,6 +11,8 @@ import { categoriesRouter } from "../modules/categories/routes.js";
 import { warehousesRouter, storageLocationsRouter } from "../modules/locations/routes.js";
 import { productsRouter } from "../modules/products/routes.js";
 import { inventoryRouter } from "../modules/inventory/routes.js";
+import { customersRouter, suppliersRouter } from "../modules/parties/routes.js";
+import { ordersRouter } from "../modules/orders/routes.js";
 
 export const apiRouter = Router();
 
@@ -27,3 +29,6 @@ apiRouter.use("/warehouses", warehousesRouter);
 apiRouter.use("/storage-locations", storageLocationsRouter);
 apiRouter.use("/products", productsRouter);
 apiRouter.use("/inventory", inventoryRouter);
+apiRouter.use("/customers", customersRouter);
+apiRouter.use("/suppliers", suppliersRouter);
+apiRouter.use("/orders", ordersRouter);
