@@ -71,6 +71,18 @@ export async function cleanupTestData({ businessIds = [], userIds = [], adminIds
   }
   if (businessIds.length) {
     await pool.query(`DELETE FROM audit_logs WHERE business_id IN (?)`, [businessIds]);
+    // Roles must go before the business: `roles.business_id` is RESTRICT,
+    // deliberately, because production soft-deletes businesses and never
+    // hard-deletes them. Only these tests remove one for real, so only
+    // these tests have to unpick it. `role_permissions` cascades from
+    // `roles`, and users (which reference a role) are already gone above.
+    await pool.query(
+      `DELETE rp FROM role_permissions rp
+         JOIN roles r ON r.id = rp.role_id
+        WHERE r.business_id IN (?)`,
+      [businessIds]
+    );
+    await pool.query(`DELETE FROM roles WHERE business_id IN (?)`, [businessIds]);
     await pool.query(`DELETE FROM businesses WHERE id IN (?)`, [businessIds]);
   }
 }

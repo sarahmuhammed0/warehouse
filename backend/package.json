@@ -17,7 +17,8 @@
     "seed": "knex seed:run",
     "migrate:make": "knex migrate:make",
     "db:provision": "node scripts/db-provision.mjs",
-    "db:verify": "node scripts/db-verify.mjs"
+    "db:verify": "node scripts/db-verify.mjs",
+    "rbac:backfill": "node scripts/rbac-backfill.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -1,5 +1,6 @@
 import { pool, runInTransaction, queryAll, queryCount } from "../../db/pool.js";
 import { defineListSpec, buildWhere, buildOrderBy } from "../../db/listQuery.js";
+import { createDefaultRoles, findOwnerRoleId } from "../rbac/repository.js";
 
 /**
  * The admin's business list, including the registration queue. Column names
@@ -75,15 +76,21 @@ export async function createBusinessWithOwner({ business, owner, status = "activ
     );
     const businessId = businessResult.insertId;
 
+    // §23's default roles, in the SAME transaction as the business. A
+    // business without roles is a business whose users can do nothing, and a
+    // crash between the two would produce exactly that.
+    await createDefaultRoles(conn, businessId);
+    const ownerRoleId = await findOwnerRoleId(conn, businessId);
+
     // The owner account is created active even for a `pending` business: it
     // is the business that is awaiting a decision, not the person. Login
     // checks both, so a pending business cannot get in either way — and
     // keeping them separate means approving does not have to hunt down and
     // re-activate user rows.
     const [userResult] = await conn.query(
-      `INSERT INTO users (business_id, name, phone, password_hash, is_owner, status)
-       VALUES (?, ?, ?, ?, TRUE, 'active')`,
-      [businessId, owner.name, owner.phone, owner.passwordHash]
+      `INSERT INTO users (business_id, name, phone, password_hash, is_owner, role_id, status)
+       VALUES (?, ?, ?, ?, TRUE, ?, 'active')`,
+      [businessId, owner.name, owner.phone, owner.passwordHash, ownerRoleId]
     );
 
     return { businessId, ownerId: userResult.insertId };
