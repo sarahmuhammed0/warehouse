@@ -77,6 +77,13 @@ class AppRoutes {
   // System Admin (separate shell — architecture §56/§57)
   static const adminDashboard = '/admin';
   static const adminBusinesses = '/admin/businesses';
+
+  /// §2's approval queue for business self-registrations.
+  static const adminRegistrations = '/admin/registrations';
+
+  /// §2's administrator-created business. Created active, so it never
+  /// appears in the approval queue.
+  static const adminBusinessCreate = '/admin/businesses/new';
   static String adminBusinessDetail(String id) => '/admin/businesses/$id';
 
   // Spec §57's business controls. Edit and Reports are screens of their own
@@ -117,4 +124,10 @@ class AppRoutes {
   // has somewhere to send an unauthenticated user without touching this
   // file again.
   static const login = '/login';
+
+  /// Public business self-registration (§2's account creation, initiated by
+  /// the applicant instead of the administrator). Public for the same reason
+  /// as [login]: someone who has no account cannot authenticate to ask for
+  /// one. It grants nothing — the backend creates the business `pending`.
+  static const signUp = '/signup';
 }

@@ -171,6 +171,62 @@
   "statusInStock": "In Stock",
   "statusDisabled": "Disabled",
 
+  "adminCreateBusiness": "Create business",
+
+  "adminCreateBusinessSubtitle": "The business is active immediately — creating it here is the approval",
+
+  "adminBusinessCreated": "Business created. The owner can sign in now.",
+
+  "navRegistrations": "Registrations",
+
+  "registrationsTitle": "Business registrations",
+
+  "registrationsSubtitle": "Applications awaiting a decision",
+
+  "registrationsEmpty": "No applications are waiting for a decision.",
+
+  "registrationApprove": "Approve",
+
+  "registrationReject": "Reject",
+
+  "registrationRejectTitle": "Reject this application",
+
+  "registrationRejectReason": "Reason",
+
+  "registrationRejectHint": "Shown to the applicant when they try to sign in",
+
+  "registrationApproved": "Approved. This business can now sign in.",
+
+  "registrationRejected": "Rejected.",
+
+  "registrationSubmittedOn": "Applied",
+
+  "registrationOwner": "Owner",
+
+  "signUpLink": "Register a new business",
+
+  "signUpTitle": "Register your business",
+
+  "signUpSubtitle": "An administrator reviews every application before access is granted",
+
+  "signUpBusinessSection": "Business details",
+
+  "signUpOwnerSection": "Owner account",
+
+  "signUpFieldBusinessName": "Business name",
+
+  "signUpFieldOwnerName": "Owner full name",
+
+  "signUpSubmit": "Submit application",
+
+  "signUpBackToLogin": "Back to sign in",
+
+  "signUpPendingTitle": "Application received",
+
+  "signUpPasswordHint": "At least 8 characters",
+
+  "signUpPasswordTooShort": "Password must be at least 8 characters.",
+
   "loginAsLabel": "Sign in as",
 
   "loginAsBusiness": "Business",

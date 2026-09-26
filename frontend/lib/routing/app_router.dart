@@ -13,6 +13,9 @@ import '../features/admin/presentation/admin_metric.dart';
 import '../features/admin/presentation/admin_overview_screen.dart';
 import '../features/admin/presentation/admin_record_detail_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/admin/presentation/admin_business_create_screen.dart';
+import '../features/admin/presentation/admin_registrations_screen.dart';
+import '../features/auth/presentation/signup_screen.dart';
 import '../features/auth/presentation/providers/auth_controller.dart';
 import '../features/auth/presentation/providers/auth_state.dart';
 import '../features/categories/categories_screen.dart' show CategoriesScreen;
@@ -78,6 +81,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => _redirect(ref, state),
     routes: [
       GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
+      GoRoute(path: AppRoutes.signUp, builder: (context, state) => const SignUpScreen()),
       GoRoute(path: AppRoutes.systemStatus, builder: (context, state) => const SystemStatusScreen()),
 
       ShellRoute(
@@ -171,6 +175,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
         routes: [
           GoRoute(path: AppRoutes.adminDashboard, builder: (context, state) => const AdminDashboardScreen()),
+          GoRoute(path: AppRoutes.adminRegistrations, builder: (context, state) => const AdminRegistrationsScreen()),
+          // Declared before the /:id detail route, or "/new" is matched as a business id.
+          GoRoute(path: AppRoutes.adminBusinessCreate, builder: (context, state) => const AdminBusinessCreateScreen()),
           GoRoute(path: AppRoutes.adminBusinesses, builder: (context, state) => const AdminBusinessesScreen()),
           GoRoute(
             path: '/admin/businesses/:id',
@@ -234,7 +241,10 @@ String? _redirect(Ref ref, GoRouterState state) {
   final authState = ref.read(authControllerProvider);
   final location = state.matchedLocation;
   final isAdminRoute = location.startsWith('/admin');
-  final isPublicRoute = location == AppRoutes.login || location == AppRoutes.systemStatus;
+  // Sign-up is public for the same reason login is: an applicant has no
+  // account yet, so it cannot require one. It grants no access.
+  final isPublicRoute =
+      location == AppRoutes.login || location == AppRoutes.signUp || location == AppRoutes.systemStatus;
 
   // Session restore hasn't resolved yet — don't redirect either way. The
   // router's `initialLocation` is the login screen specifically so this

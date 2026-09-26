@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart' hide required;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_mode.dart';
 import '../../../core/validation/validators.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../routing/app_routes.dart';
 import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/forms/app_text_field.dart';
@@ -203,6 +205,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onPressed: isAuthenticating ? null : _showForgotPassword,
                           ),
                         ),
+                        // Only offered to a business: a System Admin account
+                        // is never self-registered, so showing this while
+                        // the admin side is selected would invite an
+                        // application that can never be granted.
+                        if (accountType == AccountType.businessUser)
+                          Align(
+                            alignment: AlignmentDirectional.center,
+                            child: AppButton(
+                              key: const ValueKey('signUpLink'),
+                              label: l10n.signUpLink,
+                              variant: AppButtonVariant.text,
+                              size: AppButtonSize.small,
+                              onPressed: isAuthenticating ? null : () => context.go(AppRoutes.signUp),
+                            ),
+                          ),
                       ],
                     ),
                   ),

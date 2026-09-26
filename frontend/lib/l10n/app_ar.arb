@@ -160,6 +160,62 @@
   "statusInStock": "متوفر",
   "statusDisabled": "معطل",
 
+  "adminCreateBusiness": "إنشاء منشأة",
+
+  "adminCreateBusinessSubtitle": "تُصبح المنشأة نشطة فوراً — إنشاؤها هنا هو الموافقة",
+
+  "adminBusinessCreated": "تم إنشاء المنشأة. يمكن للمالك تسجيل الدخول الآن.",
+
+  "navRegistrations": "طلبات التسجيل",
+
+  "registrationsTitle": "طلبات تسجيل المنشآت",
+
+  "registrationsSubtitle": "طلبات بانتظار القرار",
+
+  "registrationsEmpty": "لا توجد طلبات بانتظار القرار.",
+
+  "registrationApprove": "موافقة",
+
+  "registrationReject": "رفض",
+
+  "registrationRejectTitle": "رفض هذا الطلب",
+
+  "registrationRejectReason": "السبب",
+
+  "registrationRejectHint": "يظهر لمقدّم الطلب عند محاولة تسجيل الدخول",
+
+  "registrationApproved": "تمت الموافقة. يمكن لهذه المنشأة تسجيل الدخول الآن.",
+
+  "registrationRejected": "تم الرفض.",
+
+  "registrationSubmittedOn": "تاريخ الطلب",
+
+  "registrationOwner": "المالك",
+
+  "signUpLink": "تسجيل منشأة جديدة",
+
+  "signUpTitle": "سجّل منشأتك",
+
+  "signUpSubtitle": "يراجع المسؤول كل طلب قبل منح الوصول",
+
+  "signUpBusinessSection": "بيانات المنشأة",
+
+  "signUpOwnerSection": "حساب المالك",
+
+  "signUpFieldBusinessName": "اسم المنشأة",
+
+  "signUpFieldOwnerName": "الاسم الكامل للمالك",
+
+  "signUpSubmit": "إرسال الطلب",
+
+  "signUpBackToLogin": "الرجوع إلى تسجيل الدخول",
+
+  "signUpPendingTitle": "تم استلام الطلب",
+
+  "signUpPasswordHint": "8 أحرف على الأقل",
+
+  "signUpPasswordTooShort": "يجب أن تكون كلمة المرور 8 أحرف على الأقل.",
+
   "loginAsLabel": "تسجيل الدخول كـ",
 
   "loginAsBusiness": "منشأة",

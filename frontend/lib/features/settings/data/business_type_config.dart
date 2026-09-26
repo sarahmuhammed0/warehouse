@@ -39,6 +39,22 @@ String businessTypeLabel(BusinessType type) => switch (type) {
       BusinessType.custom => 'Custom',
     };
 
+/// The value the backend's `business_type` ENUM accepts. Separate from
+/// [businessTypeLabel] on purpose: the label is human text that may be
+/// translated or reworded, while this is a wire format the database
+/// validates against — sending "Furniture Factory" where the column expects
+/// `furniture_factory` is rejected outright. Kept in this file so the two
+/// cannot drift.
+String businessTypeApiValue(BusinessType type) => switch (type) {
+      BusinessType.furnitureFactory => 'furniture_factory',
+      BusinessType.generalFactory => 'general_factory',
+      BusinessType.warehouse => 'warehouse',
+      BusinessType.storageStore => 'storage_store',
+      BusinessType.wholesaleStore => 'wholesale_store',
+      BusinessType.distributionCenter => 'distribution_center',
+      BusinessType.custom => 'custom',
+    };
+
 /// Which type the *demo* business is — a real deployment reads this from
 /// the authenticated business's own record (set once at System Admin
 /// creation time, §3); there is no such record in this frontend-only

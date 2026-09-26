@@ -9,7 +9,11 @@
 // `SecureTokenStorage`.
 
 import 'dart:async';
+import 'package:warehouse_os_app/features/auth/data/registration_repository.dart';
 
+import 'package:warehouse_os_app/core/network/paginated_result.dart';
+import 'package:warehouse_os_app/core/repositories/paged_query.dart';
+import 'package:warehouse_os_app/features/admin/data/registration_queue_repository.dart';
 import 'package:warehouse_os_app/core/error/failure.dart';
 import 'package:warehouse_os_app/core/storage/secure_token_storage.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_models.dart';
@@ -136,3 +140,83 @@ class FakeAdminAuthenticatedController extends AuthController {
 //     overrides: [authControllerProvider.overrideWith(FakeAuthenticatedController.new)],
 //     child: const WarehouseOsApp(),
 //   )
+
+/// Records the submitted application so a test can assert the wire format,
+/// and can be made to fail on demand. Deliberately in the fakes file rather
+/// than inside the test group — it implements a production interface, and
+/// keeping it here means a change to that interface breaks compilation in
+/// one obvious place.
+class RecordingRegistrationRepository implements RegistrationRepository {
+  RecordingRegistrationRepository({required this.onRegister, this.error});
+
+  final void Function(RegistrationDraft draft) onRegister;
+  final Failure? error;
+
+  @override
+  Future<RegistrationResult> register(RegistrationDraft draft) async {
+    onRegister(draft);
+    if (error != null) throw error!;
+    return const RegistrationResult(
+      status: 'pending',
+      message: 'Your registration has been received and is awaiting review.',
+    );
+  }
+}
+
+/// Scriptable registration queue: records decisions so a test can assert
+/// what the screen actually sent, and can be made to fail like the backend's
+/// 409 when another administrator has already decided.
+class FakeRegistrationQueue implements RegistrationQueueRepository {
+  List<BusinessRegistration> items = [
+    BusinessRegistration(
+      id: 'reg-1',
+      name: 'Applicant One',
+      businessType: 'warehouse',
+      phone: '+9647700000101',
+      status: 'pending',
+      createdAt: DateTime(2026, 9, 20),
+      ownerName: 'Owner One',
+      ownerPhone: '+9647700000102',
+    ),
+  ];
+
+  final List<String> approved = [];
+  final List<(String, String)> rejected = [];
+  Failure? failWith;
+
+  @override
+  Future<PaginatedResult<BusinessRegistration>> list(PagedQuery query, {String? status}) async {
+    final filtered = items.where((b) => status == null || b.status == status).toList();
+    return PaginatedResult(items: filtered, page: 1, pageSize: filtered.length, total: filtered.length);
+  }
+
+  @override
+  Future<BusinessRegistration> approve(String id) async {
+    if (failWith != null) throw failWith!;
+    approved.add(id);
+    items = items.where((b) => b.id != id).toList();
+    return items.isEmpty ? _decided(id, 'active') : _decided(id, 'active');
+  }
+
+  @override
+  Future<BusinessRegistration> reject(String id, String reason) async {
+    if (failWith != null) throw failWith!;
+    rejected.add((id, reason));
+    items = items.where((b) => b.id != id).toList();
+    return _decided(id, 'rejected');
+  }
+
+  final List<RegistrationDraft> created = [];
+
+  @override
+  Future<void> createBusiness(RegistrationDraft draft) async => created.add(draft);
+
+  BusinessRegistration _decided(String id, String status) => BusinessRegistration(
+    id: id,
+    name: 'Applicant One',
+    businessType: 'warehouse',
+    phone: '+9647700000101',
+    status: status,
+    createdAt: DateTime(2026, 9, 20),
+  );
+}

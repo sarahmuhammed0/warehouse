@@ -179,6 +179,11 @@ final List<NavItem> adminNavItems = [
     labelBuilder: (l10n) => l10n.adminNavBusinesses,
   ),
   NavItem(
+    route: AppRoutes.adminRegistrations,
+    icon: Icons.how_to_reg_outlined,
+    labelBuilder: (l10n) => l10n.navRegistrations,
+  ),
+  NavItem(
     route: AppRoutes.adminEmployees,
     icon: Icons.people_outline,
     labelBuilder: (l10n) => l10n.navEmployees,
@@ -278,6 +283,7 @@ const List<String> primaryNavRoutes = [
 const List<String> adminPrimaryNavRoutes = [
   AppRoutes.adminDashboard,
   AppRoutes.adminBusinesses,
+  AppRoutes.adminRegistrations,
   AppRoutes.adminEmployees,
   AppRoutes.adminProducts,
   AppRoutes.adminOrders,

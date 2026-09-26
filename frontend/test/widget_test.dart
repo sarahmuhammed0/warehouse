@@ -29,6 +29,11 @@ import 'package:warehouse_os_app/features/admin/presentation/admin_record_detail
 import 'package:warehouse_os_app/features/auth/data/auth_models.dart';
 import 'package:warehouse_os_app/features/auth/data/auth_repository.dart';
 import 'package:warehouse_os_app/features/auth/data/demo_auth_repository.dart';
+import 'package:warehouse_os_app/features/admin/data/registration_queue_repository.dart';
+import 'package:warehouse_os_app/features/admin/presentation/admin_registrations_screen.dart';
+import 'package:go_router/go_router.dart';
+import 'package:warehouse_os_app/features/auth/data/registration_repository.dart';
+import 'package:warehouse_os_app/features/auth/presentation/signup_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/login_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_controller.dart';
 import 'package:warehouse_os_app/features/auth/presentation/providers/auth_state.dart';
@@ -599,6 +604,40 @@ void main() {
       expect(find.text('Dashboard'), findsWidgets);
     });
 
+    testWidgets('shows each blocked-business reason the backend distinguishes', (tester) async {
+      // The backend answers a blocked login with one of three codes, and the
+      // rejected one carries the administrator's own reason. All three used
+      // to be reported as "disabled", which told the owner of a
+      // self-registered business nothing useful. These assert the specific
+      // message reaches the screen rather than being flattened.
+      const cases = <Failure>[
+        Failure(
+          'BUSINESS_PENDING_APPROVAL',
+          'Your registration is still awaiting approval. You will be able to sign in once it is approved.',
+        ),
+        Failure('BUSINESS_REJECTED', 'Your registration was not approved: Business licence could not be verified.'),
+        Failure('BUSINESS_DISABLED', 'This business account has been disabled.'),
+      ];
+
+      for (final failure in cases) {
+        final repo = FakeAuthRepository()..loginError = failure;
+        tester.view.physicalSize = const Size(800, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(pumpableApp(repo));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(AppTextField).first, '+9647701234567');
+        await tester.enterText(find.byType(AppTextField).last, 'correct-password');
+        await tester.tap(find.widgetWithText(AppButton, 'Login'));
+        await tester.pumpAndSettle();
+
+        expect(find.text(failure.message), findsOneWidget, reason: 'did not show ${failure.code}');
+        expect(find.byType(LoginScreen), findsOneWidget, reason: '${failure.code} must not grant a session');
+      }
+    });
+
     testWidgets('shows the session-expired banner when the auth state is AuthSessionExpired', (
       tester,
     ) async {
@@ -631,6 +670,253 @@ void main() {
         expect(direction, locale.isRtl ? TextDirection.rtl : TextDirection.ltr);
       });
     }
+  });
+
+  group('Business self-registration (§2 approval flow)', () {
+    Widget pumpableApp(RegistrationRepository registration) => ProviderScope(
+      overrides: [
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        secureTokenStorageProvider.overrideWithValue(InMemoryTokenStorage()),
+        registrationRepositoryProvider.overrideWithValue(registration),
+      ],
+      child: const WarehouseOsApp(),
+    );
+
+    /// Records what was submitted, so a test can assert the wire format
+    /// rather than just that something was sent.
+    late RegistrationDraft? submitted;
+    Widget appWith({Failure? error}) {
+      submitted = null;
+      return pumpableApp(RecordingRegistrationRepository(
+        onRegister: (draft) => submitted = draft,
+        error: error,
+      ));
+    }
+
+    Future<void> openSignUp(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('signUpLink')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> fillValidForm(WidgetTester tester) async {
+      await tester.enterText(find.byKey(const ValueKey('signUpBusinessName')), 'Applicant Co');
+      await tester.enterText(find.byKey(const ValueKey('signUpBusinessPhone')), '+9647700001111');
+      await tester.enterText(find.byKey(const ValueKey('signUpOwnerName')), 'Applicant Owner');
+      await tester.enterText(find.byKey(const ValueKey('signUpOwnerPhone')), '+9647700002222');
+      await tester.enterText(find.byKey(const ValueKey('signUpPassword')), 'ApplicantPass1');
+
+      // The business type is required and has no default, so it has to be
+      // chosen through the dropdown like a user would.
+      await tester.tap(find.byKey(const ValueKey('signUpBusinessType')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Warehouse').last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the login screen offers registration, and it opens the form', (tester) async {
+      await tester.pumpWidget(appWith());
+      await openSignUp(tester);
+
+      expect(find.byType(SignUpScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('signUpSubmitButton')), findsOneWidget);
+    });
+
+    testWidgets('an incomplete form is not submitted', (tester) async {
+      // The applicant must not be told "awaiting review" for an application
+      // that was never sent.
+      await tester.pumpWidget(appWith());
+      await openSignUp(tester);
+
+      await tester.tap(find.byKey(const ValueKey('signUpSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isNull, reason: 'validation should have stopped the request');
+      expect(find.byKey(const ValueKey('signUpAccepted')), findsNothing);
+    });
+
+    testWidgets('a short password is rejected locally, before a round trip', (tester) async {
+      await tester.pumpWidget(appWith());
+      await openSignUp(tester);
+      await fillValidForm(tester);
+      await tester.enterText(find.byKey(const ValueKey('signUpPassword')), 'short');
+
+      await tester.tap(find.byKey(const ValueKey('signUpSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isNull, reason: 'the backend minimum should be enforced in the form too');
+    });
+
+    testWidgets('a valid application is submitted in the wire format the backend expects', (tester) async {
+      await tester.pumpWidget(appWith());
+      await openSignUp(tester);
+      await fillValidForm(tester);
+
+      await tester.tap(find.byKey(const ValueKey('signUpSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isNotNull);
+      // snake_case, not the display label: the backend column is an ENUM and
+      // rejects "Warehouse".
+      expect(submitted!.businessType, 'warehouse');
+      expect(submitted!.businessName, 'Applicant Co');
+      expect(submitted!.ownerPhone, '+9647700002222');
+    });
+
+    testWidgets('success shows a pending notice and never signs the applicant in', (tester) async {
+      // The whole point: the business exists but is not approved, so the app
+      // must not behave as though access was granted.
+      await tester.pumpWidget(appWith());
+      await openSignUp(tester);
+      await fillValidForm(tester);
+      await tester.tap(find.byKey(const ValueKey('signUpSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('signUpAccepted')), findsOneWidget);
+      expect(find.text('Application received'), findsOneWidget);
+      // Still on the public screen — no dashboard, no shell.
+      expect(find.byType(SignUpScreen), findsOneWidget);
+      expect(find.text('Dashboard'), findsNothing);
+      // And the form is gone, so it cannot be submitted twice by reflex.
+      expect(find.byKey(const ValueKey('signUpSubmitButton')), findsNothing);
+    });
+
+    testWidgets('a server error is shown and the form stays filled in', (tester) async {
+      await tester.pumpWidget(appWith(error: const Failure('RATE_LIMITED', 'Too many registration attempts.')));
+      await openSignUp(tester);
+      await fillValidForm(tester);
+      await tester.tap(find.byKey(const ValueKey('signUpSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Too many registration attempts.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('signUpAccepted')), findsNothing);
+      expect(find.byKey(const ValueKey('signUpSubmitButton')), findsOneWidget, reason: 'they must be able to retry');
+    });
+
+    testWidgets('registration is not offered while System Admin is selected', (tester) async {
+      // A System Admin account is never self-registered, so offering it
+      // there would invite an application that can never be granted.
+      await tester.pumpWidget(appWith());
+      await tester.pumpAndSettle();
+
+      // In demo mode the selector is not rendered at all, so this only
+      // applies when the backend selector is present.
+      if (find.byKey(const ValueKey('loginAsSystemAdmin')).evaluate().isEmpty) {
+        expect(find.byKey(const ValueKey('signUpLink')), findsOneWidget);
+        return;
+      }
+      await tester.tap(find.byKey(const ValueKey('loginAsSystemAdmin')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('signUpLink')), findsNothing);
+    });
+  });
+
+  group('Admin registration queue (§2 approval controls)', () {
+    late FakeRegistrationQueue queue;
+
+    Widget adminApp() => ProviderScope(
+      overrides: [
+        authControllerProvider.overrideWith(FakeAdminAuthenticatedController.new),
+        secureTokenStorageProvider.overrideWithValue(InMemoryTokenStorage()),
+        registrationQueueRepositoryProvider.overrideWithValue(queue),
+      ],
+      child: const WarehouseOsApp(),
+    );
+
+    Future<void> openQueue(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1400, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(adminApp());
+      await tester.pumpAndSettle();
+      tester.element(find.byType(WarehouseOsApp)); // ensure built
+      // Navigate directly: the nav item lives in the admin shell header,
+      // which is covered by the shell's own tests.
+      final context = tester.element(find.byType(AdminDashboardScreen).first);
+      GoRouter.of(context).go(AppRoutes.adminRegistrations);
+      await tester.pumpAndSettle();
+    }
+
+    /// A toast is a SnackBar with a ~4s auto-dismiss timer. Leaving it
+    /// pending tears the tree down mid-animation, which surfaces as
+    /// 'attached is not true' / Overlay build-scope assertions in whichever
+    /// test happens to run next. Letting it expire keeps the failure where
+    /// it belongs.
+    Future<void> settleToast(WidgetTester tester) async {
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+    }
+
+    setUp(() => queue = FakeRegistrationQueue());
+
+    testWidgets('lists the applications waiting for a decision', (tester) async {
+      await openQueue(tester);
+
+      expect(find.byType(AdminRegistrationsScreen), findsOneWidget);
+      expect(find.text('Applicant One'), findsOneWidget);
+      expect(find.byKey(const ValueKey('approve:reg-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('reject:reg-1')), findsOneWidget);
+    });
+
+    testWidgets('approving calls the backend and refreshes the queue', (tester) async {
+      await openQueue(tester);
+
+      await tester.tap(find.byKey(const ValueKey('approve:reg-1')));
+      await tester.pumpAndSettle();
+
+      await settleToast(tester);
+      expect(queue.approved, ['reg-1']);
+      // The decided application must leave the pending queue, or the admin
+      // will approve it twice.
+      expect(find.text('Applicant One'), findsNothing);
+    });
+
+    testWidgets('rejecting requires a reason and sends it', (tester) async {
+      await openQueue(tester);
+
+      await tester.tap(find.byKey(const ValueKey('reject:reg-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('rejectRegistrationDialog')), findsOneWidget);
+
+      // Confirming with an empty reason must not submit: the applicant is
+      // shown this text, and the backend rejects a blank one anyway.
+      await tester.tap(find.byKey(const ValueKey('rejectConfirmButton')));
+      await tester.pumpAndSettle();
+      expect(queue.rejected, isEmpty);
+      expect(find.byKey(const ValueKey('rejectRegistrationDialog')), findsOneWidget);
+
+      await tester.enterText(find.byKey(const ValueKey('rejectReasonField')), 'Licence not verified');
+      await tester.tap(find.byKey(const ValueKey('rejectConfirmButton')));
+      await tester.pumpAndSettle();
+
+      await settleToast(tester);
+      expect(queue.rejected, [('reg-1', 'Licence not verified')]);
+    });
+
+    testWidgets('an already-decided application surfaces the conflict and refreshes', (tester) async {
+      // Two administrators working the same queue: the backend answers 409,
+      // and the screen must show that rather than appear to succeed.
+      queue.failWith = const Failure('ALREADY_DECIDED', 'This registration is already active.');
+      await openQueue(tester);
+
+      await tester.tap(find.byKey(const ValueKey('approve:reg-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This registration is already active.'), findsOneWidget);
+      await settleToast(tester);
+    });
+
+    testWidgets('an empty queue says so instead of showing a blank page', (tester) async {
+      queue.items = [];
+      await openQueue(tester);
+
+      expect(find.byKey(const ValueKey('registrationsEmpty')), findsOneWidget);
+    });
   });
 
   group('AuthController + logout (Phase 2 §18/§24 verification)', () {

@@ -160,6 +160,62 @@
   "statusInStock": "بەردەستە",
   "statusDisabled": "ناچالاککراوە",
 
+  "adminCreateBusiness": "دروستکردنی بازرگانی",
+
+  "adminCreateBusinessSubtitle": "بازرگانی دەستبەجێ چالاک دەبێت — دروستکردنی لێرە پەسەندکردنە",
+
+  "adminBusinessCreated": "بازرگانی دروستکرا. خاوەن ئێستا دەتوانێت بچێتە ژوورەوە.",
+
+  "navRegistrations": "داواکاری تۆمارکردن",
+
+  "registrationsTitle": "داواکارییەکانی تۆمارکردنی بازرگانی",
+
+  "registrationsSubtitle": "داواکارییەکان چاوەڕێی بڕیارن",
+
+  "registrationsEmpty": "هیچ داواکارییەک چاوەڕێی بڕیار نییە.",
+
+  "registrationApprove": "پەسەندکردن",
+
+  "registrationReject": "ڕەتکردنەوە",
+
+  "registrationRejectTitle": "ڕەتکردنەوەی ئەم داواکارییە",
+
+  "registrationRejectReason": "هۆکار",
+
+  "registrationRejectHint": "بۆ داواکار دەردەکەوێت کاتێک هەوڵی چوونەژوورەوە دەدات",
+
+  "registrationApproved": "پەسەندکرا. ئێستا ئەم بازرگانییە دەتوانێت بچێتە ژوورەوە.",
+
+  "registrationRejected": "ڕەتکرایەوە.",
+
+  "registrationSubmittedOn": "بەرواری داواکاری",
+
+  "registrationOwner": "خاوەن",
+
+  "signUpLink": "تۆمارکردنی بازرگانییەکی نوێ",
+
+  "signUpTitle": "بازرگانییەکەت تۆمار بکە",
+
+  "signUpSubtitle": "بەڕێوەبەر هەموو داواکارییەک پێداچوونەوە دەکات پێش ڕێگەدان",
+
+  "signUpBusinessSection": "زانیاری بازرگانی",
+
+  "signUpOwnerSection": "هەژماری خاوەن",
+
+  "signUpFieldBusinessName": "ناوی بازرگانی",
+
+  "signUpFieldOwnerName": "ناوی تەواوی خاوەن",
+
+  "signUpSubmit": "ناردنی داواکاری",
+
+  "signUpBackToLogin": "گەڕانەوە بۆ چوونەژوورەوە",
+
+  "signUpPendingTitle": "داواکاری وەرگیرا",
+
+  "signUpPasswordHint": "لانیکەم 8 پیت",
+
+  "signUpPasswordTooShort": "وشەی نهێنی دەبێت لانیکەم 8 پیت بێت.",
+
   "loginAsLabel": "چوونەژوورەوە وەک",
 
   "loginAsBusiness": "بازرگانی",
