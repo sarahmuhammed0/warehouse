@@ -30,6 +30,14 @@ class ApiClient {
   Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) =>
       _unwrap(dio.post<Map<String, dynamic>>(path, data: body));
 
+  /// PATCH, not PUT: the backend's update endpoints are partial by design —
+  /// a field the caller omits keeps its value rather than being nulled.
+  Future<Map<String, dynamic>> patchJson(String path, Map<String, dynamic> body) =>
+      _unwrap(dio.patch<Map<String, dynamic>>(path, data: body));
+
+  Future<Map<String, dynamic>> deleteJson(String path) =>
+      _unwrap(dio.delete<Map<String, dynamic>>(path));
+
   /// For list endpoints, whose envelope is shaped differently: `data` is an
   /// ARRAY and the paging block lives under `meta.pagination`. [getJson]
   /// cannot serve these — it casts `data` to a Map, which for an array

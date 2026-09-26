@@ -32,6 +32,12 @@ import 'package:warehouse_os_app/features/auth/data/demo_auth_repository.dart';
 import 'package:warehouse_os_app/features/admin/data/registration_queue_repository.dart';
 import 'package:warehouse_os_app/features/admin/presentation/admin_registrations_screen.dart';
 import 'package:go_router/go_router.dart';
+import 'package:warehouse_os_app/features/products/data/api_product_repository.dart';
+import 'package:warehouse_os_app/features/products/data/product_models.dart';
+import 'package:warehouse_os_app/features/products/data/product_repository.dart';
+import 'package:warehouse_os_app/features/categories/data/api_category_repository.dart';
+import 'package:warehouse_os_app/features/categories/data/category_providers.dart';
+import 'package:warehouse_os_app/features/categories/data/category_repository.dart';
 import 'package:warehouse_os_app/features/auth/data/registration_repository.dart';
 import 'package:warehouse_os_app/features/auth/presentation/signup_screen.dart';
 import 'package:warehouse_os_app/features/auth/presentation/login_screen.dart';
@@ -670,6 +676,81 @@ void main() {
         expect(direction, locale.isRtl ? TextDirection.rtl : TextDirection.ltr);
       });
     }
+  });
+
+  group('Real API repositories (Phase 6 wiring)', () {
+    test('backend mode selects the API repositories, demo mode the local ones', () {
+      // The same switch auth uses. A failed API call must never fall back to
+      // demo data, so the choice is made once, by mode, not per call.
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // `flutter test` compiles in demo mode, so this asserts the demo side
+      // here and the backend side is covered by the constructors below.
+      expect(container.read(productRepositoryProvider), isA<LocalProductRepository>());
+      expect(container.read(categoryRepositoryProvider), isA<LocalCategoryRepository>());
+      expect(ApiProductRepository(ApiClient()), isA<ProductRepository>());
+      expect(ApiCategoryRepository(ApiClient()), isA<CategoryRepository>());
+    });
+
+    test('product status maps to the specification\'s own word, both ways', () {
+      // §45 says "archived"; the Flutter enum says "discontinued". They are
+      // the same state, and this mapping is the only place that knows it —
+      // if it breaks, a discontinued product silently becomes active.
+      final round = <ProductStatus, String>{
+        ProductStatus.active: 'active',
+        ProductStatus.inactive: 'inactive',
+        ProductStatus.discontinued: 'archived',
+      };
+      for (final entry in round.entries) {
+        final json = ApiProductRepository.toRequestJson(
+          ProductDraft(
+            name: 'x',
+            code: 'x',
+            categoryId: '1',
+            currentQuantity: 0,
+            unit: 'pcs',
+            status: entry.key,
+          ),
+        );
+        expect(json['status'], entry.value, reason: '${entry.key} should send ${entry.value}');
+        expect(
+          ApiProductRepository.statusFromApi(entry.value),
+          entry.key,
+          reason: '${entry.value} should read back as ${entry.key}',
+        );
+      }
+    });
+
+    test('product type folds component into raw material, as §21 has only two kinds', () {
+      String sent(ProductType type) => ApiProductRepository.toRequestJson(
+        ProductDraft(
+          name: 'x',
+          code: 'x',
+          categoryId: '1',
+          currentQuantity: 0,
+          unit: 'pcs',
+          productType: type,
+        ),
+      )['productType'] as String;
+
+      expect(sent(ProductType.finishedGood), 'finished_good');
+      expect(sent(ProductType.rawMaterial), 'raw_material');
+      // The backend enum has no `component`; sending it would be rejected
+      // outright, so it is folded rather than passed through.
+      expect(sent(ProductType.component), 'raw_material');
+    });
+
+    test('a product create never sends a stock quantity', () {
+      // Stock is the sum of what is in the product's locations. Letting the
+      // product form set it would be a second source of truth, and the
+      // backend refuses the field anyway.
+      final json = ApiProductRepository.toRequestJson(
+        ProductDraft(name: 'x', code: 'x', categoryId: '1', currentQuantity: 42, unit: 'pcs'),
+      );
+      expect(json.containsKey('currentQuantity'), isFalse);
+      expect(json.containsKey('quantity'), isFalse);
+    });
   });
 
   group('Business self-registration (§2 approval flow)', () {

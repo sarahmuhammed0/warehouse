@@ -6,6 +6,11 @@ import { healthRouter } from "./health.routes.js";
 import { authRouter } from "../modules/auth/routes.js";
 import { adminAuthRouter } from "../modules/admin-auth/routes.js";
 import { businessesRouter, registrationRouter } from "../modules/businesses/routes.js";
+import { unitsRouter } from "../modules/units/routes.js";
+import { categoriesRouter } from "../modules/categories/routes.js";
+import { warehousesRouter, storageLocationsRouter } from "../modules/locations/routes.js";
+import { productsRouter } from "../modules/products/routes.js";
+import { inventoryRouter } from "../modules/inventory/routes.js";
 
 export const apiRouter = Router();
 
@@ -15,5 +20,10 @@ apiRouter.use("/admin/auth", adminAuthRouter); // System Admins — separate rou
 apiRouter.use("/admin/businesses", businessesRouter); // System-Admin-only (see modules/businesses)
 apiRouter.use("/registration", registrationRouter); // PUBLIC: business self-registration, creates a pending business
 
-// Phase 3+ modules mount here, e.g.:
-//   apiRouter.use("/products", productsRouter);
+// ---- Business modules (tenant-scoped, permission-checked) ----
+apiRouter.use("/units", unitsRouter);
+apiRouter.use("/categories", categoriesRouter);
+apiRouter.use("/warehouses", warehousesRouter);
+apiRouter.use("/storage-locations", storageLocationsRouter);
+apiRouter.use("/products", productsRouter);
+apiRouter.use("/inventory", inventoryRouter);
