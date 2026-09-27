@@ -32,19 +32,31 @@ const customerListSpec = defineListSpec({
 });
 
 /**
- * §18's derived figures, as correlated subqueries. Cancelled orders are
- * excluded: a cancelled sale is not a purchase the customer made, and
- * counting it would overstate both their history and what they owe.
+ * §18's derived figures, as correlated subqueries.
+ *
+ * WHICH ORDERS COUNT: only those the business has actually committed to.
+ *   - `cancelled` — never happened. Counting it overstates both the
+ *     customer's history and what they owe.
+ *   - `draft` and `pending` — not yet a sale. A draft is a basket someone
+ *     is still building and a pending order has not been confirmed; no stock
+ *     has moved for either (see STOCK_COMMITTED_FROM in orders/service.js).
+ *     Billing a customer for an unconfirmed draft is the kind of error that
+ *     gets noticed by the customer.
+ * A `returned` order still counts: it happened, and the return has its own
+ * offsetting record.
  */
+const COUNTED_ORDER_STATUSES = `o.status NOT IN ('cancelled', 'draft', 'pending')`;
+
 const CUSTOMER_TOTALS = `
   COALESCE((SELECT SUM(o.grand_total) FROM orders o
-             WHERE o.customer_id = c.id AND o.deleted_at IS NULL
-               AND o.status <> 'cancelled'), 0) AS total_purchases,
+             WHERE o.customer_id = c.id AND o.business_id = c.business_id
+               AND o.deleted_at IS NULL AND ${COUNTED_ORDER_STATUSES}), 0) AS total_purchases,
   COALESCE((SELECT SUM(o.grand_total - o.paid_amount) FROM orders o
-             WHERE o.customer_id = c.id AND o.deleted_at IS NULL
-               AND o.status <> 'cancelled'), 0) AS outstanding_balance,
+             WHERE o.customer_id = c.id AND o.business_id = c.business_id
+               AND o.deleted_at IS NULL AND ${COUNTED_ORDER_STATUSES}), 0) AS outstanding_balance,
   (SELECT COUNT(*) FROM orders o
-    WHERE o.customer_id = c.id AND o.deleted_at IS NULL AND o.status <> 'cancelled') AS order_count`;
+    WHERE o.customer_id = c.id AND o.business_id = c.business_id
+      AND o.deleted_at IS NULL AND ${COUNTED_ORDER_STATUSES}) AS order_count`;
 
 export const customersRepository = createCrudRepository({
   table: "customers",
@@ -63,16 +75,19 @@ const supplierListSpec = defineListSpec({
   dateRange: { column: "s.created_at" },
 });
 
-/** §19's equivalents, over purchases rather than orders. */
+/** §19's equivalents, over purchases rather than orders — same rule. */
+const COUNTED_PURCHASE_STATUSES = `pu.status NOT IN ('cancelled', 'draft', 'pending')`;
+
 const SUPPLIER_TOTALS = `
   COALESCE((SELECT SUM(pu.total) FROM purchases pu
-             WHERE pu.supplier_id = s.id AND pu.deleted_at IS NULL
-               AND pu.status <> 'cancelled'), 0) AS total_purchases,
+             WHERE pu.supplier_id = s.id AND pu.business_id = s.business_id
+               AND pu.deleted_at IS NULL AND ${COUNTED_PURCHASE_STATUSES}), 0) AS total_purchases,
   COALESCE((SELECT SUM(pu.total - pu.paid_amount) FROM purchases pu
-             WHERE pu.supplier_id = s.id AND pu.deleted_at IS NULL
-               AND pu.status <> 'cancelled'), 0) AS outstanding_balance,
+             WHERE pu.supplier_id = s.id AND pu.business_id = s.business_id
+               AND pu.deleted_at IS NULL AND ${COUNTED_PURCHASE_STATUSES}), 0) AS outstanding_balance,
   (SELECT COUNT(*) FROM purchases pu
-    WHERE pu.supplier_id = s.id AND pu.deleted_at IS NULL AND pu.status <> 'cancelled') AS purchase_count`;
+    WHERE pu.supplier_id = s.id AND pu.business_id = s.business_id
+      AND pu.deleted_at IS NULL AND ${COUNTED_PURCHASE_STATUSES}) AS purchase_count`;
 
 export const suppliersRepository = createCrudRepository({
   table: "suppliers",

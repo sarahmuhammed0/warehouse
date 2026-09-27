@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireAccountType } from "../../middleware/requireAccountType.js";
 import { authorize } from "../../middleware/authorize.js";
+import { auditTrail } from "../../middleware/auditTrail.js";
 import { validate, validateRequest } from "../../middleware/validate.js";
 import { idParamsSchema, listQuerySchema } from "../../validation/common.js";
 import { createProductSchema, updateProductSchema } from "./validation.js";
@@ -10,7 +11,7 @@ import { listProducts, getProduct, createProduct, updateProduct, deleteProduct }
 
 export const productsRouter = Router();
 
-productsRouter.use(authenticate, requireAccountType("business_user"));
+productsRouter.use(authenticate, requireAccountType("business_user"), auditTrail("products"));
 
 productsRouter.get("/", authorize("products.view"), validate(listQuerySchema, "query"), listProducts);
 productsRouter.get("/:id", authorize("products.view"), validate(idParamsSchema, "params"), getProduct);

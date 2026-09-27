@@ -61,6 +61,12 @@ test("POST /api/admin/businesses (System-Admin-only business + initial owner cre
 
   await t.test("duplicate owner phone is rejected with 409, no partial rows left behind", async () => {
     const dupPhone = testPhone();
+    // Named per run, because the check below has to count THIS attempt's rows.
+    // It used to compare `COUNT(*) FROM businesses` before and after, and
+    // node:test runs the integration files concurrently — so another file
+    // creating a business in the gap failed this assertion with an off-by-one
+    // that had nothing to do with the rejected request.
+    const secondName = `Second Co ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const first = await request(app)
       .post("/api/admin/businesses")
       .set("Authorization", `Bearer ${adminToken}`)
@@ -73,21 +79,24 @@ test("POST /api/admin/businesses (System-Admin-only business + initial owner cre
     createdBusinessIds.push(first.body.data.businessId);
     createdUserIds.push(first.body.data.ownerId);
 
-    const [beforeCount] = await pool.query("SELECT COUNT(*) AS c FROM businesses");
-
     const second = await request(app)
       .post("/api/admin/businesses")
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
-        name: "Second Co",
+        name: secondName,
         businessType: "warehouse",
         phone: testPhone(),
         owner: { name: "Owner", phone: dupPhone, password: "Password123" },
       });
     assert.equal(second.status, 409);
 
-    const [afterCount] = await pool.query("SELECT COUNT(*) AS c FROM businesses");
-    assert.equal(afterCount[0].c, beforeCount[0].c); // no orphaned business row from the rejected attempt
+    // The rejected attempt must have left no business row of its own — which
+    // is what "no partial rows" means, and is true regardless of what any
+    // other test file is doing at the same moment.
+    const [orphans] = await pool.query("SELECT COUNT(*) AS c FROM businesses WHERE name = ?", [
+      secondName,
+    ]);
+    assert.equal(Number(orphans[0].c), 0, "the rejected attempt must not leave a business behind");
   });
 
   await t.test("a business user (not System Admin) cannot create a business", async () => {

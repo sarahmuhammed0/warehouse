@@ -42,6 +42,28 @@ export async function nextDocumentNumber(conn, { businessId, documentType }) {
     throw errors.validation(`Unknown document type: ${documentType}`);
   }
 
+  const year = new Date().getFullYear();
+
+  // The row is created FIRST, and only then locked.
+  //
+  // The obvious order — lock, and insert if nothing was there — deadlocks on
+  // a business's very first document. `SELECT ... FOR UPDATE` against a row
+  // that does not exist takes a GAP lock rather than a row lock, so several
+  // concurrent transactions each hold a gap lock over the same empty range;
+  // each then tries to INSERT into that gap, needs an exclusive lock on it,
+  // and waits for the others. MySQL kills one with ER_LOCK_DEADLOCK.
+  //
+  // An upsert has no such gap: the first INSERT takes the row lock, the rest
+  // queue behind it and fall through to the (no-op) UPDATE branch, which
+  // leaves them holding the same row lock the SELECT below re-reads under.
+  await conn.query(
+    `INSERT INTO document_sequences
+       (business_id, document_type, prefix, next_number, number_padding, include_year, current_year)
+     VALUES (?, ?, ?, 1, 6, TRUE, ?)
+     ON DUPLICATE KEY UPDATE updated_at = updated_at`,
+    [businessId, documentType, defaultPrefix, year]
+  );
+
   const [rows] = await conn.query(
     `SELECT id, prefix, next_number, number_padding, include_year, current_year
        FROM document_sequences
@@ -50,25 +72,7 @@ export async function nextDocumentNumber(conn, { businessId, documentType }) {
       FOR UPDATE`,
     [businessId, documentType]
   );
-
-  let sequence = rows[0];
-  const year = new Date().getFullYear();
-
-  if (!sequence) {
-    await conn.query(
-      `INSERT INTO document_sequences
-         (business_id, document_type, prefix, next_number, number_padding, include_year, current_year)
-       VALUES (?, ?, ?, 1, 6, TRUE, ?)`,
-      [businessId, documentType, defaultPrefix, year]
-    );
-    const [created] = await conn.query(
-      `SELECT id, prefix, next_number, number_padding, include_year, current_year
-         FROM document_sequences
-        WHERE business_id = ? AND document_type = ? LIMIT 1 FOR UPDATE`,
-      [businessId, documentType]
-    );
-    sequence = created[0];
-  }
+  const sequence = rows[0];
 
   // §29's yearly reset: a business that numbers by year expects the first
   // document of January to be 000001 again, not to continue from December.

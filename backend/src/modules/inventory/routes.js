@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireAccountType } from "../../middleware/requireAccountType.js";
 import { authorize } from "../../middleware/authorize.js";
+import { auditTrail } from "../../middleware/auditTrail.js";
 import { validate } from "../../middleware/validate.js";
 import { idSchema, optionalString, listQuerySchema, enumSchema } from "../../validation/common.js";
 import { getLevels, getMovements, getLowStock, adjust, transfer } from "./controller.js";
@@ -59,7 +60,7 @@ const transferSchema = z.object({
 
 export const inventoryRouter = Router();
 
-inventoryRouter.use(authenticate, requireAccountType("business_user"));
+inventoryRouter.use(authenticate, requireAccountType("business_user"), auditTrail("inventory"));
 
 inventoryRouter.get("/", authorize("inventory.view"), validate(listQuerySchema, "query"), getLevels);
 inventoryRouter.get("/movements", authorize("inventory.view"), validate(listQuerySchema, "query"), getMovements);

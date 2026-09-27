@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import { requiredString, optionalString, idSchema, enumSchema } from "../../validation/common.js";
+import {
+  requiredString,
+  optionalString,
+  idSchema,
+  enumSchema,
+  booleanSchema,
+} from "../../validation/common.js";
 
 const statusSchema = enumSchema(["active", "inactive"], "Status");
 
@@ -15,7 +21,7 @@ export const createWarehouseSchema = z.object({
   code: optionalString(50),
   address: optionalString(255),
   locationType: locationTypeSchema.optional(),
-  isDefault: z.coerce.boolean().optional(),
+  isDefault: booleanSchema.optional(),
   status: statusSchema.optional(),
 });
 
@@ -25,7 +31,7 @@ export const updateWarehouseSchema = z
     code: optionalString(50),
     address: optionalString(255),
     locationType: locationTypeSchema.optional(),
-    isDefault: z.coerce.boolean().optional(),
+    isDefault: booleanSchema.optional(),
     status: statusSchema.optional(),
   })
   .refine((value) => Object.values(value).some((v) => v !== undefined), {

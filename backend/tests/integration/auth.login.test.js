@@ -26,10 +26,16 @@ test("POST /api/auth/login", async (t) => {
   const disabledBusinessId = await createTestBusiness({ status: "disabled" });
   const userAtDisabledBusiness = await createTestUser({ businessId: disabledBusinessId, phone: testPhone() });
 
+  // Identifiers with no user behind them; declared here so the cleanup below
+  // can purge their login_attempts rows.
+  const unknownPhone = testPhone();
+  const lockoutPhone = testPhone();
+
   t.after(() =>
     cleanupTestData({
       businessIds: [businessId, disabledBusinessId],
       userIds: [user.id, disabledUser.id, userAtDisabledBusiness.id],
+      phones: [unknownPhone, lockoutPhone, "not-a-phone"],
     })
   );
 
@@ -52,9 +58,12 @@ test("POST /api/auth/login", async (t) => {
   });
 
   await t.test("unknown phone gets the SAME generic message (no enumeration)", async () => {
+    // Freshly minted rather than a fixed constant: a hardcoded phone belongs
+    // to no user, so nothing cleans up its failed attempt, and five runs
+    // inside the lockout window turn this 401 into a 429.
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ phone: "+15559998888", password: "whatever123" });
+      .send({ phone: unknownPhone, password: "whatever123" });
     assert.equal(res.status, 401);
     assert.equal(res.body.error.message, "Invalid phone number or password.");
   });
@@ -87,7 +96,6 @@ test("POST /api/auth/login", async (t) => {
   });
 
   await t.test("repeated failures against the same phone eventually trigger lockout (429)", async () => {
-    const lockoutPhone = testPhone();
     let lastStatus;
     for (let i = 0; i < 6; i += 1) {
       const res = await request(app)

@@ -13,6 +13,7 @@ import { productsRouter } from "../modules/products/routes.js";
 import { inventoryRouter } from "../modules/inventory/routes.js";
 import { customersRouter, suppliersRouter } from "../modules/parties/routes.js";
 import { ordersRouter } from "../modules/orders/routes.js";
+import { settingsRouter } from "../modules/settings/routes.js";
 
 export const apiRouter = Router();
 
@@ -32,3 +33,4 @@ apiRouter.use("/inventory", inventoryRouter);
 apiRouter.use("/customers", customersRouter);
 apiRouter.use("/suppliers", suppliersRouter);
 apiRouter.use("/orders", ordersRouter);
+apiRouter.use("/settings", settingsRouter);

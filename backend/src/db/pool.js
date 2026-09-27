@@ -35,6 +35,15 @@ export const pool = mysql.createPool({
   // Prevents multiple statements in one call, which removes the class of
   // injection where a bound query is turned into two (§35).
   multipleStatements: false,
+  // `affectedRows` on an UPDATE must mean "rows MATCHED", not MySQL's own
+  // default of "rows CHANGED": every repository here reads `affectedRows === 1`
+  // as "that row exists" and turns 0 into a 404, so under CHANGED semantics a
+  // PATCH writing the values a row already holds would answer "not found".
+  //
+  // mysql2 sets this flag itself today, so this line changes nothing — it is
+  // here to PIN the behaviour those 404s depend on, rather than leaving it to
+  // a driver default that a future version could reasonably revisit.
+  flags: ["FOUND_ROWS"],
   // Keeps DATE/DATETIME as strings rather than JS Date objects, so a date
   // does not silently shift when the process timezone differs from the
   // business's (§13's timezone strategy — see docs/backend-phase3.md).

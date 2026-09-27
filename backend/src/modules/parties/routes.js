@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireAccountType } from "../../middleware/requireAccountType.js";
 import { authorize } from "../../middleware/authorize.js";
+import { auditTrail } from "../../middleware/auditTrail.js";
 import { validate, validateRequest } from "../../middleware/validate.js";
 import {
   idParamsSchema,
@@ -64,7 +65,7 @@ const updateSupplierSchema = z
 /** Both routers are identical apart from the module they are gated on. */
 function partyRouter({ controller, module, createSchema, updateSchema }) {
   const router = Router();
-  router.use(authenticate, requireAccountType("business_user"));
+  router.use(authenticate, requireAccountType("business_user"), auditTrail(module));
 
   router.get("/", authorize(`${module}.view`), validate(listQuerySchema, "query"), controller.list);
   router.get("/:id", authorize(`${module}.view`), validate(idParamsSchema, "params"), controller.get);

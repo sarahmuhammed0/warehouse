@@ -22,10 +22,21 @@ export async function requireDatabase(t) {
 }
 
 let counter = 0;
-/** Unique-per-run phone numbers within the test's reserved namespace. */
+/**
+ * A run of six digits fixed for the life of this process, so two test FILES
+ * — which node:test runs as separate processes, concurrently — cannot mint
+ * the same number. The previous version keyed off `Date.now() % 10000` plus a
+ * per-process counter, and two processes starting in the same millisecond
+ * produced identical phones and a duplicate-key failure that looked like a
+ * production bug.
+ */
+const runSalt = String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0");
+
+/** Unique phone numbers within the test's reserved namespace (max 20 chars). */
 export function testPhone() {
   counter += 1;
-  return `+1555000${String(Date.now() % 10000).padStart(4, "0")}${counter}`;
+  // +1555 + 6 salt + 5 counter = 16 characters, inside phone's VARCHAR(20).
+  return `+1555${runSalt}${String(counter).padStart(5, "0")}`;
 }
 
 export async function createTestBusiness({ status = "active" } = {}) {
@@ -55,7 +66,14 @@ export async function createTestSystemAdmin({ phone, password = "AdminPassword12
 }
 
 /** Deletes everything a test created, in FK-safe order. Call in a `finally`. */
-export async function cleanupTestData({ businessIds = [], userIds = [], adminIds = [] } = {}) {
+export async function cleanupTestData({ businessIds = [], userIds = [], adminIds = [], phones = [] } = {}) {
+  // Phones that never belonged to a user — an "unknown phone" a login test
+  // tried. Their login_attempts rows are invisible to the user-based cleanup
+  // below, so they accumulate, and five failures inside the 15-minute lockout
+  // window later make an unrelated test answer 429.
+  if (phones.length) {
+    await pool.query(`DELETE FROM login_attempts WHERE phone IN (?)`, [phones]);
+  }
   if (userIds.length) {
     await pool.query(`DELETE FROM refresh_tokens WHERE user_id IN (?)`, [userIds]);
     await pool.query(`DELETE FROM login_attempts WHERE phone IN (SELECT phone FROM users WHERE id IN (?))`, [

@@ -198,7 +198,14 @@ export function buildOrderBy(spec, query = {}, tiebreaker) {
   if (!spec.sort) return "";
 
   const requestedKey = typeof query.sort === "string" ? query.sort : undefined;
-  const key = requestedKey && requestedKey in spec.sort.allowed ? requestedKey : spec.sort.default?.key;
+  // `Object.hasOwn`, never `in`: `in` walks the prototype chain, so
+  // `?sort=constructor` passes the allowlist and `allowed["constructor"]`
+  // yields the Object function, which is then interpolated into ORDER BY —
+  // a guaranteed 500 on every list endpoint from a one-word query string.
+  const key =
+    requestedKey && Object.hasOwn(spec.sort.allowed, requestedKey)
+      ? requestedKey
+      : spec.sort.default?.key;
   if (!key) return "";
 
   const column = spec.sort.allowed[key];

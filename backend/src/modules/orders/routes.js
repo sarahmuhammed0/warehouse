@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireAccountType } from "../../middleware/requireAccountType.js";
 import { authorize } from "../../middleware/authorize.js";
+import { auditTrail } from "../../middleware/auditTrail.js";
 import { validate, validateRequest } from "../../middleware/validate.js";
 import {
   idParamsSchema,
@@ -13,6 +14,7 @@ import {
   enumSchema,
   moneySchema,
   positiveQuantitySchema,
+  optionalPercentSchema,
   optionalDateSchema,
 } from "../../validation/common.js";
 import { list, get, create, updateStatus, addPayment } from "./controller.js";
@@ -26,7 +28,7 @@ const orderItemSchema = z.object({
   // product in the UI; this is what gets frozen onto the line.
   unitPrice: moneySchema,
   discountAmount: moneySchema.optional(),
-  taxRate: z.coerce.number().min(0).max(100).optional(),
+  taxRate: optionalPercentSchema,
 });
 
 const createOrderSchema = z.object({
@@ -66,7 +68,7 @@ const paymentSchema = z.object({
 });
 
 export const ordersRouter = Router();
-ordersRouter.use(authenticate, requireAccountType("business_user"));
+ordersRouter.use(authenticate, requireAccountType("business_user"), auditTrail("orders"));
 
 /**
  * Gated on `orders.*`. §24 lists Sales and Orders as separate modules and

@@ -5,9 +5,9 @@ import {
   optionalString,
   idSchema,
   enumSchema,
-  moneySchema,
-  quantitySchema,
-  percentSchema,
+  optionalMoneySchema,
+  optionalQuantitySchema,
+  optionalPercentSchema,
   optionalDateSchema,
 } from "../../validation/common.js";
 
@@ -32,10 +32,10 @@ const optionalDetails = {
   description: optionalString(5000),
   shortDescription: optionalString(500),
   size: optionalString(100),
-  length: quantitySchema.optional(),
-  width: quantitySchema.optional(),
-  height: quantitySchema.optional(),
-  weight: quantitySchema.optional(),
+  length: optionalQuantitySchema,
+  width: optionalQuantitySchema,
+  height: optionalQuantitySchema,
+  weight: optionalQuantitySchema,
   color: optionalString(50),
   material: optionalString(100),
   model: optionalString(100),
@@ -48,11 +48,11 @@ const optionalDetails = {
 
 /** §8's financial block. Prices are money, never floats — see moneySchema. */
 const financial = {
-  purchaseCost: moneySchema.optional(),
-  sellingPrice: moneySchema.optional(),
-  wholesalePrice: moneySchema.optional(),
-  discountPrice: moneySchema.optional(),
-  taxRate: percentSchema.optional(),
+  purchaseCost: optionalMoneySchema,
+  sellingPrice: optionalMoneySchema,
+  wholesalePrice: optionalMoneySchema,
+  discountPrice: optionalMoneySchema,
+  taxRate: optionalPercentSchema,
 };
 
 /**
@@ -62,9 +62,9 @@ const financial = {
  * the product.
  */
 const stockPolicy = {
-  minStock: quantitySchema.optional(),
-  maxStock: quantitySchema.optional(),
-  reorderLevel: quantitySchema.optional(),
+  minStock: optionalQuantitySchema,
+  maxStock: optionalQuantitySchema,
+  reorderLevel: optionalQuantitySchema,
 };
 
 export const createProductSchema = z.object({

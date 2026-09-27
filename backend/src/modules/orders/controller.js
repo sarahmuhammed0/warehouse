@@ -7,17 +7,18 @@ import { loadPermissions } from "../../middleware/authorize.js";
 import {
   listOrders,
   findOrder,
+  lockOrder,
   orderItems,
   orderPayments,
   orderEdits,
   recordEdit,
-  productSnapshot,
   toStockLines,
   totalPaid,
   customerExists,
 } from "./repository.js";
 import {
   createOrder,
+  productResolver,
   cancelOrder,
   assertTransition,
   paymentStatusFor,
@@ -136,11 +137,7 @@ export async function create(req, res, next) {
       data: req.body,
       // §55: the line snapshots the product as it is NOW. Passed in so the
       // service reads it inside the same transaction.
-      resolveProduct: async (conn, productId) => {
-        const product = await productSnapshot(conn, { businessId, productId });
-        if (!product) throw errors.validation(`Product ${productId} does not exist.`);
-        return product;
-      },
+      resolveProduct: productResolver(businessId),
     });
 
     const order = await findOrder({ businessId, id: orderId });
@@ -163,27 +160,38 @@ export async function updateStatus(req, res, next) {
     const userId = req.auth.userId;
     const { status, reason } = req.body;
 
-    const order = await findOrder({ businessId, id: req.params.id });
-    if (!order) throw errors.notFound("order");
-
-    if (status === "cancelled") {
-      // §17 requires a reason, so the record can answer "why" later.
-      if (!reason) throw errors.validation("A cancellation reason is required.");
-      const items = toStockLines(await orderItems({ businessId, orderId: order.id }));
-      await cancelOrder({ businessId, userId, order, reason, items });
-      return res.json(ok(orderView(await findOrder({ businessId, id: order.id }))));
+    // §17 requires a reason, so the record can answer "why" later. Checked
+    // before opening a transaction, since it needs nothing from the row.
+    if (status === "cancelled" && !reason) {
+      throw errors.validation("A cancellation reason is required.");
     }
 
-    assertTransition(order.status, status);
-
-    const committedBefore = ["confirmed", "processing", "ready", "completed"].includes(order.status);
-    const committedAfter = ["confirmed", "processing", "ready", "completed"].includes(status);
+    const orderId = req.params.id;
 
     await runInTransaction(async (conn) => {
+      // EVERY decision below is made from the LOCKED row, not from one read
+      // on the pool beforehand. Reading first and acting after is a
+      // check-then-act race: two concurrent confirmations would both see
+      // "draft", both pass assertTransition, and both ship the stock.
+      const order = await lockOrder({ businessId, id: orderId, conn });
+      if (!order) throw errors.notFound("order");
+
+      if (status === "cancelled") {
+        const items = toStockLines(await orderItems({ businessId, orderId, conn }));
+        await cancelOrder({ businessId, userId, order, reason, items, conn });
+        return;
+      }
+
+      assertTransition(order.status, status);
+
+      const committed = ["confirmed", "processing", "ready", "completed"];
+      const committedBefore = committed.includes(order.status);
+      const committedAfter = committed.includes(status);
+
       // Crossing into a committed status is when the goods leave. Moving
       // between two committed statuses must NOT move stock again.
       if (!committedBefore && committedAfter) {
-        const items = toStockLines(await orderItems({ businessId, orderId: order.id, conn }));
+        const items = toStockLines(await orderItems({ businessId, orderId, conn }));
         await moveStockForOrder(conn, {
           businessId,
           userId,
@@ -205,13 +213,14 @@ export async function updateStatus(req, res, next) {
       });
 
       await conn.query(
-        `UPDATE orders SET status = ?, completed_at = ${status === "completed" ? "NOW()" : "completed_at"}
-          WHERE id = ? AND business_id = ?`,
-        [status, order.id, businessId]
+        `UPDATE orders SET status = ?, updated_at = NOW(),
+                completed_at = ${status === "completed" ? "NOW()" : "completed_at"}
+          WHERE id = ? AND business_id = ? AND status = ?`,
+        [status, order.id, businessId, order.status]
       );
     });
 
-    res.json(ok(orderView(await findOrder({ businessId, id: order.id }))));
+    res.json(ok(orderView(await findOrder({ businessId, id: orderId }))));
   } catch (err) {
     next(err);
   }
@@ -231,15 +240,22 @@ export async function addPayment(req, res, next) {
     const userId = req.auth.userId;
     const { amount, method, reference, note } = req.body;
 
-    const order = await findOrder({ businessId, id: req.params.id });
-    if (!order) throw errors.notFound("order");
-    if (order.status === "cancelled") {
-      throw errors.conflict("A cancelled order cannot take a payment.");
-    }
+    const orderId = req.params.id;
 
     const result = await runInTransaction(async (conn) => {
-      const alreadyPaid = await totalPaid({ businessId, orderId: order.id, conn });
-      const grandTotal = Number(order.grand_total);
+      // Lock the order FIRST, and read every number from the locked row.
+      // Without this, two payments arriving together both read the same
+      // "already paid" total, both fit under the remaining balance, and both
+      // are accepted — leaving paid_amount contradicting the payments it is
+      // supposed to summarise.
+      const locked = await lockOrder({ businessId, id: orderId, conn });
+      if (!locked) throw errors.notFound("order");
+      if (locked.status === "cancelled") {
+        throw errors.conflict("A cancelled order cannot take a payment.");
+      }
+
+      const alreadyPaid = await totalPaid({ businessId, orderId: locked.id, conn });
+      const grandTotal = Number(locked.grand_total);
 
       if (alreadyPaid + Number(amount) > grandTotal + 0.0001) {
         // Overpaying is almost always a typo, and letting it through
@@ -255,27 +271,20 @@ export async function addPayment(req, res, next) {
          -- 'incoming': money coming IN from a customer. A purchase
          -- payment is 'outgoing' — see the purchases module.
          VALUES (?, ?, 'incoming', ?, ?, ?, ?, NOW(), ?)`,
-        [businessId, order.id, amount, method, reference ?? null, note ?? null, userId]
+        [businessId, locked.id, amount, method, reference ?? null, note ?? null, userId]
       );
 
       const paidAmount = alreadyPaid + Number(amount);
-      await conn.query(`UPDATE orders SET paid_amount = ?, payment_status = ? WHERE id = ? AND business_id = ?`, [
-        paidAmount,
-        paymentStatusFor({ grandTotal, paidAmount }),
-        order.id,
-        businessId,
-      ]);
+      await conn.query(
+        `UPDATE orders SET paid_amount = ?, payment_status = ?, updated_at = NOW()
+          WHERE id = ? AND business_id = ?`,
+        [paidAmount, paymentStatusFor({ grandTotal, paidAmount }), locked.id, businessId]
+      );
 
-      return paidAmount;
+      return { orderId: locked.id, paidAmount, remainingAmount: grandTotal - paidAmount };
     });
 
-    res.status(201).json(
-      ok({
-        orderId: order.id,
-        paidAmount: result,
-        remainingAmount: Number(order.grand_total) - result,
-      })
-    );
+    res.status(201).json(ok(result));
   } catch (err) {
     next(err);
   }

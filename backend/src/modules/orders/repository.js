@@ -64,9 +64,35 @@ export async function listOrders({ businessId, query, pagination }) {
 
 export async function findOrder({ businessId, id, conn = pool }) {
   const [rows] = await conn.query(
-    `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+    `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone,
+            -- Same subquery as the list. Without it the single-order response
+            -- reported itemCount: 0 for every order, because the view falls
+            -- back to 0 for a column that is not there.
+            (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
        FROM orders o ${JOINS}
       WHERE o.id = ? AND o.business_id = ? AND o.deleted_at IS NULL LIMIT 1`,
+    [id, businessId]
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * The order row, locked for the rest of the transaction.
+ *
+ * Every decision that depends on an order's current state — is this
+ * transition legal, has the stock already shipped, how much is still owed —
+ * must be made from a row read THIS way. Reading it on the pool and then
+ * acting produces the classic check-then-act race: two concurrent
+ * confirmations both see "draft" and both ship the stock; two concurrent
+ * payments both see the same paid total and both fit under the remaining
+ * balance.
+ */
+export async function lockOrder({ businessId, id, conn }) {
+  const [rows] = await conn.query(
+    `SELECT * FROM orders
+      WHERE id = ? AND business_id = ? AND deleted_at IS NULL
+      LIMIT 1
+      FOR UPDATE`,
     [id, businessId]
   );
   return rows[0] ?? null;
@@ -152,9 +178,34 @@ export async function productSnapshot(conn, { businessId, productId }) {
   return rows[0] ?? null;
 }
 
+/**
+ * What the customer has paid on this order.
+ *
+ * Only `incoming` rows count. A refund on the same order is `outgoing`, and
+ * summing both directions would make a refund look like a further payment —
+ * pushing the order to "paid" on money that went back out.
+ */
+/**
+ * The variant's own snapshot fields — and the ownership check.
+ *
+ * `variant_id` arrives on an order line as a bare number, and nothing else
+ * validates it: an order could carry another tenant's variant, or a variant
+ * belonging to a different product entirely. Both `business_id` and
+ * `product_id` are in the WHERE for that reason (§36).
+ */
+export async function variantSnapshot(conn, { businessId, productId, variantId }) {
+  const [rows] = await conn.query(
+    `SELECT id, name, sku FROM product_variants
+      WHERE id = ? AND product_id = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1`,
+    [variantId, productId, businessId]
+  );
+  return rows[0] ?? null;
+}
+
 export async function totalPaid({ businessId, orderId, conn = pool }) {
   const [rows] = await conn.query(
-    `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE business_id = ? AND order_id = ?`,
+    `SELECT COALESCE(SUM(CASE WHEN direction = 'incoming' THEN amount ELSE -amount END), 0) AS paid
+       FROM payments WHERE business_id = ? AND order_id = ?`,
     [businessId, orderId]
   );
   return Number(rows[0].paid);

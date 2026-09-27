@@ -147,15 +147,27 @@ export async function lockSlot(conn, { businessId, productId, warehouseId, locat
   return rows[0] ?? null;
 }
 
-/** Creates the slot at zero if it does not exist yet, then returns it locked. */
+/**
+ * Returns the slot, locked, creating it at zero if this is the first time
+ * anything has been stored there.
+ *
+ * The row is created FIRST and only then locked — the same gap-lock trap as
+ * document numbering. Locking a row that does not exist takes a GAP lock,
+ * and two concurrent movements into a new (product, warehouse) slot would
+ * each hold one and then collide on `uq_inventory_slot`, failing one of
+ * them and rolling back whatever order it belonged to.
+ *
+ * `ON DUPLICATE KEY UPDATE` is a no-op that exists only to take the row
+ * lock: the unique index covers the generated `variant_key`/`location_key`
+ * columns, so a concurrent insert of the same slot queues behind the first
+ * instead of erroring.
+ */
 export async function ensureSlot(conn, args) {
-  const existing = await lockSlot(conn, args);
-  if (existing) return existing;
-
   const { businessId, productId, warehouseId, locationId = null, variantId = null } = args;
   await conn.query(
     `INSERT INTO inventory (business_id, product_id, variant_id, warehouse_id, location_id, quantity, reserved_quantity)
-     VALUES (?, ?, ?, ?, ?, 0, 0)`,
+     VALUES (?, ?, ?, ?, ?, 0, 0)
+     ON DUPLICATE KEY UPDATE updated_at = updated_at`,
     [businessId, productId, variantId, warehouseId, locationId]
   );
   return lockSlot(conn, args);
@@ -216,6 +228,83 @@ export async function applyMovement(
   );
 
   return { before, after };
+}
+
+/**
+ * The slots inside one warehouse that actually hold this product, fullest
+ * first, locked for the rest of the transaction.
+ *
+ * Stock is tracked per SLOT — a warehouse, and optionally a shelf, rack or
+ * bin inside it (§11). So "ship it from the default warehouse" does not yet
+ * say where the goods come from: a business that puts its stock on shelf A-1
+ * holds nothing at all in that warehouse's location-less slot, and a sale
+ * that debits only that slot is refused for want of stock the business is
+ * standing next to.
+ *
+ * Fullest first, so a line is satisfied from as few shelves as possible.
+ *
+ * Locked because the allocation is acted on immediately afterwards: on an
+ * unlocked read two concurrent sales both plan to take the same units, and
+ * the second then fails on a shelf the first has already emptied.
+ */
+export async function stockedSlots({ businessId, productId, variantId = null, warehouseId, conn }) {
+  const [rows] = await conn.query(
+    `SELECT warehouse_id, location_id, quantity FROM inventory
+      WHERE business_id = ? AND product_id = ? AND warehouse_id = ?
+        AND COALESCE(variant_id, 0) = COALESCE(?, 0)
+        AND quantity > 0
+      ORDER BY quantity DESC, id ASC
+      FOR UPDATE`,
+    [businessId, productId, warehouseId, variantId]
+  );
+  return rows.map((row) => ({
+    warehouseId: row.warehouse_id,
+    locationId: row.location_id,
+    quantity: Number(row.quantity),
+  }));
+}
+
+/**
+ * Where a document's stock actually left from and how much of it, keyed by
+ * product and variant.
+ *
+ * A cancellation or a return has to put the goods back in the slots they came
+ * out of. The obvious shortcut — use the default warehouse — is wrong twice
+ * over: the default can be changed between the sale and the cancellation, and
+ * a business with more than one warehouse sells from all of them. Either way
+ * the stock silently teleports to another building, and the ledger reads as
+ * though it was always there.
+ *
+ * A list per key, not one slot, because one line can come off several
+ * shelves (see `stockedSlots`) — collapsing it to the first would pile all
+ * ten units back onto the shelf that only ever held four.
+ *
+ * `quantity_after < quantity_before` is what makes a movement the OUTBOUND
+ * one. The stored quantity is a magnitude, so the direction has to be read
+ * from the levels rather than the number, and returning stock must not be
+ * mistaken for the sale that shipped it.
+ */
+export async function originalSlots({ businessId, referenceType, referenceId, conn }) {
+  const [rows] = await conn.query(
+    `SELECT product_id, variant_id, warehouse_id, location_id, quantity
+       FROM inventory_movements
+      WHERE business_id = ? AND reference_type = ? AND reference_id = ?
+        AND quantity_after < quantity_before
+      ORDER BY id`,
+    [businessId, referenceType, referenceId]
+  );
+
+  const slots = new Map();
+  for (const row of rows) {
+    const key = `${row.product_id}:${row.variant_id ?? 0}`;
+    if (!slots.has(key)) slots.set(key, []);
+    slots.get(key).push({
+      warehouseId: row.warehouse_id,
+      locationId: row.location_id,
+      quantity: Number(row.quantity),
+    });
+  }
+  return slots;
 }
 
 /**
