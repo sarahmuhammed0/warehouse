@@ -137,6 +137,8 @@ test("§14: impossible status transitions are refused", () => {
   assert.throws(() => assertTransition("cancelled", "confirmed"), (e) => e.statusCode === 409);
   assertTransition("draft", "confirmed");
   assertTransition("confirmed", "completed");
+  // The approved reopening scope: back to pending, and no further.
+  assertTransition("cancelled", "pending");
 });
 
 // ---- against the database -------------------------------------------------

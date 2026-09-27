@@ -232,7 +232,7 @@ export async function applyMovement(
 
 /**
  * The slots inside one warehouse that actually hold this product, fullest
- * first, locked for the rest of the transaction.
+ * first.
  *
  * Stock is tracked per SLOT — a warehouse, and optionally a shelf, rack or
  * bin inside it (§11). So "ship it from the default warehouse" does not yet
@@ -243,9 +243,21 @@ export async function applyMovement(
  *
  * Fullest first, so a line is satisfied from as few shelves as possible.
  *
- * Locked because the allocation is acted on immediately afterwards: on an
- * unlocked read two concurrent sales both plan to take the same units, and
- * the second then fails on a shelf the first has already emptied.
+ * NOT `FOR UPDATE`, deliberately, and this cost a round of intermittent
+ * failures to learn. Locking the whole range looks safer and is not: the read
+ * only decides a PLAN, and every leg of that plan then goes through
+ * `adjustStock`, which locks its own slot with `ensureSlot` and recomputes the
+ * level under that lock — so two concurrent sales cannot oversell whatever this
+ * read told them. What the range lock did add was a deadlock class: a
+ * range scan takes gap locks across the index, `ensureSlot` inserts into those
+ * same gaps, and two transactions working on neighbouring slots could each hold
+ * what the other needed. MySQL kills one, `databaseError.js` maps it to a 409,
+ * and a perfectly ordinary confirmation fails for no reason the user can see.
+ *
+ * The cost of reading unlocked is a stale plan: a leg can find less than it
+ * expected and be refused with "Insufficient stock" while another shelf still
+ * had some. That fails in the safe direction — nothing is ever oversold — and
+ * the caller retries.
  */
 export async function stockedSlots({ businessId, productId, variantId = null, warehouseId, conn }) {
   const [rows] = await conn.query(
@@ -253,8 +265,7 @@ export async function stockedSlots({ businessId, productId, variantId = null, wa
       WHERE business_id = ? AND product_id = ? AND warehouse_id = ?
         AND COALESCE(variant_id, 0) = COALESCE(?, 0)
         AND quantity > 0
-      ORDER BY quantity DESC, id ASC
-      FOR UPDATE`,
+      ORDER BY quantity DESC, id ASC`,
     [businessId, productId, warehouseId, variantId]
   );
   return rows.map((row) => ({
@@ -265,31 +276,34 @@ export async function stockedSlots({ businessId, productId, variantId = null, wa
 }
 
 /**
- * Where a document's stock actually left from and how much of it, keyed by
- * product and variant.
+ * Which slots a document's stock actually moved through, and how much through
+ * each, keyed by product and variant.
  *
- * A cancellation or a return has to put the goods back in the slots they came
- * out of. The obvious shortcut — use the default warehouse — is wrong twice
- * over: the default can be changed between the sale and the cancellation, and
- * a business with more than one warehouse sells from all of them. Either way
- * the stock silently teleports to another building, and the ledger reads as
- * though it was always there.
+ * Undoing a stock movement has to put the goods back where they were, or take
+ * them back from where they were put. The obvious shortcut — use the default
+ * warehouse — is wrong twice over: the default can be changed between the sale
+ * and the cancellation, and a business with more than one warehouse sells from
+ * all of them. Either way the stock silently teleports to another building,
+ * and the ledger reads as though it was always there.
  *
- * A list per key, not one slot, because one line can come off several
- * shelves (see `stockedSlots`) — collapsing it to the first would pile all
- * ten units back onto the shelf that only ever held four.
+ * A list per key, not one slot, because one line can move through several
+ * shelves (see `stockedSlots`) — collapsing it to the first would pile all ten
+ * units back onto the shelf that only ever held four.
  *
- * `quantity_after < quantity_before` is what makes a movement the OUTBOUND
- * one. The stored quantity is a magnitude, so the direction has to be read
- * from the levels rather than the number, and returning stock must not be
- * mistaken for the sale that shipped it.
+ * The direction has to be read from the LEVELS, not from the quantity: the
+ * stored quantity is a magnitude, so a return of 3 and a sale of 3 are the same
+ * number, and the sale must not be mistaken for the return that undid it.
+ *
+ * @param {"out"|"in"} moved  "out" for the slots stock LEFT (a sale), "in" for
+ *                            the slots it was PUT INTO (a purchase receipt)
  */
-export async function originalSlots({ businessId, referenceType, referenceId, conn }) {
+async function documentSlots({ businessId, referenceType, referenceId, moved, conn }) {
+  const direction = moved === "in" ? "quantity_after > quantity_before" : "quantity_after < quantity_before";
   const [rows] = await conn.query(
     `SELECT product_id, variant_id, warehouse_id, location_id, quantity
        FROM inventory_movements
       WHERE business_id = ? AND reference_type = ? AND reference_id = ?
-        AND quantity_after < quantity_before
+        AND ${direction}
       ORDER BY id`,
     [businessId, referenceType, referenceId]
   );
@@ -306,6 +320,12 @@ export async function originalSlots({ businessId, referenceType, referenceId, co
   }
   return slots;
 }
+
+/** The slots a document's stock LEFT — where a cancellation returns it to. */
+export const originalSlots = (args) => documentSlots({ ...args, moved: "out" });
+
+/** The slots a document's stock was PUT INTO — where a reversal takes it from. */
+export const receivedSlots = (args) => documentSlots({ ...args, moved: "in" });
 
 /**
  * §47's switch: negative stock is allowed "only through an explicit business

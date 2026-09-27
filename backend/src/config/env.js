@@ -69,6 +69,20 @@ export const env = {
     rateLimitPerHour: readInt("REGISTRATION_RATE_LIMIT", nodeEnv === "production" ? 5 : 200),
   },
 
+  // The coarse, global per-IP limit in app.js — a first layer under the
+  // tighter one on the login endpoints.
+  //
+  // Lenient outside production for the same reason as the registration limit,
+  // and it was found the same way: an integration-test file that drives a
+  // realistic session — sell, return, approve, complete, read it back — makes
+  // well over a hundred requests in a minute, and started answering 429 to its
+  // own setup. A single busy screen can do the same, so the production figure
+  // is worth revisiting too, but that is a decision about real traffic rather
+  // than a test's. Override with API_RATE_LIMIT.
+  api: {
+    rateLimitPerMinute: readInt("API_RATE_LIMIT", nodeEnv === "production" ? 100 : 5000),
+  },
+
   // One-time bootstrap of the first System Admin (`npm run seed`). Read here
   // so the seed script does not reach into `process.env` on its own. The
   // application never reads these — only the seed does, and with neither

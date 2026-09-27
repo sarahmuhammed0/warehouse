@@ -325,4 +325,94 @@ test("saving a product twice with the same values is not a 404", async (t) => {
   assert.equal((await patch()).status, 200, "the second identical save must also succeed");
 });
 
+/**
+ * Two DIFFERENT orders racing for the same stock.
+ *
+ * This is the invariant that justifies reading the shelves without a range
+ * lock (see `stockedSlots`): the plan may be stale, but every leg is applied
+ * under its own slot lock, so the shortfall is refused rather than oversold.
+ * The earlier `FOR UPDATE` version was safe here too — and deadlocked instead.
+ */
+test("two orders racing for the last of the stock never oversell it", async (t) => {
+  if (!(await requireDatabase(t))) return;
+  const f = await fixture({ stock: 10 });
+  t.after(() => cleanup(f.businessId));
+
+  // 8 + 8 against 10 on hand: one can be filled, the other cannot.
+  const first = await createDraft(f, { quantity: 8 });
+  const second = await createDraft(f, { quantity: 8 });
+
+  const confirm = (id) =>
+    auth(request(app).patch(`/api/orders/${id}/status`), f.token).send({ status: "confirmed" });
+  const results = await Promise.all([confirm(first), confirm(second)]);
+
+  const filled = results.filter((r) => r.status === 200);
+  assert.equal(filled.length, 1, `exactly one order can be filled: ${results.map((r) => r.status)}`);
+  assert.ok(results.some((r) => r.status === 409), "and the other is told the stock is not there");
+
+  const [{ quantity }] = await slotsOf(f.businessId, f.productId);
+  assert.equal(quantity, 2, "10 - 8, once");
+  assert.ok(quantity >= 0, "and stock is never negative while §47 forbids it");
+});
+
+/**
+ * Reopening a cancelled order — the approved scope in docs/architecture.md's
+ * decision table ("Cancelled → Pending only, permission-gated"), which the
+ * transition map did not implement.
+ *
+ * The stock is the point. Cancelling gave the goods back, so a reopened order
+ * must not silently re-own them: it lands in `pending`, where nothing is
+ * committed, and the goods leave again only when someone confirms it.
+ */
+test("a cancelled order can be reopened to pending — and only to pending", async (t) => {
+  if (!(await requireDatabase(t))) return;
+  const f = await fixture({ stock: 10 });
+  t.after(() => cleanup(f.businessId));
+
+  const orderId = await createDraft(f, { quantity: 4 });
+  const patch = (body) =>
+    auth(request(app).patch(`/api/orders/${orderId}/status`), f.token).send(body);
+  const onHand = async () => (await slotsOf(f.businessId, f.productId))[0].quantity;
+
+  const firstConfirm = await patch({ status: "confirmed" });
+  assert.equal(firstConfirm.status, 200, JSON.stringify(firstConfirm.body));
+  assert.equal(await onHand(), 6, "4 shipped");
+
+  const cancelStep = await patch({ status: "cancelled", reason: "Customer error" });
+  assert.equal(cancelStep.status, 200, JSON.stringify(cancelStep.body));
+  assert.equal(await onHand(), 10, "and returned");
+
+  const straightBack = await patch({ status: "confirmed" });
+  assert.equal(straightBack.status, 409, "it cannot re-acquire the stock it gave back");
+
+  const reopened = await patch({ status: "pending" });
+  assert.equal(reopened.status, 200, JSON.stringify(reopened.body));
+  assert.equal(reopened.body.data.status, "pending");
+  assert.equal(await onHand(), 10, "reopening alone moves nothing");
+
+  const [[row]] = await pool.query(
+    `SELECT cancelled_at, cancelled_by, cancel_reason, status_before_cancel FROM orders WHERE id = ?`,
+    [orderId]
+  );
+  assert.equal(row.cancelled_at, null, "an order that is pending was not cancelled by anyone");
+  assert.equal(row.cancelled_by, null);
+  assert.equal(row.cancel_reason, null);
+  assert.equal(row.status_before_cancel, null);
+
+  // §15: but the history still says what happened.
+  const [edits] = await pool.query(
+    `SELECT previous_value, new_value FROM order_edits WHERE order_id = ? ORDER BY id`,
+    [orderId]
+  );
+  assert.ok(
+    edits.some((e) => e.previous_value === "cancelled" && e.new_value === "pending"),
+    `the reopening must be in the trail: ${JSON.stringify(edits)}`
+  );
+
+  // And confirming it again ships the goods — once.
+  const reconfirm = await patch({ status: "confirmed" });
+  assert.equal(reconfirm.status, 200, JSON.stringify(reconfirm.body));
+  assert.equal(await onHand(), 6, "the goods leave again on confirmation");
+});
+
 after(() => closePool());

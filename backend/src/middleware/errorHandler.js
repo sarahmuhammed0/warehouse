@@ -31,6 +31,13 @@ export function errorHandler(err, req, res, next) {
     // though the client is told something generic.
     if (appError.statusCode >= 500) {
       logger.error({ err, code: appError.code }, "Request failed (5xx)");
+    } else if (appError.code === "CONCURRENT_UPDATE") {
+      // The one 4xx worth more than a debug line. It is not the client's
+      // mistake — it is a deadlock or a lock timeout, i.e. contention in our
+      // own transactions — and it looks identical to an ordinary business-rule
+      // 409 from the outside. An intermittent 409 that nobody can explain is
+      // exactly what this turns into a log entry naming the query that lost.
+      logger.warn({ err, code: appError.code }, "Request hit lock contention (409)");
     } else {
       logger.debug({ code: appError.code, statusCode: appError.statusCode }, "Request rejected");
     }

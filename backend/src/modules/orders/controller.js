@@ -212,9 +212,16 @@ export async function updateStatus(req, res, next) {
         userId,
       });
 
+      // Reopening a cancelled order clears the cancellation, because it is no
+      // longer true: an order that is pending was not cancelled by anyone for
+      // any reason. The §15 edit above is what keeps the history — the trail
+      // records that it was cancelled and then reopened, and by whom.
+      const reopening = order.status === "cancelled" && status === "pending";
+
       await conn.query(
         `UPDATE orders SET status = ?, updated_at = NOW(),
                 completed_at = ${status === "completed" ? "NOW()" : "completed_at"}
+                ${reopening ? ", cancelled_at = NULL, cancelled_by = NULL, cancel_reason = NULL, status_before_cancel = NULL" : ""}
           WHERE id = ? AND business_id = ? AND status = ?`,
         [status, order.id, businessId, order.status]
       );

@@ -13,6 +13,9 @@ import { productsRouter } from "../modules/products/routes.js";
 import { inventoryRouter } from "../modules/inventory/routes.js";
 import { customersRouter, suppliersRouter } from "../modules/parties/routes.js";
 import { ordersRouter } from "../modules/orders/routes.js";
+import { purchasesRouter } from "../modules/purchases/routes.js";
+import { returnsRouter, orderReturnableRouter } from "../modules/returns/routes.js";
+import { productionRouter, productBomRouter } from "../modules/production/routes.js";
 import { settingsRouter } from "../modules/settings/routes.js";
 
 export const apiRouter = Router();
@@ -33,4 +36,12 @@ apiRouter.use("/inventory", inventoryRouter);
 apiRouter.use("/customers", customersRouter);
 apiRouter.use("/suppliers", suppliersRouter);
 apiRouter.use("/orders", ordersRouter);
+apiRouter.use("/purchases", purchasesRouter);
+apiRouter.use("/returns", returnsRouter);
+apiRouter.use("/production-orders", productionRouter);
+// §21's recipe belongs to the product, so it is addressed as one of its
+// sub-resources; falls through from productsRouter, which has no /:id/bom.
+apiRouter.use("/products", productBomRouter);
+// Falls through from ordersRouter, which has no /:id/returnable of its own.
+apiRouter.use("/orders", orderReturnableRouter);
 apiRouter.use("/settings", settingsRouter);

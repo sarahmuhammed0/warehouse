@@ -1,7 +1,8 @@
 import { runInTransaction } from "../../db/pool.js";
 import { errors } from "../../utils/AppError.js";
 import { nextDocumentNumber } from "../documents/numbering.js";
-import { originalSlots, stockedSlots, allowsNegativeStock } from "../inventory/repository.js";
+import { originalSlots } from "../inventory/repository.js";
+import { planOutbound, planInbound, recordedTotal } from "../inventory/allocation.js";
 import { adjustStock } from "../inventory/service.js";
 import { defaultWarehouseId } from "../locations/repository.js";
 import { recordEdit, productSnapshot, variantSnapshot } from "./repository.js";
@@ -26,7 +27,18 @@ const ALLOWED_TRANSITIONS = {
   // Terminal. A completed order is edited through a return (§16), not by
   // being moved back — §61's history must stay consistent.
   completed: [],
-  cancelled: [],
+  /**
+   * REOPENING, and only to `pending` — the approved scope in
+   * docs/architecture.md's decision table ("Cancelled → Pending only,
+   * permission-gated"), which the transition map had left out.
+   *
+   * `pending` specifically, never straight back to `confirmed`: cancelling
+   * returned the goods to stock, so a reopened order has no claim on them.
+   * Landing in `pending` means the stock leaves again when someone confirms
+   * it — through the one path that moves stock — rather than the order
+   * quietly re-acquiring inventory it had given back.
+   */
+  cancelled: ["pending"],
   returned: [],
   partially_returned: ["returned"],
 };
@@ -264,14 +276,13 @@ export async function moveStockForOrder(
       ? await originalSlots({ businessId, referenceType: "order", referenceId: orderId, conn })
       : new Map();
 
-  const recordedTotal = (item) =>
-    (origins.get(slotKey(item)) ?? []).reduce((sum, leg) => sum + leg.quantity, 0);
+  const recordedFor = (item) => recordedTotal(origins.get(slotKey(item)));
 
   // The default is the warehouse an outbound line is drawn from, and the
   // fallback for a returned line the ledger does not fully account for (a
   // line added after the order shipped).
   const needsDefault =
-    direction < 0 || items.some((item) => recordedTotal(item) < Number(item.quantity));
+    direction < 0 || items.some((item) => recordedFor(item) < Number(item.quantity));
   const defaultId = needsDefault ? await defaultWarehouseId(businessId, conn) : null;
   if (needsDefault && !defaultId) {
     // Better than a foreign-key error three layers down: the business has
@@ -285,8 +296,14 @@ export async function moveStockForOrder(
     // is a plan of legs rather than a single slot.
     const legs =
       direction > 0
-        ? returnPlan({ recorded: origins.get(slotKey(item)), quantity, defaultId })
-        : await shipmentPlan(conn, { businessId, item, quantity, warehouseId: defaultId });
+        ? planInbound({ recorded: origins.get(slotKey(item)), quantity, fallbackWarehouseId: defaultId })
+        : await planOutbound(conn, {
+            businessId,
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            warehouseId: defaultId,
+            quantity,
+          });
 
     for (const leg of legs) {
       await adjustStock({
@@ -310,70 +327,6 @@ export async function moveStockForOrder(
   }
 }
 
-/** Quantities are DECIMAL(14,3); this keeps the arithmetic there too. */
-const qty = (value) => Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
-
-/**
- * Which slots an outbound line comes out of, and how much from each.
- *
- * Before this existed a sale always debited the warehouse's location-less
- * slot, so a business that had put its stock on a shelf — §11's whole point —
- * could not sell it: every confirmation answered "Insufficient stock.
- * Available quantity: 0" with the goods sitting in plain sight on A-1.
- */
-async function shipmentPlan(conn, { businessId, item, quantity, warehouseId }) {
-  const slots = await stockedSlots({
-    businessId,
-    productId: item.productId,
-    variantId: item.variantId ?? null,
-    warehouseId,
-    conn,
-  });
-
-  const legs = [];
-  let left = quantity;
-  for (const slot of slots) {
-    if (left <= 0) break;
-    const take = Math.min(left, slot.quantity);
-    legs.push({ warehouseId, locationId: slot.locationId, quantity: qty(take) });
-    left = qty(left - take);
-  }
-
-  if (left > 0) {
-    // The warehouse does not hold enough. §47 decides what happens next, and
-    // it decides on the WAREHOUSE's total rather than one shelf's: a business
-    // told "Available quantity: 0" when nine of the ten it asked for are on
-    // the shelf has been told something untrue.
-    const available = qty(slots.reduce((sum, slot) => sum + slot.quantity, 0));
-    if (!(await allowsNegativeStock(businessId, conn))) {
-      throw errors.conflict(`Insufficient stock. Available quantity: ${available}.`);
-    }
-    // Explicitly permitted to go negative: the shortfall comes out of the
-    // slot the goods nominally sit in — the fullest shelf, or the warehouse
-    // itself when it holds none of this product at all.
-    legs.push({ warehouseId, locationId: slots[0]?.locationId ?? null, quantity: left });
-  }
-
-  return legs;
-}
-
-/**
- * Where a returned line goes back to: the slots it left, in the quantities it
- * left in. Anything the ledger does not account for — a line added after the
- * order shipped — goes to the default warehouse.
- */
-function returnPlan({ recorded = [], quantity, defaultId }) {
-  const legs = [];
-  let left = quantity;
-  for (const leg of recorded) {
-    if (left <= 0) break;
-    const give = Math.min(left, leg.quantity);
-    legs.push({ warehouseId: leg.warehouseId, locationId: leg.locationId, quantity: qty(give) });
-    left = qty(left - give);
-  }
-  if (left > 0) legs.push({ warehouseId: defaultId, locationId: null, quantity: left });
-  return legs;
-}
 
 /**
  * §17's cancellation: who, when, why, and what it was before.

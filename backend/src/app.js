@@ -32,7 +32,7 @@ app.use(
 app.use(
   rateLimit({
     windowMs: 60 * 1000,
-    limit: 100,
+    limit: env.api.rateLimitPerMinute,
     standardHeaders: true,
     legacyHeaders: false,
   })
