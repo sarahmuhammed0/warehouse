@@ -1,6 +1,7 @@
 import { runInTransaction } from "../../db/pool.js";
 import { errors } from "../../utils/AppError.js";
 import { ensureSlot, applyMovement, allowsNegativeStock } from "./repository.js";
+import { notifyStockLevel } from "../notifications/triggers.js";
 
 /**
  * The one place stock changes.
@@ -74,6 +75,22 @@ export async function adjustStock({
       referenceId,
       referenceNumber,
       userId,
+    });
+
+    // §44's alert, raised at the moment stock crosses its threshold — which is
+    // the moment somebody can still do something about it. Inside the same
+    // transaction as the movement, so a notification can never describe a
+    // movement that was rolled back; it never throws, so the reverse cannot
+    // happen either.
+    //
+    // The level this checks is the SLOT's, not the product's total across every
+    // warehouse. That is the honest reading of §44 for a business with one
+    // warehouse and a defensible one for several: a shelf that has run out has
+    // run out for whoever is standing at it.
+    await notifyStockLevel(transaction, {
+      businessId,
+      productId,
+      quantityAfter: result.after,
     });
 
     return { productId, warehouseId, locationId, ...result };

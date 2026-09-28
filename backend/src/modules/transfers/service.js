@@ -1,6 +1,7 @@
 import { errors } from "../../utils/AppError.js";
 import { transferStock } from "../inventory/service.js";
 import { transferItems } from "./repository.js";
+import { notifyTransferReceived } from "../notifications/triggers.js";
 
 /**
  * §11's transfer, as a document with a lifecycle.
@@ -87,4 +88,17 @@ export async function moveTransferStock(conn, { businessId, userId, transfer }) 
       conn,
     });
   }
+
+  // §31: the goods have landed, and somebody at the destination has to put them
+  // away. Raised here rather than in the route because this is the function that
+  // knows the stock actually moved.
+  const [[destination]] = await conn.query(`SELECT name FROM warehouses WHERE id = ? LIMIT 1`, [
+    transfer.to_warehouse_id,
+  ]);
+  await notifyTransferReceived(conn, {
+    businessId,
+    transferId: transfer.id,
+    transferNumber: transfer.transfer_number,
+    toWarehouseName: destination?.name ?? null,
+  });
 }

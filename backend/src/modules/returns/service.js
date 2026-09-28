@@ -8,6 +8,7 @@ import { defaultWarehouseId } from "../locations/repository.js";
 import { totalPaid } from "../orders/repository.js";
 import { paymentStatusFor } from "../orders/service.js";
 import { returnableLines, returnItems } from "./repository.js";
+import { notifyReturnRequest } from "../notifications/triggers.js";
 
 /**
  * Returns (§16).
@@ -161,6 +162,15 @@ export async function createReturn({ businessId, userId, order, data }) {
         ]
       );
     }
+
+    // §31: a return request is waiting for a decision, which is exactly the kind
+    // of thing that sits unnoticed until the customer rings to ask.
+    await notifyReturnRequest(conn, {
+      businessId,
+      returnId,
+      returnNumber,
+      reason: data.reason,
+    });
 
     return { returnId, returnNumber };
   });

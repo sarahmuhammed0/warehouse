@@ -5,6 +5,7 @@ import { planOutbound } from "../inventory/allocation.js";
 import { adjustStock } from "../inventory/service.js";
 import { defaultWarehouseId } from "../locations/repository.js";
 import { billOfMaterials, findProduct, productionMaterials } from "./repository.js";
+import { notifyProductionCompleted } from "../notifications/triggers.js";
 
 /**
  * Production and the bill of materials (§21, §22).
@@ -269,4 +270,17 @@ export async function completeProductionOrder(conn, { businessId, userId, order,
       WHERE id = ? AND business_id = ? AND status = ?`,
     [produced, costKnown ? money(cost) : null, order.id, businessId, order.status]
   );
+
+  // §31: the batch is finished and the goods are sellable — which is news to
+  // whoever is taking orders for them.
+  const [[product]] = await conn.query(`SELECT name FROM products WHERE id = ? LIMIT 1`, [
+    order.product_id,
+  ]);
+  await notifyProductionCompleted(conn, {
+    businessId,
+    productionOrderId: order.id,
+    productionNumber: order.production_number,
+    productName: product?.name ?? "the product",
+    quantityProduced: produced,
+  });
 }

@@ -18,6 +18,8 @@ import { returnsRouter, orderReturnableRouter } from "../modules/returns/routes.
 import { productionRouter, productBomRouter } from "../modules/production/routes.js";
 import { variantsRouter } from "../modules/variants/routes.js";
 import { transfersRouter } from "../modules/transfers/routes.js";
+import { reportsRouter } from "../modules/reports/routes.js";
+import { notificationsRouter } from "../modules/notifications/routes.js";
 import { usersRouter } from "../modules/users/routes.js";
 import { rolesRouter } from "../modules/roles/routes.js";
 import { auditRouter } from "../modules/audit/routes.js";
@@ -53,6 +55,8 @@ apiRouter.use("/orders", orderReturnableRouter);
 apiRouter.use("/stock-transfers", transfersRouter);
 // §9 hangs off the product, like §21 does; falls through from productsRouter.
 apiRouter.use("/products", variantsRouter);
+apiRouter.use("/reports", reportsRouter);
+apiRouter.use("/notifications", notificationsRouter);
 apiRouter.use("/users", usersRouter);
 apiRouter.use("/roles", rolesRouter);
 apiRouter.use("/audit-logs", auditRouter);

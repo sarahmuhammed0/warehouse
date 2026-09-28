@@ -6,6 +6,7 @@ import { planOutbound, planInbound, recordedTotal } from "../inventory/allocatio
 import { adjustStock } from "../inventory/service.js";
 import { defaultWarehouseId } from "../locations/repository.js";
 import { recordEdit, productSnapshot, variantSnapshot } from "./repository.js";
+import { notifyNewOrder } from "../notifications/triggers.js";
 
 /**
  * Sales and orders (§13–§15, §17, §43).
@@ -250,6 +251,30 @@ export async function createOrder({ businessId, userId, data, resolveProduct }) 
         direction: -1,
       });
     }
+
+    // §31: somebody should know a sale came in. Raised on creation rather than
+    // on confirmation, because the point of the message is that there is
+    // something new to deal with.
+    //
+    // The customer's name is looked up rather than taken from the request: the
+    // client sends an id, and a notification that read "Walk-in" for every named
+    // customer would be worse than no notification — it would be wrong.
+    let customerName = null;
+    if (data.customerId) {
+      const [[customer]] = await conn.query(
+        `SELECT name FROM customers WHERE id = ? AND business_id = ? LIMIT 1`,
+        [data.customerId, businessId]
+      );
+      customerName = customer?.name ?? null;
+    }
+
+    await notifyNewOrder(conn, {
+      businessId,
+      orderId,
+      orderNumber,
+      customerName,
+      total: totals.grandTotal,
+    });
 
     return { orderId, orderNumber };
   });
