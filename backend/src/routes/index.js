@@ -25,6 +25,11 @@ import { rolesRouter } from "../modules/roles/routes.js";
 import { auditRouter } from "../modules/audit/routes.js";
 import { settingsRouter } from "../modules/settings/routes.js";
 import { businessProfileRouter, numberingRouter } from "../modules/settings/profileRoutes.js";
+import { documentsRouter, orderPdfRouter } from "../modules/documents/routes.js";
+import { customFieldsRouter, customFieldValuesRouter } from "../modules/customFields/routes.js";
+import { backupsRouter } from "../modules/backups/routes.js";
+import { productsRepository } from "../modules/products/repository.js";
+import { customersRepository, suppliersRepository } from "../modules/parties/repository.js";
 
 export const apiRouter = Router();
 
@@ -32,6 +37,9 @@ apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter); // business users
 apiRouter.use("/admin/auth", adminAuthRouter); // System Admins — separate router, separate identity table
 apiRouter.use("/admin/businesses", businessesRouter); // System-Admin-only (see modules/businesses)
+// §33 dumps the whole database, every tenant in it — platform operations, not a
+// business feature. System Admin only.
+apiRouter.use("/admin/backups", backupsRouter);
 apiRouter.use("/registration", registrationRouter); // PUBLIC: business self-registration, creates a pending business
 
 // ---- Business modules (tenant-scoped, permission-checked) ----
@@ -65,3 +73,26 @@ apiRouter.use("/settings", settingsRouter);
 // are columns and rows rather than key/value.
 apiRouter.use("/business", businessProfileRouter);
 apiRouter.use("/documents", numberingRouter);
+apiRouter.use("/documents", documentsRouter);
+// An order PDF is a representation of the order, so it hangs off it.
+apiRouter.use("/orders", orderPdfRouter);
+apiRouter.use("/custom-fields", customFieldsRouter);
+
+// §51 values live with the record they describe, so each entity type gets the
+// same pair of routes under its own path — and a value can never be filed
+// against a definition meant for a different kind of record.
+const exists = (repository) => async ({ businessId, id }) =>
+  Boolean(await repository.findById({ businessId, id }));
+
+apiRouter.use(
+  "/products",
+  customFieldValuesRouter({ entityType: "product", permission: "products", existsIn: exists(productsRepository) })
+);
+apiRouter.use(
+  "/customers",
+  customFieldValuesRouter({ entityType: "customer", permission: "customers", existsIn: exists(customersRepository) })
+);
+apiRouter.use(
+  "/suppliers",
+  customFieldValuesRouter({ entityType: "supplier", permission: "suppliers", existsIn: exists(suppliersRepository) })
+);
