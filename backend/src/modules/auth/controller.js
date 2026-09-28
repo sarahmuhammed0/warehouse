@@ -5,6 +5,7 @@
 import * as authService from "./authService.js";
 import { ok } from "../../utils/responseEnvelope.js";
 import { getClientIp } from "../../utils/requestInfo.js";
+import { assertPasswordMeetsPolicy } from "../settings/policy.js";
 
 /** @param {import('./accountAdapters.js').businessUserAdapter} adapter */
 export function makeAuthController(adapter) {
@@ -65,6 +66,15 @@ export function makeAuthController(adapter) {
 
     async changePassword(req, res, next) {
       try {
+        // §3's policy is the business's own minimum, never below the system's.
+        // A System Admin has no business, so the system minimum is all there is
+        // — which the schema already enforces.
+        if (req.auth.businessId) {
+          await assertPasswordMeetsPolicy({
+            businessId: req.auth.businessId,
+            password: req.body.newPassword,
+          });
+        }
         await authService.changePassword(adapter, req.auth.userId, req.body, getClientIp(req));
         res.json(ok({ changed: true }));
       } catch (err) {

@@ -7,6 +7,7 @@ import { toAppError } from "../../utils/databaseError.js";
 import { runInTransaction } from "../../db/pool.js";
 import { hashPassword } from "../../utils/password.js";
 import { normalizePhone, isValidE164 } from "../../utils/phone.js";
+import { assertPasswordMeetsPolicy } from "../settings/policy.js";
 import * as repo from "./repository.js";
 
 const tenant = (req) => req.auth.businessId;
@@ -87,7 +88,12 @@ export async function create(req, res, next) {
       throw errors.validation("That role does not exist.");
     }
 
-    // Sent, or generated for the owner to hand over.
+    // Sent, or generated for the owner to hand over. A password the caller
+    // chose has to meet the business's own policy (§3); a generated one is
+    // already longer than any minimum this system allows.
+    if (req.body.password) {
+      await assertPasswordMeetsPolicy({ businessId, password: req.body.password });
+    }
     const generated = req.body.password ? null : temporaryPassword();
     const password = req.body.password ?? generated;
 
@@ -210,6 +216,9 @@ export async function resetPassword(req, res, next) {
     const target = await repo.findUser({ businessId, id });
     if (!target) throw errors.notFound("user");
 
+    if (req.body.password) {
+      await assertPasswordMeetsPolicy({ businessId, password: req.body.password });
+    }
     const generated = req.body.password ? null : temporaryPassword();
     const password = req.body.password ?? generated;
     const passwordHash = await hashPassword(password);

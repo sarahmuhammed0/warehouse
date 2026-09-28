@@ -104,6 +104,14 @@ export async function transferStock({
   quantity,
   note = null,
   referenceNumber = null,
+  referenceType = null,
+  referenceId = null,
+  // A caller that is already inside a transaction — a transfer DOCUMENT moving
+  // all of its lines (§11) — passes its connection. Opening a second
+  // transaction here would check out another connection and then wait on the
+  // locks the caller is holding, until MySQL times it out. Same rule as
+  // `adjustStock` and `cancelOrder`.
+  conn = null,
 }) {
   if (!(quantity > 0)) throw errors.validation("The transfer quantity must be greater than zero.");
 
@@ -114,7 +122,7 @@ export async function transferStock({
     throw errors.validation("The source and destination are the same location.");
   }
 
-  return runInTransaction(async (conn) => {
+  const run = async (conn) => {
     const out = await adjustStock({
       businessId,
       userId,
@@ -126,6 +134,8 @@ export async function transferStock({
       movementType: "transfer",
       reason: "Transfer out",
       note,
+      referenceType,
+      referenceId,
       referenceNumber,
       conn,
     });
@@ -141,10 +151,14 @@ export async function transferStock({
       movementType: "transfer",
       reason: "Transfer in",
       note,
+      referenceType,
+      referenceId,
       referenceNumber,
       conn,
     });
 
     return { from: out, to: into, quantity };
-  });
+  };
+
+  return conn ? run(conn) : runInTransaction(run);
 }

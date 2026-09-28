@@ -4,6 +4,7 @@ import { errors } from "../../utils/AppError.js";
 import { toAppError } from "../../utils/databaseError.js";
 import { runInTransaction } from "../../db/pool.js";
 import { loadPermissions } from "../../middleware/authorize.js";
+import { assertPaymentMethodAllowed } from "../settings/policy.js";
 import {
   listOrders,
   findOrder,
@@ -272,6 +273,11 @@ export async function addPayment(req, res, next) {
           `That exceeds the remaining balance of ${(grandTotal - alreadyPaid).toFixed(2)}.`
         );
       }
+
+      // §34: a method the business has switched off is refused, not merely
+      // hidden by the form — a card payment recorded after cards were turned
+      // off is a wrong ledger, and only the server can prevent that.
+      await assertPaymentMethodAllowed({ businessId, method, conn });
 
       await conn.query(
         `INSERT INTO payments (business_id, order_id, direction, amount, method, reference, note, paid_at, created_by)

@@ -6,6 +6,7 @@ import { planOutbound, planInbound, recordedTotal } from "../inventory/allocatio
 import { adjustStock } from "../inventory/service.js";
 import { defaultWarehouseId } from "../locations/repository.js";
 import { productSnapshot, variantSnapshot } from "../orders/repository.js";
+import { assertPaymentMethodAllowed } from "../settings/policy.js";
 
 /**
  * Purchases from suppliers (§20, §25, §43).
@@ -332,8 +333,16 @@ export async function createPurchase({ businessId, userId, data, resolveProduct 
   });
 }
 
-/** §43's supplier payment — money out, so `outgoing`. */
+/**
+ * §43's supplier payment — money out, so `outgoing`.
+ *
+ * The one place a purchase payment is written, which is why the method check
+ * lives here: both the initial `paidAmount` on creation and a later instalment
+ * come through this function, so neither can record a method §34 has switched
+ * off.
+ */
 export async function recordPayment(conn, { businessId, purchaseId, amount, method, reference, note = null, userId }) {
+  await assertPaymentMethodAllowed({ businessId, method, conn });
   await conn.query(
     `INSERT INTO payments
        (business_id, purchase_id, direction, amount, method, reference, note, paid_at, created_by)

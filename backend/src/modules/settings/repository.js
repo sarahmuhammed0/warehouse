@@ -1,5 +1,31 @@
 import { pool } from "../../db/pool.js";
-import { SETTING_KEYS } from "./catalog.js";
+import { SETTING_KEYS, SETTINGS, parseSetting } from "./catalog.js";
+
+/**
+ * One setting's value for one business, or its declared default.
+ *
+ * The single read every feature that HONOURS a setting goes through, so "what
+ * is this business's low-stock threshold" has one answer and one place to look
+ * — rather than each module writing its own query against a JSON column and
+ * disagreeing about what an absent row means.
+ *
+ * Takes a connection so a check inside a transaction reads what that
+ * transaction can see.
+ */
+export async function readSetting({ businessId, key, conn = pool }) {
+  const spec = SETTINGS[key];
+  if (!spec) throw new Error(`Unknown setting: ${key}`);
+
+  const [rows] = await conn.query(
+    `SELECT setting_value FROM business_settings
+      WHERE business_id = ? AND setting_key = ? LIMIT 1`,
+    [businessId, key]
+  );
+  if (rows.length === 0) return spec.default;
+
+  const parsed = parseSetting(key, rows[0].setting_value);
+  return parsed === undefined ? spec.default : parsed;
+}
 
 /**
  * §24's Settings module, over `business_settings`.

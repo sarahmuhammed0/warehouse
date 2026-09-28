@@ -16,10 +16,13 @@ import { ordersRouter } from "../modules/orders/routes.js";
 import { purchasesRouter } from "../modules/purchases/routes.js";
 import { returnsRouter, orderReturnableRouter } from "../modules/returns/routes.js";
 import { productionRouter, productBomRouter } from "../modules/production/routes.js";
+import { variantsRouter } from "../modules/variants/routes.js";
+import { transfersRouter } from "../modules/transfers/routes.js";
 import { usersRouter } from "../modules/users/routes.js";
 import { rolesRouter } from "../modules/roles/routes.js";
 import { auditRouter } from "../modules/audit/routes.js";
 import { settingsRouter } from "../modules/settings/routes.js";
+import { businessProfileRouter, numberingRouter } from "../modules/settings/profileRoutes.js";
 
 export const apiRouter = Router();
 
@@ -47,7 +50,14 @@ apiRouter.use("/production-orders", productionRouter);
 apiRouter.use("/products", productBomRouter);
 // Falls through from ordersRouter, which has no /:id/returnable of its own.
 apiRouter.use("/orders", orderReturnableRouter);
+apiRouter.use("/stock-transfers", transfersRouter);
+// §9 hangs off the product, like §21 does; falls through from productsRouter.
+apiRouter.use("/products", variantsRouter);
 apiRouter.use("/users", usersRouter);
 apiRouter.use("/roles", rolesRouter);
 apiRouter.use("/audit-logs", auditRouter);
 apiRouter.use("/settings", settingsRouter);
+// §34s Business Information, and §29s numbering — the Settings sections that
+// are columns and rows rather than key/value.
+apiRouter.use("/business", businessProfileRouter);
+apiRouter.use("/documents", numberingRouter);

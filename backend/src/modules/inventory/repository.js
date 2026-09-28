@@ -347,17 +347,23 @@ export async function allowsNegativeStock(businessId, conn) {
 }
 
 /** §44's alerts: everything at or below its reorder level. */
-export async function lowStockProducts({ businessId, limit = 50 }) {
+export async function lowStockProducts({ businessId, limit = 50, defaultThreshold = 0 }) {
+  // A product with no `reorder_level` of its own falls back to the business's
+  // setting (§44's threshold, §34's Settings). Before that, `HAVING quantity <=
+  // p.reorder_level` was never true for a NULL — so a product nobody had given a
+  // threshold to could run to zero without ever appearing in the alert list,
+  // which is the one thing this query exists to prevent.
   return queryAll(
     `SELECT p.id, p.name, p.sku, p.reorder_level, p.max_stock,
+            COALESCE(p.reorder_level, ?) AS effective_reorder_level,
             COALESCE(SUM(i.quantity), 0) AS current_quantity
        FROM products p
        LEFT JOIN inventory i ON i.product_id = p.id
       WHERE p.business_id = ? AND p.deleted_at IS NULL AND p.status = 'active'
       GROUP BY p.id
-     HAVING current_quantity <= p.reorder_level
-      ORDER BY (current_quantity - p.reorder_level) ASC
+     HAVING current_quantity <= effective_reorder_level
+      ORDER BY (current_quantity - effective_reorder_level) ASC
       LIMIT ?`,
-    [businessId, limit]
+    [defaultThreshold, businessId, limit]
   );
 }

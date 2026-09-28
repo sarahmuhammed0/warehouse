@@ -4,6 +4,7 @@ import { errors } from "../../utils/AppError.js";
 import { productsRepository } from "../products/repository.js";
 import { warehousesRepository, storageLocationsRepository } from "../locations/repository.js";
 import { listLevels, listMovements, lowStockProducts } from "./repository.js";
+import { lowStockDefault } from "../settings/policy.js";
 import { adjustStock, transferStock } from "./service.js";
 
 const tenant = (req) => req.auth.businessId;
@@ -95,7 +96,10 @@ export async function getMovements(req, res, next) {
 /** §44's dashboard alert list. */
 export async function getLowStock(req, res, next) {
   try {
-    const rows = await lowStockProducts({ businessId: tenant(req) });
+    const businessId = tenant(req);
+    // §34's setting decides for every product that has no threshold of its own.
+    const defaultThreshold = await lowStockDefault({ businessId });
+    const rows = await lowStockProducts({ businessId, defaultThreshold });
     res.json(
       ok(
         rows.map((r) => ({
@@ -104,6 +108,10 @@ export async function getLowStock(req, res, next) {
           sku: r.sku,
           currentQuantity: num(r.current_quantity),
           reorderLevel: num(r.reorder_level),
+          // What the alert actually compared against, which is the product's own
+          // level or the business's default — worth returning, because otherwise
+          // a row with `reorderLevel: null` looks like it appeared for no reason.
+          effectiveReorderLevel: num(r.effective_reorder_level),
           isOutOfStock: Number(r.current_quantity) <= 0,
         }))
       )
