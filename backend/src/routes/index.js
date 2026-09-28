@@ -16,6 +16,9 @@ import { ordersRouter } from "../modules/orders/routes.js";
 import { purchasesRouter } from "../modules/purchases/routes.js";
 import { returnsRouter, orderReturnableRouter } from "../modules/returns/routes.js";
 import { productionRouter, productBomRouter } from "../modules/production/routes.js";
+import { usersRouter } from "../modules/users/routes.js";
+import { rolesRouter } from "../modules/roles/routes.js";
+import { auditRouter } from "../modules/audit/routes.js";
 import { settingsRouter } from "../modules/settings/routes.js";
 
 export const apiRouter = Router();
@@ -44,4 +47,7 @@ apiRouter.use("/production-orders", productionRouter);
 apiRouter.use("/products", productBomRouter);
 // Falls through from ordersRouter, which has no /:id/returnable of its own.
 apiRouter.use("/orders", orderReturnableRouter);
+apiRouter.use("/users", usersRouter);
+apiRouter.use("/roles", rolesRouter);
+apiRouter.use("/audit-logs", auditRouter);
 apiRouter.use("/settings", settingsRouter);
