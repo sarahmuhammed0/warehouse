@@ -16,11 +16,16 @@ abstract class InventoryRepository {
     required MovementType type,
     String? note,
   });
+  /// [productId] is what the real API moves stock by. It is optional only so
+  /// the demo implementation, which has no products table behind it, keeps
+  /// working unchanged — §8 does not make product names unique, so resolving
+  /// one by name server-side could move a different product's stock.
   Future<StockTransfer> createTransfer({
     required String fromWarehouseId,
     required String toWarehouseId,
     required String productName,
     required int quantity,
+    String? productId,
     String? notes,
   });
 }
@@ -193,6 +198,7 @@ class LocalInventoryRepository with DemoRepository implements InventoryRepositor
     required String toWarehouseId,
     required String productName,
     required int quantity,
+    String? productId,
     String? notes,
   }) async {
     await simulatedLatency();

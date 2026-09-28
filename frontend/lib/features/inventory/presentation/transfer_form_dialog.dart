@@ -58,6 +58,9 @@ class _TransferFormDialogState extends ConsumerState<TransferFormDialog> {
             fromWarehouseId: _fromId!,
             toWarehouseId: _toId!,
             productName: productName,
+            // The picker already knows which product this is; the real API
+            // moves stock by id, since product names are not unique.
+            productId: _productId,
             quantity: quantity,
             notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
           );

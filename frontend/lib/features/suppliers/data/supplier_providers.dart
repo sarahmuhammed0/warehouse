@@ -1,12 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../../core/network/paginated_result.dart';
+import '../../../core/network/providers.dart';
 import '../../../core/repositories/paged_list_controller.dart';
 import '../../../core/repositories/paged_query.dart';
+import 'api_supplier_repository.dart';
 import 'supplier_models.dart';
 import 'supplier_repository.dart';
 
-final supplierRepositoryProvider = Provider<SupplierRepository>((ref) => LocalSupplierRepository());
+final supplierRepositoryProvider = Provider<SupplierRepository>((ref) {
+  return switch (AppModeConfig.mode) {
+    AppMode.backend => ApiSupplierRepository(ref.watch(apiClientProvider)),
+    AppMode.demo => LocalSupplierRepository(),
+  };
+});
 
 final supplierListControllerProvider =
     NotifierProvider<SupplierListController, PagedListState<Supplier>>(SupplierListController.new);

@@ -29,6 +29,16 @@ const orderItemSchema = z.object({
   unitPrice: moneySchema,
   discountAmount: moneySchema.optional(),
   taxRate: optionalPercentSchema,
+  /**
+   * The tax as an AMOUNT, for a client that works that way — a till where the
+   * operator types the tax on the line rather than a rate.
+   *
+   * `calculateTotals` has always honoured it as the fallback when no rate is
+   * given, but this schema did not list it, and zod strips what it does not
+   * list: the amount was silently dropped and the line came back untaxed. A
+   * rate wins where both are sent.
+   */
+  taxAmount: moneySchema.optional(),
 });
 
 const createOrderSchema = z.object({

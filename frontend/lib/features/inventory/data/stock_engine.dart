@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../dashboard/data/dashboard_metrics.dart';
 import '../../products/data/product_providers.dart';
 import 'inventory_models.dart';
@@ -43,6 +44,25 @@ class StockEngine {
 
   final Ref _ref;
 
+  /// The movement types the SERVER owns in backend mode.
+  ///
+  /// Each of these is stock moving because a document changed state —
+  /// confirming an order, receiving a purchase, completing a return or a
+  /// production run — and the backend moves it inside the same transaction
+  /// that changed the document, writing its own ledger row with the document
+  /// as the reference (§12). Moving it here as well would move it twice and
+  /// file a second, manual-looking row on top of the document's own.
+  ///
+  /// A manual adjustment is not in this set, and must not be: nothing else
+  /// records it, so in backend mode it still goes to the inventory endpoint
+  /// like any other user action.
+  static const _serverOwned = {
+    MovementType.sale,
+    MovementType.purchase,
+    MovementType.returnMovement,
+    MovementType.production,
+  };
+
   /// Applies [changes] as one logical event, writing a movement row per
   /// line. Lines with a zero delta still record a movement — a damaged
   /// return is a real event that moved no sellable stock.
@@ -52,6 +72,14 @@ class StockEngine {
     String? note,
   }) async {
     if (changes.isEmpty) return;
+
+    if (AppModeConfig.mode == AppMode.backend && _serverOwned.contains(type)) {
+      // The stock has already moved, server-side. What the calling screen
+      // still needs is for every provider showing a quantity to re-read it.
+      await _refreshEverythingThatShowsAQuantity();
+      return;
+    }
+
     final inventory = _ref.read(inventoryRepositoryProvider);
     final products = _ref.read(productRepositoryProvider);
 

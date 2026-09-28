@@ -1,12 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
+import '../../../core/network/providers.dart';
+
 import '../../../core/network/paginated_result.dart';
 import '../../../core/repositories/paged_list_controller.dart';
 import '../../../core/repositories/paged_query.dart';
 import 'production_models.dart';
+import 'api_production_repository.dart';
 import 'production_repository.dart';
 
-final productionRepositoryProvider = Provider<ProductionRepository>((ref) => LocalProductionRepository());
+final productionRepositoryProvider = Provider<ProductionRepository>((ref) {
+  return switch (AppModeConfig.mode) {
+    AppMode.backend => ApiProductionRepository(ref.watch(apiClientProvider)),
+    AppMode.demo => LocalProductionRepository(),
+  };
+});
 
 final productionListControllerProvider =
     NotifierProvider<ProductionListController, PagedListState<ProductionOrder>>(ProductionListController.new);

@@ -1,12 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../../core/network/paginated_result.dart';
+import '../../../core/network/providers.dart';
 import '../../../core/repositories/paged_list_controller.dart';
 import '../../../core/repositories/paged_query.dart';
+import 'api_order_repository.dart';
 import 'order_models.dart';
 import 'order_repository.dart';
 
-final orderRepositoryProvider = Provider<OrderRepository>((ref) => LocalOrderRepository());
+final orderRepositoryProvider = Provider<OrderRepository>((ref) {
+  return switch (AppModeConfig.mode) {
+    AppMode.backend => ApiOrderRepository(ref.watch(apiClientProvider)),
+    AppMode.demo => LocalOrderRepository(),
+  };
+});
 
 final orderListControllerProvider =
     NotifierProvider<OrderListController, PagedListState<Order>>(OrderListController.new);

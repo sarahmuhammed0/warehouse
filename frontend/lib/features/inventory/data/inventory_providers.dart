@@ -1,14 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../../core/network/paginated_result.dart';
+import '../../../core/network/providers.dart';
 import '../../../core/repositories/paged_list_controller.dart';
 import '../../../core/repositories/paged_query.dart';
 import '../../products/data/product_providers.dart';
+import 'api_inventory_repository.dart';
 import 'inventory_models.dart';
 import 'inventory_repository.dart';
 
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
-  return LocalInventoryRepository(ref.watch(productRepositoryProvider));
+  return switch (AppModeConfig.mode) {
+    AppMode.backend => ApiInventoryRepository(ref.watch(apiClientProvider)),
+    AppMode.demo => LocalInventoryRepository(ref.watch(productRepositoryProvider)),
+  };
 });
 
 final warehousesProvider = FutureProvider.autoDispose<List<Warehouse>>((ref) {
