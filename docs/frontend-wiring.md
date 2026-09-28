@@ -54,6 +54,38 @@ changed:
   server-owned. Nothing else records a manual adjustment, so in backend mode it
   still goes to `/inventory/adjust` like any other user action.
 
+### The second half of the same rule, and the bug it hid
+
+Skipping the server-owned types was not enough. For the types the engine *does*
+still handle in backend mode — a manual adjustment — it wrote **twice**:
+
+```
+inventory.recordAdjustment(...)   → POST /inventory/adjust
+products.adjustQuantity(...)      → POST /inventory/adjust   (again)
+```
+
+In demo mode those are two different stores that must be kept in step: the
+movement row, and the product's own quantity. Against the real API they are the
+same write — `/inventory/adjust` moves the level and writes the ledger row in one
+transaction (§12), and `ApiProductRepository.adjustQuantity` routes through that
+very endpoint. So a manual decrease of three took six.
+
+It was invisible before this phase only because the inventory repository was
+still demo-backed: `recordAdjustment` wrote to an in-memory list and just one
+call reached the server. Wiring inventory turned that into two real writes.
+`apply` now makes the product-side write demo-only, and a test asserts the
+request count is exactly one and the quantity is exactly what was asked.
+
+### Making the guard testable at all
+
+`AppModeConfig.mode` is a compile-time constant and `flutter test` always
+compiles as demo, so neither branch above could be reached by a test — safety
+logic that cannot be exercised is a liability. The engine now reads
+`appModeProvider`, which defaults to the constant and can be overridden in a
+test. It is the only place with such a provider, deliberately: everywhere else
+the mode merely *selects a repository*, and a test overrides that repository
+instead.
+
 ---
 
 ## 3. The two invisible call-site changes
@@ -145,9 +177,26 @@ itself listed above as unwired.
 | Check | Result |
 |---|---|
 | `flutter analyze` | No issues found |
-| `flutter test` | 181 passing — 21 new |
+| `flutter test` | 190 passing — 30 new (21 mapping, 9 screen) |
 | Live contract check against the running server | 27 checks, all passing |
 | `npm test` (backend) | 269 passing |
+
+The 9 screen tests mount the real app with a module's repository pointed at its
+API implementation behind a stubbed HTTP layer, navigate to the module, and look
+for the server's values on screen — then tap a row and check the detail view
+fetched and rendered the right record. That is what catches a screen reading a
+field the wiring leaves null, which no repository test can see. Two of them
+exercise the stock guard from both sides: a confirmation must send the status
+change and no adjustment, and a manual adjustment must send exactly one.
+
+Both guard tests were checked against the defect: restoring the double write
+fails the count assertion, and the fix passes it.
+
+Two gaps remain, stated rather than papered over. The **create forms** are
+covered at the request-body level but not through the screen — the flows that
+follow a save keep a reload spinner animating, so `pumpAndSettle` never returns.
+And the app in a real browser was launched and served but **not clicked
+through**: no browser automation is available in this environment.
 
 The 21 new tests pin the mapping in both directions — every field parsed out of
 a response and every key sent in a request body — against a stubbed HTTP

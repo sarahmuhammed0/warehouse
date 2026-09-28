@@ -73,7 +73,9 @@ class StockEngine {
   }) async {
     if (changes.isEmpty) return;
 
-    if (AppModeConfig.mode == AppMode.backend && _serverOwned.contains(type)) {
+    final backend = _ref.read(appModeProvider) == AppMode.backend;
+
+    if (backend && _serverOwned.contains(type)) {
       // The stock has already moved, server-side. What the calling screen
       // still needs is for every provider showing a quantity to re-read it.
       await _refreshEverythingThatShowsAQuantity();
@@ -87,13 +89,19 @@ class StockEngine {
       // Read the live quantity rather than trusting a value the caller
       // captured earlier — two movements in one event must not both record
       // the same "previous quantity".
-      int currentQuantity;
-      try {
-        currentQuantity = (await products.getById(change.productId)).currentQuantity;
-      } catch (_) {
-        // A line referencing a product that no longer exists (deleted in a
-        // long demo session) must not abort the whole event.
-        continue;
+      //
+      // Only in demo mode. The real endpoint reads the level itself, under a
+      // row lock, which is the only figure that cannot be stale — so asking
+      // for it here would be a wasted request whose answer is ignored.
+      int currentQuantity = 0;
+      if (!backend) {
+        try {
+          currentQuantity = (await products.getById(change.productId)).currentQuantity;
+        } catch (_) {
+          // A line referencing a product that no longer exists (deleted in a
+          // long demo session) must not abort the whole event.
+          continue;
+        }
       }
 
       await inventory.recordAdjustment(
@@ -104,7 +112,15 @@ class StockEngine {
         type: type,
         note: note,
       );
-      if (change.delta != 0) {
+
+      // DEMO ONLY, and the distinction matters. Here these are two different
+      // stores that must be kept in step: the movement row and the product's
+      // own quantity. Against the real API they are the same write —
+      // `/inventory/adjust` moves the level and writes the ledger row in one
+      // transaction (§12), and `ApiProductRepository.adjustQuantity` routes
+      // through that very endpoint. Calling both would post the same delta
+      // twice, so a decrease of three would take six.
+      if (!backend && change.delta != 0) {
         await products.adjustQuantity(change.productId, change.delta);
       }
     }
@@ -133,5 +149,17 @@ class StockEngine {
     _ref.invalidate(dashboardMetricsProvider);
   }
 }
+
+/// Which mode the engine is running in.
+///
+/// A provider rather than a direct read of [AppModeConfig], and only here: the
+/// mode is a compile-time constant, so the branch above — the one that decides
+/// whether stock moves twice — would otherwise be unreachable in a test, since
+/// `flutter test` always compiles as demo. Safety logic that cannot be
+/// exercised is a liability, and this is the one place the mode changes
+/// BEHAVIOUR rather than merely selecting a repository: everywhere else a test
+/// overrides the repository provider instead, so those keep reading the
+/// constant directly.
+final appModeProvider = Provider<AppMode>((ref) => AppModeConfig.mode);
 
 final stockEngineProvider = Provider<StockEngine>(StockEngine.new);

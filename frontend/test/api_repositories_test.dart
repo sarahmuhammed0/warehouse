@@ -11,13 +11,9 @@
 // No network: Dio's adapter is replaced with a stub that answers from a map of
 // canned responses and records every request it was given.
 
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:warehouse_os_app/core/network/api_client.dart';
 import 'package:warehouse_os_app/core/repositories/paged_query.dart';
+import 'fakes/stub_api.dart';
 import 'package:warehouse_os_app/features/customers/data/api_customer_repository.dart';
 import 'package:warehouse_os_app/features/customers/data/customer_models.dart';
 import 'package:warehouse_os_app/features/inventory/data/api_inventory_repository.dart';
@@ -32,75 +28,12 @@ import 'package:warehouse_os_app/features/returns/data/api_return_repository.dar
 import 'package:warehouse_os_app/features/returns/data/return_models.dart';
 import 'package:warehouse_os_app/features/suppliers/data/api_supplier_repository.dart';
 
-/// One recorded call, so a test can assert what was sent as well as what came
-/// back — a request body with the wrong key fails as quietly as a parse.
-class _Call {
-  _Call(this.method, this.path, this.body);
-  final String method;
-  final String path;
-  final Map<String, dynamic>? body;
-}
-
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this.responses);
-
-  /// `"METHOD /path"` → the envelope to answer with.
-  final Map<String, Map<String, dynamic>> responses;
-  final List<_Call> calls = [];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    final body = options.data is Map<String, dynamic> ? options.data as Map<String, dynamic> : null;
-    calls.add(_Call(options.method, options.path, body));
-
-    // Matched on the path without its query string: a test cares that the
-    // right endpoint was called, and the query is asserted separately where it
-    // matters.
-    final path = options.path.split('?').first;
-    final key = '${options.method} $path';
-    final envelope = responses[key];
-    if (envelope == null) {
-      return ResponseBody.fromString(
-        jsonEncode({'success': false, 'error': {'code': 'NOT_STUBBED', 'message': 'No stub for $key'}}),
-        404,
-        headers: {Headers.contentTypeHeader: [Headers.jsonContentType]},
-      );
-    }
-    return ResponseBody.fromString(
-      jsonEncode(envelope),
-      200,
-      headers: {Headers.contentTypeHeader: [Headers.jsonContentType]},
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
-
-({ApiClient client, _StubAdapter stub}) _stubbed(Map<String, Map<String, dynamic>> responses) {
-  final stub = _StubAdapter(responses);
-  final client = ApiClient();
-  client.dio.httpClientAdapter = stub;
-  return (client: client, stub: stub);
-}
-
-Map<String, dynamic> _list(List<Map<String, dynamic>> rows, {int total = 1}) => {
-  'success': true,
-  'data': rows,
-  'meta': {'pagination': {'page': 1, 'pageSize': 20, 'total': total}},
-};
-
-Map<String, dynamic> _one(Map<String, dynamic> row) => {'success': true, 'data': row};
 
 void main() {
   group('Customers ↔ /api/customers', () {
     test('a customer row maps onto the fields the screens read', () async {
-      final s = _stubbed({
-        'GET /customers': _list([
+      final s = stubbedApi({
+        'GET /customers': listEnvelope([
           {
             'id': 7,
             'code': 'CUS-0007',
@@ -138,8 +71,8 @@ void main() {
     });
 
     test('creating one sends `name`, not `fullName`', () async {
-      final s = _stubbed({
-        'POST /customers': _one({'id': 9, 'name': 'New Buyer', 'status': 'active'}),
+      final s = stubbedApi({
+        'POST /customers': oneEnvelope({'id': 9, 'name': 'New Buyer', 'status': 'active'}),
       });
 
       await ApiCustomerRepository(s.client).create(
@@ -154,8 +87,8 @@ void main() {
     });
 
     test('applyOrder re-reads rather than writing totals the server derives', () async {
-      final s = _stubbed({
-        'GET /customers/7': _one({'id': 7, 'name': 'Ahmed', 'status': 'active', 'totalPurchases': 90.0}),
+      final s = stubbedApi({
+        'GET /customers/7': oneEnvelope({'id': 7, 'name': 'Ahmed', 'status': 'active', 'totalPurchases': 90.0}),
       });
 
       final customer = await ApiCustomerRepository(s.client).applyOrder(
@@ -171,8 +104,8 @@ void main() {
 
   group('Suppliers ↔ /api/suppliers', () {
     test("the server's totalPurchases is the supplier's purchase cost", () async {
-      final s = _stubbed({
-        'GET /suppliers': _list([
+      final s = stubbedApi({
+        'GET /suppliers': listEnvelope([
           {
             'id': 3,
             'name': 'Erbil Timber Supply',
@@ -198,8 +131,8 @@ void main() {
 
   group('Inventory ↔ /api/inventory', () {
     test("§12's movement types survive the round trip, including `return`", () async {
-      final s = _stubbed({
-        'GET /inventory/movements': _list([
+      final s = stubbedApi({
+        'GET /inventory/movements': listEnvelope([
           {
             'id': 11,
             'productId': 5,
@@ -229,8 +162,8 @@ void main() {
     });
 
     test('a warehouse row maps its type, default flag and location count', () async {
-      final s = _stubbed({
-        'GET /warehouses': _list([
+      final s = stubbedApi({
+        'GET /warehouses': listEnvelope([
           {
             'id': 2,
             'name': 'Production Floor',
@@ -250,13 +183,13 @@ void main() {
     });
 
     test('a manual adjustment posts a SIGNED delta to the default warehouse', () async {
-      final s = _stubbed({
-        'GET /warehouses/options': _list([
+      final s = stubbedApi({
+        'GET /warehouses/options': listEnvelope([
           {'id': 1, 'name': 'Overflow', 'isDefault': false},
           {'id': 2, 'name': 'Main', 'isDefault': true},
         ], total: 2),
-        'POST /inventory/adjust': _one({'productId': 5, 'after': 7}),
-        'GET /inventory/movements': _list([
+        'POST /inventory/adjust': oneEnvelope({'productId': 5, 'after': 7}),
+        'GET /inventory/movements': listEnvelope([
           {
             'id': 12,
             'productId': 5,
@@ -288,7 +221,7 @@ void main() {
     });
 
     test('a transfer without the product it moves is refused, not guessed', () async {
-      final s = _stubbed({'POST /inventory/transfer': _one({'ok': true})});
+      final s = stubbedApi({'POST /inventory/transfer': oneEnvelope({'ok': true})});
 
       // §8 does not make product names unique, so resolving one by name could
       // move a different product's stock.
@@ -317,11 +250,11 @@ void main() {
 
   group('Orders ↔ /api/orders', () {
     test('a quick sale is confirmed so the stock leaves, then closed', () async {
-      final s = _stubbed({
-        'POST /orders': _one({'id': 21, 'orderNumber': 'INV-2026-000001', 'orderType': 'quick_sale'}),
-        'POST /orders/21/payments': _one({'paidAmount': 100.0}),
-        'PATCH /orders/21/status': _one({'id': 21, 'status': 'completed'}),
-        'GET /orders/21': _one({
+      final s = stubbedApi({
+        'POST /orders': oneEnvelope({'id': 21, 'orderNumber': 'INV-2026-000001', 'orderType': 'quick_sale'}),
+        'POST /orders/21/payments': oneEnvelope({'paidAmount': 100.0}),
+        'PATCH /orders/21/status': oneEnvelope({'id': 21, 'status': 'completed'}),
+        'GET /orders/21': oneEnvelope({
           'id': 21,
           'orderNumber': 'INV-2026-000001',
           'orderType': 'quick_sale',
@@ -364,9 +297,9 @@ void main() {
     });
 
     test('a standard order starts as a draft and moves nothing', () async {
-      final s = _stubbed({
-        'POST /orders': _one({'id': 22, 'orderType': 'standard'}),
-        'GET /orders/22': _one({'id': 22, 'orderType': 'standard', 'status': 'draft', 'items': []}),
+      final s = stubbedApi({
+        'POST /orders': oneEnvelope({'id': 22, 'orderType': 'standard'}),
+        'GET /orders/22': oneEnvelope({'id': 22, 'orderType': 'standard', 'status': 'draft', 'items': []}),
       });
 
       await ApiOrderRepository(s.client).create(
@@ -385,8 +318,8 @@ void main() {
     });
 
     test("the server's partially_returned reaches the enum", () async {
-      final s = _stubbed({
-        'GET /orders': _list([
+      final s = stubbedApi({
+        'GET /orders': listEnvelope([
           {'id': 23, 'orderType': 'standard', 'status': 'partially_returned', 'paidAmount': 0, 'extraCharges': 0},
         ]),
       });
@@ -396,9 +329,9 @@ void main() {
     });
 
     test('cancelling sends the reason §17 requires', () async {
-      final s = _stubbed({
-        'PATCH /orders/24/status': _one({'id': 24, 'status': 'cancelled'}),
-        'GET /orders/24': _one({'id': 24, 'orderType': 'standard', 'status': 'cancelled', 'items': []}),
+      final s = stubbedApi({
+        'PATCH /orders/24/status': oneEnvelope({'id': 24, 'status': 'cancelled'}),
+        'GET /orders/24': oneEnvelope({'id': 24, 'orderType': 'standard', 'status': 'cancelled', 'items': []}),
       });
 
       await ApiOrderRepository(s.client).updateStatus('24', OrderStatus.cancelled);
@@ -410,8 +343,8 @@ void main() {
 
   group('Purchases ↔ /api/purchases', () {
     test('a purchase row maps its supplier, money and payment method', () async {
-      final s = _stubbed({
-        'GET /purchases/31': _one({
+      final s = stubbedApi({
+        'GET /purchases/31': oneEnvelope({
           'id': 31,
           'purchaseNumber': 'PUR-2026-000001',
           'supplierId': 3,
@@ -438,17 +371,17 @@ void main() {
     });
 
     test("a draft purchase reads as pending — the enum has no draft", () async {
-      final s = _stubbed({
-        'GET /purchases': _list([{'id': 32, 'status': 'draft', 'paidAmount': 0}]),
+      final s = stubbedApi({
+        'GET /purchases': listEnvelope([{'id': 32, 'status': 'draft', 'paidAmount': 0}]),
       });
       final purchase = (await ApiPurchaseRepository(s.client).list(const PagedQuery())).items.single;
       expect(purchase.status, PurchaseStatus.pending);
     });
 
     test('creating one sends unitCost and the payment method as the API spells it', () async {
-      final s = _stubbed({
-        'POST /purchases': _one({'id': 33}),
-        'GET /purchases/33': _one({'id': 33, 'status': 'pending', 'items': []}),
+      final s = stubbedApi({
+        'POST /purchases': oneEnvelope({'id': 33}),
+        'GET /purchases/33': oneEnvelope({'id': 33, 'status': 'pending', 'items': []}),
       });
 
       await ApiPurchaseRepository(s.client).create(
@@ -471,8 +404,8 @@ void main() {
 
   group('Returns ↔ /api/returns', () {
     test('a return resolves the ORDER LINE it is against', () async {
-      final s = _stubbed({
-        'GET /orders/41/returnable': _one({
+      final s = stubbedApi({
+        'GET /orders/41/returnable': oneEnvelope({
           'orderId': 41,
           'returnable': true,
           'lines': [
@@ -480,8 +413,8 @@ void main() {
             {'id': 502, 'productId': 6, 'productName': 'Table', 'quantity': 1, 'returned': 0, 'remaining': 1},
           ],
         }),
-        'POST /returns': _one({'id': 42}),
-        'GET /returns/42': _one({
+        'POST /returns': oneEnvelope({'id': 42}),
+        'GET /returns/42': oneEnvelope({
           'id': 42,
           'returnNumber': 'RET-2026-000001',
           'orderId': 41,
@@ -513,8 +446,8 @@ void main() {
     });
 
     test('a damaged condition survives, since it decides whether stock comes back', () async {
-      final s = _stubbed({
-        'GET /returns/43': _one({
+      final s = stubbedApi({
+        'GET /returns/43': oneEnvelope({
           'id': 43,
           'orderId': 41,
           'status': 'completed',
@@ -534,8 +467,8 @@ void main() {
     });
 
     test('a product that is not on the order is refused before anything is sent', () async {
-      final s = _stubbed({
-        'GET /orders/41/returnable': _one({'orderId': 41, 'returnable': true, 'lines': []}),
+      final s = stubbedApi({
+        'GET /orders/41/returnable': oneEnvelope({'orderId': 41, 'returnable': true, 'lines': []}),
       });
 
       await expectLater(
@@ -556,8 +489,8 @@ void main() {
 
   group('Production ↔ /api/production-orders', () {
     test("a run's materials are the batch's own snapshot, not the recipe", () async {
-      final s = _stubbed({
-        'GET /production-orders/51': _one({
+      final s = stubbedApi({
+        'GET /production-orders/51': oneEnvelope({
           'id': 51,
           'productionNumber': 'PRD-2026-000001',
           'productId': 5,
@@ -596,8 +529,8 @@ void main() {
     });
 
     test('the bill of materials is read per unit', () async {
-      final s = _stubbed({
-        'GET /products/5/bom': _one({
+      final s = stubbedApi({
+        'GET /products/5/bom': oneEnvelope({
           'productId': 5,
           'productName': 'Table',
           'lines': [
@@ -615,9 +548,9 @@ void main() {
     });
 
     test('in_progress round-trips through the enum', () async {
-      final s = _stubbed({
-        'PATCH /production-orders/52/status': _one({'id': 52}),
-        'GET /production-orders/52': _one({
+      final s = stubbedApi({
+        'PATCH /production-orders/52/status': oneEnvelope({'id': 52}),
+        'GET /production-orders/52': oneEnvelope({
           'id': 52,
           'productId': 5,
           'status': 'in_progress',
