@@ -6,6 +6,7 @@ import { healthRouter } from "./health.routes.js";
 import { authRouter } from "../modules/auth/routes.js";
 import { adminAuthRouter } from "../modules/admin-auth/routes.js";
 import { businessesRouter, registrationRouter } from "../modules/businesses/routes.js";
+import { adminBusinessRouter } from "../modules/businesses/adminRoutes.js";
 import { unitsRouter } from "../modules/units/routes.js";
 import { categoriesRouter } from "../modules/categories/routes.js";
 import { warehousesRouter, storageLocationsRouter } from "../modules/locations/routes.js";
@@ -37,6 +38,9 @@ apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter); // business users
 apiRouter.use("/admin/auth", adminAuthRouter); // System Admins — separate router, separate identity table
 apiRouter.use("/admin/businesses", businessesRouter); // System-Admin-only (see modules/businesses)
+// §57s remaining admin actions: edit, enable/disable, reset a password, and
+// per-business figures. Falls through from businessesRouter.
+apiRouter.use("/admin/businesses", adminBusinessRouter);
 // §33 dumps the whole database, every tenant in it — platform operations, not a
 // business feature. System Admin only.
 apiRouter.use("/admin/backups", backupsRouter);
