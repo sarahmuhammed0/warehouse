@@ -9,6 +9,8 @@ import '../../routing/app_routes.dart';
 import '../../shared/badges/status_badge.dart';
 import '../../shared/buttons/app_button.dart';
 import '../../shared/cards/app_card.dart';
+import '../../core/error/failure.dart';
+import '../../shared/feedback/app_toast.dart';
 import '../../shared/feedback/confirm_dialog.dart';
 import '../../shared/forms/app_text_field.dart';
 import '../../shared/forms/selection_controls.dart';
@@ -20,6 +22,8 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/theme_controller.dart';
 import 'data/business_type_config.dart';
+import 'data/backup_repository.dart';
+import 'data/custom_fields_repository.dart';
 import 'data/settings_state.dart';
 import 'presentation/settings_field.dart';
 
@@ -396,17 +400,17 @@ class _SecuritySection extends ConsumerWidget {
   }
 }
 
-class _CustomFieldsSection extends StatefulWidget {
+class _CustomFieldsSection extends ConsumerStatefulWidget {
   const _CustomFieldsSection({required this.l10n});
   final AppLocalizations l10n;
 
   @override
-  State<_CustomFieldsSection> createState() => _CustomFieldsSectionState();
+  ConsumerState<_CustomFieldsSection> createState() => _CustomFieldsSectionState();
 }
 
-class _CustomFieldsSectionState extends State<_CustomFieldsSection> {
-  final List<String> _fields = ['Wood type', 'Fabric type'];
+class _CustomFieldsSectionState extends ConsumerState<_CustomFieldsSection> {
   final _newField = TextEditingController();
+  bool _busy = false;
 
   @override
   void dispose() {
@@ -414,20 +418,35 @@ class _CustomFieldsSectionState extends State<_CustomFieldsSection> {
     super.dispose();
   }
 
+  Future<void> _run(Future<void> Function(CustomFieldsRepository repo) action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action(ref.read(customFieldsRepositoryProvider));
+      ref.invalidate(customFieldsProvider);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fields = ref.watch(customFieldsProvider);
     return AppCard(
       title: Text(widget.l10n.settingsCustomFieldsLabel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 12,
         children: [
-          for (final field in _fields)
+          for (final field in fields.asData?.value ?? const <CustomFieldDefinition>[])
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.tune),
-              title: Text(field),
-              trailing: IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _fields.remove(field))),
+              title: Text(field.label),
+              trailing: IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: _busy ? null : () => _run((repo) => repo.delete(field.id)),
+              ),
             ),
           Row(
             children: [
@@ -435,13 +454,14 @@ class _CustomFieldsSectionState extends State<_CustomFieldsSection> {
               const SizedBox(width: 8),
               AppButton(
                 label: widget.l10n.add,
-                onPressed: () {
-                  if (_newField.text.trim().isEmpty) return;
-                  setState(() {
-                    _fields.add(_newField.text.trim());
-                    _newField.clear();
-                  });
-                },
+                onPressed: _busy
+                    ? null
+                    : () {
+                        final label = _newField.text.trim();
+                        if (label.isEmpty) return;
+                        _newField.clear();
+                        _run((repo) => repo.create(label));
+                      },
               ),
             ],
           ),
@@ -451,12 +471,19 @@ class _CustomFieldsSectionState extends State<_CustomFieldsSection> {
   }
 }
 
-class _BackupSection extends StatelessWidget {
+/// §33's backup controls.
+///
+/// The history is whatever the server has actually recorded — nothing is
+/// invented here. It is empty for a business owner, because backups dump a
+/// database holding every tenant and are therefore a platform operation; the
+/// buttons below report the server's own refusal rather than pretending.
+class _BackupSection extends ConsumerWidget {
   const _BackupSection({required this.l10n});
   final AppLocalizations l10n;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(backupHistoryProvider).asData?.value ?? const <BackupRecord>[];
     return AppCard(
       title: Text(l10n.settingsBackupLabel),
       child: Column(
@@ -465,30 +492,82 @@ class _BackupSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              AppButton(label: 'Backup now', icon: Icons.backup_outlined, onPressed: () => _showBackupConfirmation(context, l10n)),
+              AppButton(label: 'Backup now', icon: Icons.backup_outlined, onPressed: () => _startBackup(context, ref)),
               const SizedBox(width: 12),
               AppButton(label: 'Restore', icon: Icons.restore_outlined, variant: AppButtonVariant.outline, onPressed: () => _showRestoreWarning(context, l10n)),
             ],
           ),
           const Divider(),
           Text('Backup history', style: AppTypography.sectionTitle),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.check_circle_outline),
-            title: const Text('Scheduled backup'),
-            subtitle: const Text('Yesterday, 02:00'),
-            trailing: StatusBadge(label: l10n.statusCompleted, tone: StatusTone.success),
-          ),
+          if (history.isEmpty)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.info_outline),
+              title: const Text('No backups recorded'),
+              subtitle: const Text('Backups are run by the platform administrator.'),
+            )
+          else
+            for (final record in history)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(record.status == 'completed' ? Icons.check_circle_outline : Icons.schedule_outlined),
+                title: Text(_timestamp(record.createdAt)),
+                subtitle: Text(record.note ?? '—'),
+                trailing: StatusBadge(
+                  label: record.status,
+                  tone: record.status == 'completed'
+                      ? StatusTone.success
+                      : record.status == 'failed'
+                          ? StatusTone.danger
+                          : StatusTone.warning,
+                ),
+              ),
         ],
       ),
     );
   }
 
-  Future<void> _showBackupConfirmation(BuildContext context, AppLocalizations l10n) async {
-    await confirmAction(context, title: 'Start a manual backup?', description: l10n.demoDataNotice, confirmLabel: 'Backup now', cancelLabel: l10n.cancel);
+  static String _timestamp(DateTime dt) =>
+      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _startBackup(BuildContext context, WidgetRef ref) async {
+    final confirmed = await confirmAction(
+      context,
+      title: 'Start a manual backup?',
+      description: 'The request is recorded on the server. No file is written until a backup target is configured.',
+      confirmLabel: 'Backup now',
+      cancelLabel: l10n.cancel,
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      final outcome = await ref.read(backupRepositoryProvider).start();
+      if (!context.mounted) return;
+      ref.invalidate(backupHistoryProvider);
+      // Never "Backup complete". The server said whether a file exists, and
+      // that is what is repeated here.
+      if (outcome.fileProduced) {
+        AppToast.success(context, outcome.message);
+      } else {
+        AppToast.warning(context, outcome.message);
+      }
+    } on Failure catch (e) {
+      if (context.mounted) AppToast.error(context, e.message);
+    }
   }
 
   Future<void> _showRestoreWarning(BuildContext context, AppLocalizations l10n) async {
-    await confirmAction(context, title: 'Restore from backup?', description: 'This will overwrite current data once connected to a real backup engine. ${l10n.demoDataNotice}', confirmLabel: 'Restore', cancelLabel: l10n.cancel, isDestructive: true);
+    final confirmed = await confirmAction(
+      context,
+      title: 'Restore from backup?',
+      description: 'This would overwrite every business’s data. There is nothing to restore from — no backup file has been written.',
+      confirmLabel: 'Restore',
+      cancelLabel: l10n.cancel,
+      isDestructive: true,
+    );
+    if (confirmed == true && context.mounted) {
+      AppToast.warning(context, 'Restore is unavailable: no backup file exists to restore from.');
+    }
   }
 }

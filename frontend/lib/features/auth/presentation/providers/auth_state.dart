@@ -24,9 +24,17 @@ class AuthAuthenticating extends AuthState {
 }
 
 class AuthAuthenticated extends AuthState {
-  const AuthAuthenticated({required this.account, required this.business});
+  const AuthAuthenticated({required this.account, required this.business, this.role});
   final AuthAccount account;
   final AuthBusiness? business;
+
+  /// What this session may do (§24), as the server resolved it at sign-in.
+  ///
+  /// Null in two quite different cases, both of which mean "nothing to
+  /// restrict against here": a System Admin (no business, so no
+  /// business-scoped role), and demo mode, where the role is resolved from
+  /// the seeded employee list instead — see `permission_providers.dart`.
+  final AuthRole? role;
 }
 
 /// A login/change-password attempt failed — the UI shows `message` inline

@@ -149,64 +149,196 @@ not a repository one.
 
 ---
 
-## 5. Still on demo data
+## 5. The rest of the screens — no demo data left
 
-Each of these needs a backend endpoint first, not a repository:
+Everything the previous section listed as "still on demo data" now reads the
+API. The mechanism is unchanged: an `Api*Repository` behind the same interface,
+chosen by a `switch` in that module's provider. Demo mode still works untouched.
 
-| Module | Missing endpoint |
+| Module | Reads |
 |---|---|
-| Employees / users | `/api/users` |
-| Roles & permissions | `/api/roles`, `PUT /api/roles/:id/permissions` |
-| Activity history | `GET /api/audit-logs` (table and writer exist) |
-| Notifications | `/api/notifications` |
-| Reports | `/api/reports/*` (§25) |
-| Documents / PDF | `GET /api/orders/:id/pdf` (§28) |
-| Settings sections | only `inventory.allow_negative_stock` exists (§34/§47) |
-| Product variants | `/api/products/:id/variants` |
-| Custom fields, backup | §51, §33 |
-| Admin per-business drill-downs | `listForBusiness` throws `UnimplementedError` in backend mode — every business route is scoped to the caller's own session, so a System Admin reading another tenant's orders needs a deliberate admin endpoint |
+| Staff + Roles | `/users`, `/roles`, `PUT /roles/:id/permissions` |
+| Activity history | `/audit-logs` |
+| Notifications | `/notifications`, `/unread-count`, `/:id/read`, `/read-all` |
+| Settings | `/business`, `/settings`, `/documents/numbering`, `/documents/pdf-template` |
+| Variants | `/products/:id/variants`, `/inventory/adjust` |
+| Transfers | `/stock-transfers` (was the movement ledger) |
+| Custom fields | `/custom-fields` |
+| Backups | `/admin/backups` |
+| System Admin | `/admin/businesses/*`, `/admin/activity` |
+| Documents | `GET /orders/:id/pdf` |
 
-`listForBusiness` is the only method that throws rather than working. It is
-reachable only from the System Admin's per-business reports screen, which is
-itself listed above as unwired.
+Reports needed no repository: every report is computed from modules that were
+already wired, so they have been showing real figures since the last phase.
+System status was already reading `/health`.
 
 ---
 
-## 6. Verification
+## 6. The session now knows what it may do
+
+This is the change with the most reach, and it was a real gap rather than a
+missing screen.
+
+`currentPermissionsProvider` resolved a role only in demo mode, by matching the
+demo login's phone to a seeded employee. A **backend** session matched nothing,
+resolved to `null`, and `hasPermission` treats `null` as unrestricted — so every
+nav item was offered to every role and the server refused on the click. Signing
+in as a salesperson looked exactly like signing in as the owner.
+
+`/api/auth/login` and `/api/auth/me` now return the user's role and its grants,
+resolved server-side, and the session carries them.
+
+**This is not a weakening of §8's minimal token claims.** The access token still
+carries no permissions — a test asserts it — because a token that carried them
+would keep them until it expired, up to fifteen minutes after an administrator
+revoked them. This is a per-request server lookup handed to a UI, and
+`middleware/authorize.js` still re-reads the grants on every request. It is a
+snapshot: a role edited mid-session reaches that user's sidebar on their next
+session restore. The server refuses on the very next request either way.
+
+### The three keys with nothing behind them
+
+The sidebar gates Dashboard, Documents and Activity History on `dashboard.view`,
+`documents.view` and `audit.view` — none of which exist in the permission
+catalogue, because they are screens assembled from other modules rather than
+modules of their own. Granting them to everyone (as the demo roles do) would
+have offered Activity History to a salesperson whose `/api/audit-logs` request
+then 403s.
+
+So the server **derives** them from what it actually enforces: Dashboard for
+everyone, Documents with `orders.view`, Activity History with `settings.view` —
+which is what `/api/audit-logs` checks. They are deliberately absent from
+`GET /api/roles`, which feeds the permission editor, because a checkbox for a
+key the server does not store would be unsaveable.
+
+---
+
+## 7. Decisions this pass forced
+
+**A phone number cannot be edited, and the form still shows one.** It is the
+credential (§3) and the identity. The update schema has no `phone`, and zod
+strips a key it does not know — so passing the field through would answer 200
+with the number unchanged, and the owner would leave believing they had changed
+it. `ApiEmployeeRepository.update` refuses it outright instead, and sends
+nothing.
+
+**Settings save as you type, because the screen has no Save button.** The
+controller debounces 600ms and sends a **diff** — only the fields that actually
+changed, each to whichever of the four endpoints owns it. A blanket write would
+PATCH the business record, the settings store, four document sequences and the
+PDF template on every keystroke, and a numbering counter that only moves forward
+would start refusing writes it never needed to be sent.
+
+**Settings fields re-seed when they are not being typed in.** `SettingsField`
+deliberately seeded its controller once, to fix a caret bug. In backend mode the
+values arrive *after* the first build, so a field seeded once kept showing `USD`
+after the server said `IQD`. It now re-seeds when the incoming value changes
+**and** the field is unfocused, which keeps the original fix intact.
+
+**A transfer is created as a document.** `createTransfer` posted to
+`/inventory/transfer`, a bare two-legged movement. The list now reads
+`/stock-transfers`, so a transfer filed the other way would have moved the goods
+and then never appeared in the list of transfers. The list also shows `pending`
+transfers, which reading the ledger could never do — a movement row only exists
+once the goods have moved.
+
+**A variant's opening quantity is a real stock movement.** The add-variant
+dialog collects a quantity; the variant create endpoint has no such field,
+because a variant is its own stock slot. The repository creates the variant and
+then files a `manual_increase` against `(product, variant, warehouse)`, so the
+stock can be explained later by the same history as every other quantity in the
+system. This needed `variantId` on `/inventory/adjust`: `adjustStock` already
+accepted one and the route schema stripped it — the same defect class as
+`taxAmount` last phase. The variant is scoped by business *and* product when it
+is checked, so a variant id from another tenant cannot name a slot in this one.
+
+**A custom field's key is derived from its label, once.** The screen collects a
+label; the server needs a stable machine key, because the label is what a
+business renames and the key is what recorded values are filed under.
+
+**The backup history is empty for a business owner, and says why.** Backups dump
+a database holding every tenant, so the endpoint is System-Admin-only. The
+section previously showed a hardcoded "Scheduled backup — Yesterday, 02:00 —
+Completed", which is the most convincing lie in the application: a screen about
+disaster recovery asserting that a recoverable file exists. It now shows what
+the server has actually recorded, and the button reports the server's own answer
+— including `fileProduced: false`. It never says "Backup complete".
+
+**No password-reset date is invented.** `AdminBusiness.lastPasswordResetAt` was
+demo-only local state. The server does not record it, so in backend mode it is
+null rather than a timestamp the detail screen would present as a fact about the
+account.
+
+---
+
+## 8. Two things the server had to grow
+
+Both because a screen existed with no endpoint under it, not to make the wiring
+easier.
+
+**`GET /api/admin/businesses/:id/{users,products,orders}`** — §57's drill-downs
+list a tenant's records, and every business route is scoped to the caller's own
+session (§36). They are read-only: an admin who could edit a tenant's stock
+would be a second, invisible author of that tenant's data, and §57 gives the
+platform operator oversight, not operation. Capped at 200 with
+`limit`/`truncated` in the response rather than a silent cut. The orders
+response carries its line items, because this model computes an order's total
+from its lines and an order without them reads as `0.00` — worse than unknown,
+because it looks like a figure.
+
+**`GET /api/admin/activity`** — §56's platform feed: the same `audit_logs`,
+unscoped, each row naming its business. Read-only, for the same reason §30's
+trail is.
+
+---
+
+## 9. Verification
 
 | Check | Result |
 |---|---|
 | `flutter analyze` | No issues found |
-| `flutter test` | 190 passing — 30 new (21 mapping, 9 screen) |
-| Live contract check against the running server | 27 checks, all passing |
-| `npm test` (backend) | 269 passing |
+| `flutter test` | 227 passing (36 new) |
+| `npm test` (backend) | 365 passing (6 new) |
+| Live check against the running server | 162 checks |
 
-The 9 screen tests mount the real app with a module's repository pointed at its
-API implementation behind a stubbed HTTP layer, navigate to the module, and look
-for the server's values on screen — then tap a row and check the detail view
-fetched and rendered the right record. That is what catches a screen reading a
-field the wiring leaves null, which no repository test can see. Two of them
-exercise the stock guard from both sides: a confirmation must send the status
-change and no adjustment, and a manual adjustment must send exactly one.
+The live check is the one that matters most, for the reason the previous phase
+gives: canned JSON can itself be wrong. It signs in as an owner, a salesperson
+and a System Admin, and asserts that every field these repositories read is
+present in the real response, that the refusals actually refuse, and that a
+variant's stock lands in the variant's own slot.
 
-Both guard tests were checked against the defect: restoring the double write
-fails the count assertion, and the fix passes it.
+It found two key-name mistakes that compile, analyse clean and simply show
+nothing — the notification badge read `unreadCount` where the server sends
+`unread`, and the backup history read `fileSizeBytes`/`note` where the server
+sends `sizeBytes`/`errorMessage`.
 
-Two gaps remain, stated rather than papered over. The **create forms** are
-covered at the request-body level but not through the screen — the flows that
-follow a save keep a reload spinner animating, so `pumpAndSettle` never returns.
-And the app in a real browser was launched and served but **not clicked
-through**: no browser automation is available in this environment.
+It also found a **test that proved nothing**: the §28 reprint test asserted that
+two renders had the same *length*, while its comment claimed byte identity. A
+length check passes with every figure on the page changed. It now compares the
+bytes, excluding only the trailer's `/ID`, which pdfkit randomises per render
+because the PDF spec requires a unique file identifier.
 
-The 21 new tests pin the mapping in both directions — every field parsed out of
-a response and every key sent in a request body — against a stubbed HTTP
-adapter. That catches a repository that spells a field `name` where the server
-says `fullName`, which compiles and analyses clean and simply shows a blank.
+Separately, six new backend tests were written with an inverted
+`requireDatabase` guard — they returned before asserting anything and reported
+six passes in a second. Caught because the timings were implausible for a
+bcrypt login. Both guards that matter were then checked by reintroducing the
+defect: removing the session-role lookup fails two permission tests, and
+removing the derived navigation keys fails the backend one.
 
-Because canned JSON could itself be wrong, a second check runs against the
-**real running server**: it builds a business through the API and asserts that
-every field these repositories read is actually present in the live responses.
-That is what caught the one backend change this phase needed — `taxAmount` on an
-order line was accepted by the service but stripped by the route's schema, so a
-per-line tax typed as an amount silently vanished and the line came back
-untaxed.
+---
+
+## 10. What is still not done
+
+- **§33's backup takes no dump.** Unchanged, and unchangeable from the client —
+  see `docs/backend-phase9.md` for what completing it needs.
+- **Session timeout and login-lockout attempts** are shown in Settings and are
+  not stored. The first is the access token's TTL; the second is deliberately
+  not per-business, because the lockout is checked before a phone is resolved to
+  an account precisely so the response cannot reveal whether that account
+  exists. Both are left at their defaults, and neither is ever sent.
+- **The profit report is cash-basis**, as before.
+- **Saving a file works only in the browser build.** `downloadBytes` refuses
+  elsewhere rather than failing silently; a desktop build would need a file
+  picker and a real path.
+- **An order-level discount is still not displayed**, as the previous section
+  records — it needs a model field and a row on the screen.

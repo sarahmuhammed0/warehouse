@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
 import '../../../core/network/api_client.dart';
 import '../../../core/network/paginated_result.dart';
 import '../../../core/repositories/paged_query.dart';
@@ -177,12 +181,41 @@ class ApiOrderRepository implements OrderRepository {
 
   @override
   Future<List<Order>> listForBusiness(String businessId, {OrderType? type}) async {
-    // Admin-only drill-down. There is no cross-tenant orders endpoint: every
-    // business route is scoped to the caller's own session, which is the
-    // isolation §36 is built on. A System Admin reading another tenant's orders
-    // needs a deliberate admin endpoint, which does not exist yet.
-    throw UnimplementedError(
-      'Per-business order drill-down needs an admin endpoint — see docs/frontend-backend-contract-notes.md.',
+    // §57's System Admin drill-down, through the admin endpoint that names the
+    // business — a business-side route is scoped to the caller's own session
+    // (§36), which is the isolation this cannot be allowed to weaken.
+    //
+    // The rows carry their line items, because this model computes an order's
+    // total from its lines. Without them every order would read as 0.00, which
+    // is worse than unknown: it looks like a real figure.
+    final typeParam = switch (type) {
+      OrderType.quickSale => '?type=quick_sale',
+      OrderType.standard => '?type=standard',
+      null => '',
+    };
+    final response = await _client.getJson('/admin/businesses/$businessId/orders$typeParam');
+    return ((response['items'] as List<dynamic>?) ?? const []).map((row) {
+      final json = row as Map<String, dynamic>;
+      final items = ((json['items'] as List<dynamic>?) ?? const [])
+          .map((item) => _itemFrom(item as Map<String, dynamic>))
+          .toList();
+      return _fromJson(json, items: items);
+    }).toList();
+  }
+
+  /// §28's invoice. Bytes, not JSON — so this goes through the Dio instance
+  /// directly rather than [ApiClient]'s envelope unwrapping, which would try
+  /// to read a PDF as a success/error object.
+  ///
+  /// The session's Authorization header is attached by the interceptor on that
+  /// same instance, which is why the file cannot simply be opened as a link:
+  /// the endpoint is gated on orders.view like the order itself.
+  @override
+  Future<Uint8List> invoicePdf(String id) async {
+    final response = await _client.dio.get<List<int>>(
+      '/orders//pdf',
+      options: Options(responseType: ResponseType.bytes),
     );
+    return Uint8List.fromList(response.data ?? const []);
   }
 }

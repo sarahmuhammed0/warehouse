@@ -221,7 +221,18 @@ void main() {
     });
 
     test('a transfer without the product it moves is refused, not guessed', () async {
-      final s = stubbedApi({'POST /inventory/transfer': oneEnvelope({'ok': true})});
+      // §11's DOCUMENT endpoint, not the bare two-legged movement: the list
+      // reads transfers, so a movement filed the other way would move the
+      // goods and then never appear in the list of transfers.
+      final s = stubbedApi({
+        'POST /stock-transfers': oneEnvelope({
+          'id': 9,
+          'transferNumber': 'TRF-2026-000009',
+          'status': 'completed',
+          'fromWarehouseName': 'Main',
+          'toWarehouseName': 'Showroom',
+        }),
+      });
 
       // §8 does not make product names unique, so resolving one by name could
       // move a different product's stock.
@@ -236,15 +247,54 @@ void main() {
       );
       expect(s.stub.calls, isEmpty, reason: 'nothing may be sent on a guess');
 
-      await ApiInventoryRepository(s.client).createTransfer(
+      final created = await ApiInventoryRepository(s.client).createTransfer(
         fromWarehouseId: '1',
         toWarehouseId: '2',
         productName: 'Oak Plank',
         productId: '5',
         quantity: 5,
       );
-      expect(s.stub.calls.single.body!['productId'], 5);
-      expect(s.stub.calls.single.body!['quantity'], 5);
+
+      final body = s.stub.calls.single.body!;
+      expect(body['fromWarehouseId'], 1);
+      expect(body['toWarehouseId'], 2);
+      expect((body['items'] as List).single, {'productId': 5, 'quantity': 5});
+      expect(body['status'], 'completed', reason: 'the dialog records a move already made');
+      expect(
+        created.transferNumber,
+        'TRF-2026-000009',
+        reason: 'the document has a number — the ledger row it replaced never did',
+      );
+    });
+
+    test('the transfer list reads documents, so a pending transfer is visible', () async {
+      final s = stubbedApi({
+        'GET /stock-transfers': listEnvelope([
+          {
+            'id': 9,
+            'transferNumber': 'TRF-2026-000009',
+            'status': 'pending',
+            'fromWarehouseName': 'Main',
+            'toWarehouseName': 'Showroom',
+            'itemCount': 2,
+            'totalQuantity': 12,
+            'firstProductName': 'Oak Plank',
+            'createdByName': 'Dara Salih',
+            'createdAt': '2026-09-29 10:00:00',
+            'note': 'Display set',
+          },
+        ]),
+      });
+
+      final page = await ApiInventoryRepository(s.client).listTransfers(const PagedQuery());
+      final row = page.items.single;
+
+      expect(row.status, TransferStatus.pending, reason: 'a ledger read could only ever show completed');
+      expect(row.transferNumber, 'TRF-2026-000009');
+      expect(row.quantity, 12, reason: 'the whole document, not one line');
+      expect(row.productName, contains('Oak Plank'));
+      expect(row.productName, contains('1 more'), reason: 'the other line is counted, not dropped');
+      expect(row.requestedBy, 'Dara Salih');
     });
   });
 

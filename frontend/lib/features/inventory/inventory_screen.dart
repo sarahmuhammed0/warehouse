@@ -1,3 +1,4 @@
+import '../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -204,7 +205,7 @@ class _MovementsTab extends ConsumerWidget {
               errorMessage: state.error,
               onRetry: controller.reload,
               emptyTitle: l10n.emptyStateDefaultTitle,
-              emptyDescription: l10n.demoDataNotice,
+              emptyDescription: dataSourceNotice(l10n),
             ),
           ),
         ),

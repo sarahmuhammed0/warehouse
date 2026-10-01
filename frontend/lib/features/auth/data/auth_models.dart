@@ -49,34 +49,61 @@ class AuthBusiness {
   );
 }
 
+/// The signed-in user's role and everything it grants (§24), as the server
+/// resolved it. Null for a System Admin, who belongs to no business.
+///
+/// The permission list is what the UI gates on — it is never what AUTHORIZES
+/// anything: the backend re-reads a user's grants on every request
+/// (`middleware/authorize.js`), so editing this client-side changes what is
+/// offered and nothing about what is allowed.
+class AuthRole {
+  const AuthRole({required this.id, required this.name, required this.isSystemRole, required this.permissions});
+
+  final int id;
+  final String name;
+  final bool isSystemRole;
+  final Set<String> permissions;
+
+  factory AuthRole.fromJson(Map<String, dynamic> json) => AuthRole(
+    id: json['id'] as int,
+    name: json['name'] as String,
+    isSystemRole: json['isSystemRole'] as bool? ?? false,
+    permissions: ((json['permissions'] as List<dynamic>?) ?? const []).map((e) => '$e').toSet(),
+  );
+}
+
 /// What a successful login returns: both tokens plus the identity/business
 /// context the UI needs immediately (architecture §23) — nothing more.
 class AuthSession {
-  const AuthSession({required this.accessToken, required this.refreshToken, required this.account, this.business});
+  const AuthSession({required this.accessToken, required this.refreshToken, required this.account, this.business, this.role});
 
   final String accessToken;
   final String refreshToken;
   final AuthAccount account;
   final AuthBusiness? business; // null for a System Admin session
+  final AuthRole? role; // null for a System Admin, or a user with no role
 
   factory AuthSession.fromJson(Map<String, dynamic> json) => AuthSession(
     accessToken: json['accessToken'] as String,
     refreshToken: json['refreshToken'] as String,
     account: AuthAccount.fromJson(json['account'] as Map<String, dynamic>),
     business: json['business'] == null ? null : AuthBusiness.fromJson(json['business'] as Map<String, dynamic>),
+    role: json['role'] == null ? null : AuthRole.fromJson(json['role'] as Map<String, dynamic>),
   );
 }
 
 /// GET /me's shape — same identity fields, no tokens (the caller already has them).
 class AuthIdentity {
-  const AuthIdentity({required this.account, this.business});
+  const AuthIdentity({required this.account, this.business, this.role});
 
   final AuthAccount account;
   final AuthBusiness? business;
+  final AuthRole? role;
 
   factory AuthIdentity.fromJson(Map<String, dynamic> json) => AuthIdentity(
     account: AuthAccount.fromJson(json['account'] as Map<String, dynamic>),
     business: json['business'] == null ? null : AuthBusiness.fromJson(json['business'] as Map<String, dynamic>),
+    role: json['role'] == null ? null : AuthRole.fromJson(json['role'] as Map<String, dynamic>),
   );
 }
 

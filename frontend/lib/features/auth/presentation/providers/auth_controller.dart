@@ -105,7 +105,7 @@ class AuthController extends Notifier<AuthState> {
       final tokens = await _repo.refresh(refreshToken);
       await _storage.save(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken);
       final identity = await _repo.me();
-      state = AuthAuthenticated(account: identity.account, business: identity.business);
+      state = AuthAuthenticated(account: identity.account, business: identity.business, role: identity.role);
     } catch (_) {
       await _storage.clear();
       state = const AuthUnauthenticated();
@@ -120,7 +120,7 @@ class AuthController extends Notifier<AuthState> {
       // Remember which identity system this session came from, so a reload
       // refreshes it against the same one.
       await _storage.saveAccountType(accountTypeToStorage(ref.read(selectedAccountTypeProvider)));
-      state = AuthAuthenticated(account: session.account, business: session.business);
+      state = AuthAuthenticated(account: session.account, business: session.business, role: session.role);
     } on Failure catch (e) {
       state = AuthError(e.message);
     } catch (_) {

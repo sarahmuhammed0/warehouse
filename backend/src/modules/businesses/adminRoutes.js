@@ -114,6 +114,10 @@ const COLUMNS = {
 export const adminBusinessRouter = Router();
 adminBusinessRouter.use(authenticate, requireAccountType("system_admin"));
 
+/** Mounted at /api/admin/activity — platform-wide, so not under /:id. */
+export const adminBusinessesActivityRouter = Router();
+adminBusinessesActivityRouter.use(authenticate, requireAccountType("system_admin"));
+
 /** One business in full, with the owner and a few counts to orient by. */
 adminBusinessRouter.get("/:id", validate(idParamsSchema, "params"), async (req, res, next) => {
   try {
@@ -418,3 +422,261 @@ adminBusinessRouter.get("/:id/reports", validate(idParamsSchema, "params"), asyn
  * trusted without ever having been produced.
  */
 const constraintMessages = {};
+
+/**
+ * §57's per-business drill-downs: the records themselves, not just counts.
+ *
+ * The admin's overview screens list a tenant's staff, products and orders.
+ * Every business-side route is scoped to the caller's own session (§36), and a
+ * System Admin has no session-scoped business — so reading another tenant's
+ * records needs a deliberate endpoint that names the business, which is what
+ * these are. They are read-only: an admin who could EDIT a tenant's stock or
+ * orders would be a second, invisible author of that tenant's data, and §57
+ * gives the platform operator oversight, not operation.
+ *
+ * Capped rather than paginated. These feed overview tables, the cap is stated
+ * in the response as `limit`/`truncated` instead of quietly cutting the list
+ * short, and a tenant needing more than this is a tenant whose own screens are
+ * the right place to look.
+ */
+const DRILLDOWN_LIMIT = 200;
+
+async function assertBusinessExists(businessId) {
+  const [rows] = await pool.query(`SELECT id FROM businesses WHERE id = ? AND deleted_at IS NULL`, [
+    businessId,
+  ]);
+  if (rows.length === 0) throw errors.notFound("business");
+}
+
+/** A capped list plus the honest note that it was capped. */
+const drilldown = (rows) => ({
+  items: rows.slice(0, DRILLDOWN_LIMIT),
+  limit: DRILLDOWN_LIMIT,
+  truncated: rows.length > DRILLDOWN_LIMIT,
+});
+
+adminBusinessRouter.get("/:id/users", validate(idParamsSchema, "params"), async (req, res, next) => {
+  try {
+    const businessId = tenant(req);
+    await assertBusinessExists(businessId);
+
+    const rows = await queryAll(
+      `SELECT u.id, u.business_id, u.name, u.phone, u.email, u.role_id, u.status,
+              u.is_owner, u.last_login_at, u.created_at, r.name AS role_name
+         FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+        WHERE u.business_id = ? AND u.deleted_at IS NULL
+        ORDER BY u.name
+        LIMIT ?`,
+      [businessId, DRILLDOWN_LIMIT + 1]
+    );
+
+    res.json(
+      ok(
+        drilldown(
+          rows.map((row) => ({
+            id: row.id,
+            businessId: row.business_id,
+            name: row.name,
+            phone: row.phone,
+            email: row.email,
+            roleId: row.role_id,
+            roleName: row.role_name ?? null,
+            isOwner: Boolean(row.is_owner),
+            status: row.status,
+            lastLoginAt: row.last_login_at,
+            createdAt: row.created_at,
+          }))
+        )
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminBusinessRouter.get("/:id/products", validate(idParamsSchema, "params"), async (req, res, next) => {
+  try {
+    const businessId = tenant(req);
+    await assertBusinessExists(businessId);
+
+    const rows = await queryAll(
+      `SELECT p.id, p.business_id, p.sku, p.product_code, p.product_type, p.name, p.unit_id, p.category_id, p.selling_price,
+              p.purchase_cost, p.reorder_level, p.min_stock, p.status, p.created_at,
+              c.name AS category_name, un.name AS unit_name,
+              COALESCE((SELECT SUM(i.quantity) FROM inventory i WHERE i.product_id = p.id), 0) AS quantity
+         FROM products p
+         LEFT JOIN categories c ON c.id = p.category_id
+         LEFT JOIN units un     ON un.id = p.unit_id
+        WHERE p.business_id = ? AND p.deleted_at IS NULL
+        ORDER BY p.name
+        LIMIT ?`,
+      [businessId, DRILLDOWN_LIMIT + 1]
+    );
+
+    res.json(
+      ok(
+        drilldown(
+          rows.map((row) => ({
+            id: row.id,
+            businessId: row.business_id,
+            sku: row.sku,
+            productCode: row.product_code,
+            name: row.name,
+            categoryId: row.category_id,
+            categoryName: row.category_name ?? null,
+            unitId: row.unit_id,
+            unitName: row.unit_name ?? null,
+            sellingPrice: Number(row.selling_price),
+            purchaseCost: Number(row.purchase_cost),
+            // Named as the business-side products view names it, so the client
+            // maps an admin drill-down row with the same code as its own.
+            currentQuantity: Number(row.quantity),
+            productType: row.product_type,
+            reorderLevel: row.reorder_level === null ? null : Number(row.reorder_level),
+            minStock: row.min_stock === null ? null : Number(row.min_stock),
+            status: row.status,
+            createdAt: row.created_at,
+          }))
+        )
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * `?type=` separates §13's quick sales from §14's standard orders, because the
+ * admin's screens count them as two different things.
+ */
+adminBusinessRouter.get(
+  "/:id/orders",
+  validateRequest({
+    params: idParamsSchema,
+    query: z.object({ type: enumSchema(["standard", "quick_sale"], "Type").optional() }),
+  }),
+  async (req, res, next) => {
+    try {
+      const businessId = tenant(req);
+      await assertBusinessExists(businessId);
+
+      const conditions = ["o.business_id = ?", "o.deleted_at IS NULL"];
+      const params = [businessId];
+      if (req.query.type) {
+        conditions.push("o.order_type = ?");
+        params.push(req.query.type);
+      }
+
+      const rows = await queryAll(
+        `SELECT o.id, o.business_id, o.order_number, o.order_type, o.status, o.payment_status,
+                o.grand_total, o.paid_amount, o.extra_charges, o.order_date, o.created_at,
+                c.name AS customer_name
+           FROM orders o
+           LEFT JOIN customers c ON c.id = o.customer_id
+          WHERE ${conditions.join(" AND ")}
+          ORDER BY o.id DESC
+          LIMIT ?`,
+        [...params, DRILLDOWN_LIMIT + 1]
+      );
+
+      // The lines, for the orders being returned. The client computes an
+      // order's total from its lines — as every other screen does, so the
+      // figure cannot disagree with what it is made of — and an order without
+      // them would read as 0.00 rather than as unknown.
+      const capped = rows.slice(0, DRILLDOWN_LIMIT);
+      const itemsByOrder = new Map(capped.map((row) => [String(row.id), []]));
+      if (capped.length) {
+        const items = await queryAll(
+          `SELECT oi.order_id, oi.product_id, oi.product_name, oi.quantity, oi.unit_price,
+                  oi.discount_amount, oi.tax_amount
+             FROM order_items oi
+            WHERE oi.order_id IN (${capped.map(() => "?").join(",")})
+            ORDER BY oi.id`,
+          capped.map((row) => row.id)
+        );
+        for (const item of items) {
+          itemsByOrder.get(String(item.order_id))?.push({
+            productId: item.product_id,
+            productName: item.product_name,
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unit_price),
+            discountAmount: Number(item.discount_amount),
+            taxAmount: Number(item.tax_amount),
+          });
+        }
+      }
+
+      res.json(
+        ok(
+          drilldown(
+            rows.map((row) => ({
+              id: row.id,
+              businessId: row.business_id,
+              orderNumber: row.order_number,
+              orderType: row.order_type,
+              status: row.status,
+              paymentStatus: row.payment_status,
+              grandTotal: Number(row.grand_total),
+              paidAmount: Number(row.paid_amount),
+              extraCharges: Number(row.extra_charges),
+              customerName: row.customer_name ?? null,
+              items: itemsByOrder.get(String(row.id)) ?? [],
+              orderDate: row.order_date,
+              createdAt: row.created_at,
+            }))
+          )
+        )
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * §56's platform activity feed — what has been happening across the whole
+ * installation, not inside one tenant.
+ *
+ * The rows are the same `audit_logs` the business-side trail reads, but
+ * unscoped, which is exactly why this lives behind `system_admin` and why the
+ * business-side endpoint can never be reached this way round. Each row names
+ * the business it belongs to, because "Settings changed" means nothing to a
+ * platform operator without knowing whose.
+ *
+ * Read-only for the same reason as §30's trail: evidence that can be added to
+ * is not evidence.
+ */
+adminBusinessesActivityRouter.get("/", async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const rows = await queryAll(
+      `SELECT a.id, a.business_id, a.action, a.module, a.description, a.created_at,
+              b.name AS business_name
+         FROM audit_logs a
+         LEFT JOIN businesses b ON b.id = a.business_id
+        ORDER BY a.id DESC
+        LIMIT ?`,
+      [limit]
+    );
+
+    res.json(
+      ok(
+        rows.map((row) => ({
+          id: row.id,
+          businessId: row.business_id,
+          // A public self-registration belongs to no business yet. It shows as
+          // a platform event rather than being attributed to whichever tenant
+          // happened to be created next.
+          businessName: row.business_name ?? "Platform",
+          module: row.module,
+          action: row.action,
+          description: row.description,
+          createdAt: row.created_at,
+        }))
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+});

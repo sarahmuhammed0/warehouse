@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../../core/network/paginated_result.dart';
+import '../../../core/network/providers.dart';
 import '../../../core/repositories/paged_list_controller.dart';
 import '../../../core/repositories/paged_query.dart';
 import '../../employees/data/employee_models.dart';
@@ -11,8 +13,14 @@ import '../../products/data/product_models.dart';
 import '../../products/data/product_providers.dart';
 import 'admin_business_models.dart';
 import 'admin_repository.dart';
+import 'api_admin_repository.dart';
 
-final adminRepositoryProvider = Provider<AdminRepository>((ref) => LocalAdminRepository());
+final adminRepositoryProvider = Provider<AdminRepository>((ref) {
+  return switch (AppModeConfig.mode) {
+    AppMode.backend => ApiAdminRepository(ref.watch(apiClientProvider)),
+    AppMode.demo => LocalAdminRepository(),
+  };
+});
 
 final adminBusinessListControllerProvider =
     NotifierProvider<AdminBusinessListController, PagedListState<AdminBusiness>>(AdminBusinessListController.new);

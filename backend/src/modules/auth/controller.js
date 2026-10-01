@@ -25,6 +25,9 @@ export function makeAuthController(adapter) {
             refreshToken: result.refreshToken,
             account: result.account,
             business: result.business,
+            // Null for a System Admin, who belongs to no business and
+            // therefore holds no business-scoped role.
+            role: result.role ?? null,
           })
         );
       } catch (err) {

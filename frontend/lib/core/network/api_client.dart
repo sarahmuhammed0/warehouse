@@ -35,6 +35,14 @@ class ApiClient {
   Future<Map<String, dynamic>> patchJson(String path, Map<String, dynamic> body) =>
       _unwrap(dio.patch<Map<String, dynamic>>(path, data: body));
 
+  /// The deliberate exception to the rule above. A few endpoints replace a
+  /// whole collection rather than merging fields into a record — a role's
+  /// permission set (§24), a PDF template's fields (§28) — and for those the
+  /// omission of a key IS the edit: it means "untick this". PATCH would make
+  /// "untick everything and save" impossible to express.
+  Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) =>
+      _unwrap(dio.put<Map<String, dynamic>>(path, data: body));
+
   Future<Map<String, dynamic>> deleteJson(String path) =>
       _unwrap(dio.delete<Map<String, dynamic>>(path));
 

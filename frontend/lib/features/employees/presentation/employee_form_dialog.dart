@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide required;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/failure.dart';
 import '../../../core/validation/validators.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/buttons/app_button.dart';
@@ -74,6 +75,12 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
       }
       await ref.read(employeeListControllerProvider.notifier).reload();
       if (mounted) Navigator.of(context).pop(true);
+    } on Failure catch (e) {
+      // The server's own words. Every refusal this form can hit says something
+      // the person can act on — that a phone number is already taken, that a
+      // phone cannot be changed, that the password is too short for this
+      // business's policy — and "Unable to save" throws all of that away.
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) setState(() => _error = AppLocalizations.of(context)!.unableToSave);
     } finally {

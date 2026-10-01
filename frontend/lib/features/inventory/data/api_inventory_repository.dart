@@ -163,46 +163,46 @@ class ApiInventoryRepository implements InventoryRepository {
     );
   }
 
+  static const _transferStatuses = <String, TransferStatus>{
+    'pending': TransferStatus.pending,
+    'in_transit': TransferStatus.inTransit,
+    'completed': TransferStatus.completed,
+    'cancelled': TransferStatus.cancelled,
+  };
+
   @override
   Future<PaginatedResult<StockTransfer>> listTransfers(PagedQuery query) async {
-    // Read from the stock LEDGER, filtered to transfers, because §11's
-    // `stock_transfers` document tables exist but have no API yet: a transfer
-    // is currently an atomic two-legged movement rather than a document with
-    // its own lifecycle. So every row here is already complete — there is no
-    // pending or in-transit state to report — and each transfer appears as its
-    // outbound leg, the one that says where the goods left.
-    final ledger = await _client.getList(
-      '/inventory/movements?${buildListQuery(query.copyWith(filters: {...query.filters, 'movementType': 'transfer'}))}',
-    );
-    final page = ledger.meta['pagination'] as Map<String, dynamic>?;
-
-    final outbound = ledger.data
-        .cast<Map<String, dynamic>>()
-        .where((row) => (row['quantityAfter'] as num? ?? 0) < (row['quantityBefore'] as num? ?? 0))
-        .map(
-          (row) => StockTransfer(
-            id: '${row['id']}',
-            // A ledger row carries no transfer number, because the document
-            // it would belong to is not written yet.
-            transferNumber: (row['referenceNumber'] as String?) ?? '—',
-            fromWarehouse: (row['locationName'] as String?) ?? (row['warehouseName'] as String?) ?? '',
-            toWarehouse: (row['note'] as String?) ?? '',
-            productName: (row['productName'] as String?) ?? '',
-            quantity: (row['quantity'] as num?)?.round() ?? 0,
-            status: TransferStatus.completed,
-            requestedBy: (row['userName'] as String?) ?? '',
-            createdAt: DateTime.tryParse('${row['movedAt']}') ?? DateTime.now(),
-            notes: row['note'] as String?,
-          ),
-        )
-        .toList();
+    // §11's transfers are documents with their own lifecycle, so this reads
+    // them rather than reconstructing them from the ledger: a ledger row knows
+    // a quantity moved, but not the transfer number it belonged to nor whether
+    // that transfer is still pending — which is precisely what this list is
+    // for. Reading movements could only ever show completed ones.
+    final result = await _client.getList('/stock-transfers?${buildListQuery(query)}');
+    final page = result.meta['pagination'] as Map<String, dynamic>?;
 
     return PaginatedResult(
-      items: outbound,
+      items: result.data.cast<Map<String, dynamic>>().map((row) {
+        final itemCount = (row['itemCount'] as num?)?.toInt() ?? 0;
+        final first = (row['firstProductName'] as String?) ?? '';
+        return StockTransfer(
+          id: '${row['id']}',
+          transferNumber: (row['transferNumber'] as String?) ?? '',
+          fromWarehouse: (row['fromWarehouseName'] as String?) ?? '',
+          toWarehouse: (row['toWarehouseName'] as String?) ?? '',
+          // A transfer can carry several products and this row has space for
+          // one name. The extras are counted rather than dropped — "and 2
+          // more" is true, where showing only the first would not be.
+          productName: itemCount > 1 ? '$first  + ${itemCount - 1} more' : first,
+          quantity: ((row['totalQuantity'] as num?)?.toDouble() ?? 0).round(),
+          status: _transferStatuses[row['status']] ?? TransferStatus.pending,
+          requestedBy: (row['createdByName'] as String?) ?? '',
+          createdAt: DateTime.tryParse('${row['createdAt']}') ?? DateTime.now(),
+          notes: row['note'] as String?,
+        );
+      }).toList(),
       page: (page?['page'] as int?) ?? query.page,
       pageSize: (page?['pageSize'] as int?) ?? query.pageSize,
-      // The total counts both legs, so halving it matches what is shown.
-      total: ((page?['total'] as int?) ?? outbound.length * 2) ~/ 2,
+      total: (page?['total'] as int?) ?? result.data.length,
     );
   }
 
@@ -222,24 +222,36 @@ class ApiInventoryRepository implements InventoryRepository {
       throw StateError('A transfer needs the product it moves, not just its name.');
     }
 
-    await _client.postJson('/inventory/transfer', {
-      'productId': int.tryParse(productId),
+    // Creates the §11 DOCUMENT, not the bare two-legged movement that
+    // `/inventory/transfer` performs. The two do the same thing to stock, but
+    // only this one leaves a transfer with a number and a status — and the
+    // list above reads transfers, so a movement filed the other way would move
+    // the goods and then never appear.
+    //
+    // Born `completed`, which is the dialog's meaning: a clerk moving a pallet
+    // now and writing it down as they do it. A transfer that needed approval
+    // first would need somewhere to approve it, which is a screen this module
+    // does not have.
+    final created = await _client.postJson('/stock-transfers', {
       'fromWarehouseId': int.tryParse(fromWarehouseId),
       'toWarehouseId': int.tryParse(toWarehouseId),
-      'quantity': quantity,
+      'items': [
+        {'productId': int.tryParse(productId), 'quantity': quantity},
+      ],
       'note': notes,
+      'status': 'completed',
     });
 
     return StockTransfer(
-      id: '',
-      transferNumber: '—',
-      fromWarehouse: fromWarehouseId,
-      toWarehouse: toWarehouseId,
+      id: '${created['id']}',
+      transferNumber: (created['transferNumber'] as String?) ?? '',
+      fromWarehouse: (created['fromWarehouseName'] as String?) ?? fromWarehouseId,
+      toWarehouse: (created['toWarehouseName'] as String?) ?? toWarehouseId,
       productName: productName,
       quantity: quantity,
-      status: TransferStatus.completed,
-      requestedBy: '',
-      createdAt: DateTime.now(),
+      status: _transferStatuses[created['status']] ?? TransferStatus.completed,
+      requestedBy: (created['createdByName'] as String?) ?? '',
+      createdAt: DateTime.tryParse('${created['createdAt']}') ?? DateTime.now(),
       notes: notes,
     );
   }

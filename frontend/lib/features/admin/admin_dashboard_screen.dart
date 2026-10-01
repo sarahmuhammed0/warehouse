@@ -1,3 +1,4 @@
+import '../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -109,7 +110,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return PageScaffold(
       title: l10n.adminNavDashboard,
       titleWidget: _Greeting(name: accountName, fallback: l10n.adminNavDashboard),
-      subtitle: l10n.demoDataNotice,
+      subtitle: dataSourceNotice(l10n),
       showBackButton: true,
       backFallbackRoute: AppRoutes.adminDashboard,
       secondaryActions: [

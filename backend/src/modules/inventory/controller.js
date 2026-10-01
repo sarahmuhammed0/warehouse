@@ -6,6 +6,7 @@ import { warehousesRepository, storageLocationsRepository } from "../locations/r
 import { listLevels, listMovements, lowStockProducts } from "./repository.js";
 import { lowStockDefault } from "../settings/policy.js";
 import { adjustStock, transferStock } from "./service.js";
+import { findVariant } from "../variants/repository.js";
 
 const tenant = (req) => req.auth.businessId;
 const num = (v) => (v === null || v === undefined ? null : Number(v));
@@ -58,8 +59,16 @@ function movementView(row) {
 }
 
 /** Every referenced row must exist AND belong to this tenant (§36). */
-async function requireOwnership({ businessId, productId, warehouseId, locationId }) {
+async function requireOwnership({ businessId, productId, variantId = null, warehouseId, locationId }) {
   await productsRepository.requireById({ businessId, id: productId, label: "product" });
+  if (variantId !== undefined && variantId !== null) {
+    // Scoped by BOTH business and product. Checking the business alone would
+    // let one product's stock be moved under another product's variant, and
+    // checking neither would let a variant id from another tenant name a slot
+    // in this one (§36).
+    const variant = await findVariant({ businessId, productId, id: variantId });
+    if (!variant) throw errors.notFound("variant");
+  }
   await warehousesRepository.requireById({ businessId, id: warehouseId, label: "warehouse" });
   if (locationId !== undefined && locationId !== null) {
     const location = await storageLocationsRepository.requireById({
@@ -131,14 +140,15 @@ export async function getLowStock(req, res, next) {
 export async function adjust(req, res, next) {
   try {
     const businessId = tenant(req);
-    const { productId, warehouseId, locationId = null, quantity, movementType, reason, note } = req.body;
+    const { productId, variantId = null, warehouseId, locationId = null, quantity, movementType, reason, note } = req.body;
 
-    await requireOwnership({ businessId, productId, warehouseId, locationId });
+    await requireOwnership({ businessId, productId, variantId, warehouseId, locationId });
 
     const result = await adjustStock({
       businessId,
       userId: req.auth.userId,
       productId,
+      variantId,
       warehouseId,
       locationId,
       delta: Number(quantity),

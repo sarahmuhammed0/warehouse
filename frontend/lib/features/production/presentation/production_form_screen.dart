@@ -1,3 +1,4 @@
+import '../../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -114,7 +115,7 @@ class _ProductionFormScreenState extends ConsumerState<ProductionFormScreen> {
               child: bomAsync.when(
                 data: (bom) {
                   final qty = int.tryParse(_quantity.text.trim()) ?? 1;
-                  if (bom.isEmpty) return AppEmptyState(icon: Icons.precision_manufacturing_outlined, title: l10n.emptyStateDefaultTitle, description: l10n.demoDataNotice);
+                  if (bom.isEmpty) return AppEmptyState(icon: Icons.precision_manufacturing_outlined, title: l10n.emptyStateDefaultTitle, description: dataSourceNotice(l10n));
                   return Column(
                     children: [
                       for (final line in bom)

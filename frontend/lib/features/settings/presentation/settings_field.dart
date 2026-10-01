@@ -39,15 +39,47 @@ class SettingsField extends StatefulWidget {
 
 class _SettingsFieldState extends State<SettingsField> {
   late final TextEditingController _controller = TextEditingController(text: widget.initialValue);
+  final _focus = FocusNode();
+
+  /// Seeding once is right while the user is typing, and wrong when the value
+  /// arrives after the first build — which is exactly what happens in backend
+  /// mode, where Settings are fetched and the first frame shows defaults. A
+  /// field seeded once would keep showing "USD" after the server said "IQD".
+  ///
+  /// So it re-seeds when the incoming value changes AND the field is not
+  /// focused. The focus check is what keeps the original fix intact: the box
+  /// someone is actively typing in is never written over.
+  @override
+  void didUpdateWidget(SettingsField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialValue != oldWidget.initialValue &&
+        widget.initialValue != _controller.text &&
+        !_focus.hasFocus) {
+      _controller.text = widget.initialValue;
+    }
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // `Focus` draws nothing — it is here only so [didUpdateWidget] can ask
+    // whether this field is the one being typed in. `AppTextField` is a shared
+    // design component and takes no focus node; wrapping keeps the question
+    // answerable without changing it or how anything looks.
+    return Focus(
+      focusNode: _focus,
+      canRequestFocus: false,
+      child: _field(),
+    );
+  }
+
+  Widget _field() {
     if (widget.number) {
       return AppTextField.number(
         label: widget.label,

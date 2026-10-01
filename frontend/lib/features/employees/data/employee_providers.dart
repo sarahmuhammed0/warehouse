@@ -1,12 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_mode.dart';
 import '../../../core/network/paginated_result.dart';
+import '../../../core/network/providers.dart';
 import '../../../core/repositories/paged_list_controller.dart';
 import '../../../core/repositories/paged_query.dart';
+import 'api_employee_repository.dart';
 import 'employee_models.dart';
 import 'employee_repository.dart';
 
-final employeeRepositoryProvider = Provider<EmployeeRepository>((ref) => LocalEmployeeRepository());
+final employeeRepositoryProvider = Provider<EmployeeRepository>((ref) {
+  return switch (AppModeConfig.mode) {
+    AppMode.backend => ApiEmployeeRepository(ref.watch(apiClientProvider)),
+    AppMode.demo => LocalEmployeeRepository(),
+  };
+});
 
 final employeeListControllerProvider =
     NotifierProvider<EmployeeListController, PagedListState<Employee>>(EmployeeListController.new);

@@ -217,13 +217,16 @@ class ApiProductRepository implements ProductRepository {
 
   @override
   Future<List<Product>> listForBusiness(String businessId) async {
-    // The System Admin's cross-tenant drill-down. No backend endpoint
-    // exposes another business's products yet — deliberately, since every
-    // business route is scoped to the caller's own tenant (§36) — so this
-    // is honest about not being available rather than returning the wrong
-    // tenant's rows.
-    throw UnimplementedError(
-      'Cross-business product listing needs a System Admin endpoint, which does not exist yet.',
-    );
+    // §57's System Admin drill-down, through the endpoint that names the
+    // business. A business-side route is scoped to the caller's own session
+    // (§36) and a System Admin has no session-scoped business, so this is a
+    // deliberate admin endpoint rather than the same one with a wider scope.
+    //
+    // It answers with the same field names the business-side view uses, so
+    // these rows map with exactly the same code as any other product.
+    final response = await _client.getJson('/admin/businesses/$businessId/products');
+    return ((response['items'] as List<dynamic>?) ?? const [])
+        .map((row) => _fromJson(row as Map<String, dynamic>))
+        .toList();
   }
 }

@@ -96,3 +96,72 @@ export async function businessesWithoutRoles() {
   );
   return rows;
 }
+
+/**
+ * The signed-in user's role and its grants, for `/api/auth/me` and the login
+ * response — what the CLIENT needs to stop offering what the server will
+ * refuse (§24).
+ *
+ * This is not an authorization path and must never become one: `authorize()`
+ * re-reads `permissionsForUser` on every request precisely so a revoked grant
+ * takes effect immediately, whereas this is a snapshot handed to a UI. The
+ * access TOKEN still carries no permissions (§8's minimal claims, asserted by
+ * a test) — this is a server-side lookup answered per request, so it cannot be
+ * edited client-side into extra authority.
+ *
+ * Null for a user with no role: the client treats that as "grants nothing",
+ * matching `permissionsForUser`'s own empty-list default.
+ */
+export async function roleForUser(userId) {
+  // One query, not a role lookup followed by permissionsForUser.
+  //
+  // This runs on the login path, which is already the most expensive request
+  // in the system (bcrypt at cost 12). Each `pool.query` takes a connection
+  // from a pool of ten, and `waitForConnections` queues without a limit — so a
+  // caller that cannot get one waits rather than failing. Two acquisitions per
+  // login instead of one doubles this endpoint's contribution to that queue
+  // for no benefit: the grants are a plain join away from the role.
+  const [rows] = await pool.query(
+    `SELECT r.id, r.name, r.is_system, p.permission_key
+       FROM users u
+       JOIN roles r             ON r.id = u.role_id AND r.deleted_at IS NULL
+       LEFT JOIN role_permissions rp ON rp.role_id = r.id
+       LEFT JOIN permissions p       ON p.id = rp.permission_id
+      WHERE u.id = ? AND u.deleted_at IS NULL`,
+    [userId]
+  );
+  if (!rows.length) return null;
+
+  // LEFT JOINed, so a role granting nothing yet still returns one row — with a
+  // null key. Dropping the nulls is what turns that into an empty grant list
+  // rather than a list containing nothing-in-particular.
+  const permissions = rows.map((row) => row.permission_key).filter((key) => key !== null);
+
+  return {
+    id: rows[0].id,
+    name: rows[0].name,
+    isSystemRole: Boolean(rows[0].is_system),
+    permissions: [...permissions, ...navigationKeys(permissions)],
+  };
+}
+
+/**
+ * Three keys the CLIENT's sidebar gates on that are not in the catalogue,
+ * because no endpoint checks them: Dashboard, Documents and Activity History
+ * are screens assembled from other modules rather than modules of their own.
+ *
+ * They are derived here rather than granted, so the sidebar cannot offer a
+ * screen the server will then refuse. Dashboard composes from whatever its
+ * reader may already see, so everyone gets it; Documents lists orders; and
+ * Activity History is /api/audit-logs, which is gated on settings.view.
+ *
+ * Deliberately NOT returned by GET /api/roles — that list feeds the
+ * permission editor, and a checkbox for a key the server does not store
+ * would be unsaveable.
+ */
+function navigationKeys(permissions) {
+  const keys = ["dashboard.view"];
+  if (permissions.includes("orders.view")) keys.push("documents.view");
+  if (permissions.includes("settings.view")) keys.push("audit.view");
+  return keys;
+}

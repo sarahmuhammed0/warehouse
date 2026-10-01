@@ -40,6 +40,8 @@ const transferView = (row) => ({
   toLocationId: row.to_location_id,
   toLocationName: row.to_location_name ?? null,
   itemCount: Number(row.item_count ?? 0),
+  totalQuantity: Number(row.total_quantity ?? 0),
+  firstProductName: row.first_product_name ?? null,
   note: row.note,
   transferDate: row.transfer_date,
   completedAt: row.completed_at,

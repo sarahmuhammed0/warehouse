@@ -23,6 +23,10 @@ const manualMovementType = enumSchema(
 const adjustSchema = z
   .object({
     productId: idSchema,
+    // A variant is a separate stock slot, not a label on the product (§9):
+    // inventory is keyed on (business, product, variant, warehouse, location).
+    // Absent means the product itself.
+    variantId: idSchema.nullable().optional(),
     warehouseId: idSchema,
     locationId: idSchema.nullable().optional(),
     // Signed: negative removes stock. Bounded so a typo cannot ask for a

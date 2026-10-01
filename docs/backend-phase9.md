@@ -95,9 +95,13 @@ nothing appears on screen that then 403s.
 
 **The PDF is built from the document, and computes nothing.** Every figure is
 the order's own stored value and every name is §55's snapshot, so a reprint a
-year later says what it says today — a test asserts two renders are
-byte-identical. A generator that re-adds the lines its own way is how a customer
-ends up holding paper the system disagrees with.
+year later says what it says today — a test asserts two renders are identical
+byte for byte, excluding only the trailer's `/ID`, which pdfkit randomises per
+render because the PDF spec requires a unique file identifier. (That test
+originally compared only the two renders' *length*, which would have passed
+with every figure on the page changed; it was found by a live check comparing
+the actual bytes.) A generator that re-adds the lines its own way is how a
+customer ends up holding paper the system disagrees with.
 
 **A custom field's key and type are immutable.** Values are filed under the key
 and read according to the type, so changing either would silently reinterpret

@@ -1,3 +1,4 @@
+import '../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,7 +74,7 @@ class _DashboardScreenState extends ConsumerState<DashboardPlaceholderScreen> {
     return PageScaffold(
       title: l10n.navDashboard,
       titleWidget: _Greeting(name: accountName, fallback: l10n.navDashboard),
-      subtitle: l10n.demoDataNotice,
+      subtitle: dataSourceNotice(l10n),
       showBackButton: true,
       backFallbackRoute: AppRoutes.dashboard,
       secondaryActions: [

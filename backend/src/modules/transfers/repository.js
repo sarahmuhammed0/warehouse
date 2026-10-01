@@ -38,7 +38,14 @@ const SELECT_COLUMNS = `
   t.from_location_id, fl.name AS from_location_name,
   t.to_warehouse_id, tw.name AS to_warehouse_name,
   t.to_location_id, tl.name AS to_location_name,
-  (SELECT COUNT(*) FROM stock_transfer_items i WHERE i.transfer_id = t.id) AS item_count`;
+  (SELECT COUNT(*) FROM stock_transfer_items i WHERE i.transfer_id = t.id) AS item_count,
+  (SELECT COALESCE(SUM(i.quantity), 0) FROM stock_transfer_items i WHERE i.transfer_id = t.id) AS total_quantity,
+  -- What the transfer is OF, for a list that shows one line per transfer. The
+  -- lowest item id is the first line as it was entered; item_count above says
+  -- whether there are others, so a one-product transfer reads exactly and a
+  -- multi-product one is never silently presented as if it were only this.
+  (SELECT p.name FROM stock_transfer_items i JOIN products p ON p.id = i.product_id
+    WHERE i.transfer_id = t.id ORDER BY i.id LIMIT 1) AS first_product_name`;
 
 export async function listTransfers({ businessId, query, pagination }) {
   const where = buildWhere(listSpec, query, { "t.business_id": businessId, "t.deleted_at": null });

@@ -11,6 +11,7 @@ import { AppError } from "../../utils/AppError.js";
 import { logger } from "../../utils/logger.js";
 import * as repo from "./repository.js";
 import { findBusinessById } from "./repository.js";
+import { roleForUser } from "../rbac/repository.js";
 
 const LOCKOUT_THRESHOLD = 5; // consecutive failures
 const LOCKOUT_WINDOW_MINUTES = 15; // ...within this many minutes
@@ -175,6 +176,11 @@ export async function login(adapter, { phone: rawPhone, password, ip, userAgent 
     refreshToken: rawRefreshToken,
     account: safeAccount(account),
     business: business ? safeBusiness(business) : null,
+    // Handed over at sign-in so the client can gate its own navigation
+    // straight away, rather than having to make a second call before it can
+    // draw anything. See roleForUser for why this is not a weakening of §8's
+    // minimal token claims.
+    role: adapter.accountType === "business_user" ? await roleForUser(account.id) : null,
   };
 }
 
@@ -248,7 +254,13 @@ export async function me(adapter, subjectId) {
     business = await findBusinessById(account.business_id);
   }
 
-  return { account: safeAccount(account), business: business ? safeBusiness(business) : null };
+  return {
+    account: safeAccount(account),
+    business: business ? safeBusiness(business) : null,
+    // Re-read on every /me, so a role edited while someone is signed in
+    // reaches their UI on the next session restore rather than only at logout.
+    role: adapter.accountType === "business_user" ? await roleForUser(account.id) : null,
+  };
 }
 
 export async function changePassword(adapter, subjectId, { currentPassword, newPassword }, ip) {

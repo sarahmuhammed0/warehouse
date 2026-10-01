@@ -232,6 +232,9 @@ class _VariantsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Backend mode fetches this product's variants the first time the card is
+    // built; a no-op afterwards, and in demo mode.
+    ref.read(productVariantsProvider.notifier).ensureLoaded(product.id);
     final variants = ref.watch(productVariantsProvider.select((all) => all[product.id] ?? const <ProductVariant>[]));
     return AppCard(
       title: Text(l10n.fieldModule),

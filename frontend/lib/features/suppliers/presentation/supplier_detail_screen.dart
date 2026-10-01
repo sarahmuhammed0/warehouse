@@ -1,3 +1,4 @@
+import '../../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -79,7 +80,7 @@ class SupplierDetailScreen extends ConsumerWidget {
             ),
             AppCard(
               title: Text(l10n.fieldPurchaseHistory),
-              child: AppEmptyState(icon: Icons.shopping_cart_outlined, title: l10n.emptyStateDefaultTitle, description: l10n.demoDataNotice),
+              child: AppEmptyState(icon: Icons.shopping_cart_outlined, title: l10n.emptyStateDefaultTitle, description: dataSourceNotice(l10n)),
             ),
           ],
         ),

@@ -51,11 +51,25 @@ final currentRoleProvider = Provider<Role?>((ref) {
   return repo.roleForPhoneSync(auth.account.phone);
 });
 
-/// `null` = unrestricted (no linked `Employee` — a real backend-mode
-/// session, or a demo identity that somehow doesn't match one). A non-null
-/// set is the actual, resolvable grant list from that role's permissions —
-/// see [hasPermission].
+/// What the signed-in user may see, from whichever source actually knows.
+///
+/// **Backend mode:** the server resolves it and hands it over with the
+/// session (`/api/auth/login` and `/api/auth/me`), so this is the same grant
+/// list `middleware/authorize.js` will check the next request against. It is
+/// a snapshot: a role edited while someone is signed in reaches their sidebar
+/// on their next session restore, not instantly. That is a UI lag and nothing
+/// more — the server refuses on the very next request either way.
+///
+/// **Demo mode:** resolved from the seeded employee whose phone matches the
+/// demo login, via [currentRoleProvider].
+///
+/// `null` = unrestricted, and still means "no role resolved to restrict
+/// against", never "denied": a System Admin session (who has no
+/// business-scoped role and whose own area is gated by account type), or a
+/// demo identity matching no seeded employee.
 final currentPermissionsProvider = Provider<Set<String>?>((ref) {
+  final auth = ref.watch(authControllerProvider);
+  if (auth is AuthAuthenticated && auth.role != null) return auth.role!.permissions;
   return ref.watch(currentRoleProvider)?.permissions;
 });
 

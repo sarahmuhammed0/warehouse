@@ -194,7 +194,19 @@ test("§28: the document's own figures and §55's names reach the page", async (
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => callback(null, Buffer.concat(chunks)));
     });
-  assert.equal(again.body.length, res.body.length, "a reprint must be the same document");
+  // Compared byte for byte, not merely by length — a length check passes even
+  // when every figure on the page has changed. The single exception is the
+  // trailer's /ID, which pdfkit randomises per render: it identifies the FILE
+  // instance, not the document, and the PDF spec requires it to be unique.
+  // Everything that is actually the invoice is identical.
+  const withoutFileId = (buffer) =>
+    buffer.toString("latin1").replace(/\/ID \[<[0-9a-f]+> <[0-9a-f]+>\]/, "/ID [pinned]");
+
+  assert.equal(
+    withoutFileId(again.body),
+    withoutFileId(res.body),
+    "a reprint must be the same document, byte for byte"
+  );
 });
 
 test("§28: the template decides what the document says, and persists", async (t) => {

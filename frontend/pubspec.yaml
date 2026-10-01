@@ -41,6 +41,9 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_secure_storage: ^11.2.0
+  # Direct, not transitive: core/download/file_download_web.dart uses Blob and
+  # URL.createObjectURL to hand a generated PDF (§28) to the browser.
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

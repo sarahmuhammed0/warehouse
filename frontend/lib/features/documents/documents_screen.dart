@@ -1,15 +1,20 @@
+import '../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/download/file_download.dart';
+import '../../core/error/failure.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../shared/buttons/app_button.dart';
 import '../../shared/cards/app_card.dart';
 import '../../shared/feedback/app_empty_state.dart';
+import '../../shared/feedback/app_toast.dart';
 import '../../shared/layout/page_scaffold.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
+import '../orders/data/order_models.dart';
 import '../orders/data/order_providers.dart';
 import '../settings/data/settings_state.dart';
 
@@ -35,10 +40,16 @@ class DocumentsPlaceholderScreen extends ConsumerWidget {
       showBackButton: true,
       backFallbackRoute: AppRoutes.dashboard,
       secondaryActions: [
+        if (sample != null)
+          AppButton(
+            label: 'Download PDF',
+            icon: Icons.picture_as_pdf_outlined,
+            onPressed: () => _downloadInvoice(context, ref, sample),
+          ),
         AppButton(label: l10n.pdfTemplateBuilderLabel, icon: Icons.tune, variant: AppButtonVariant.outline, onPressed: () => context.go(AppRoutes.settings)),
       ],
       body: sample == null
-          ? AppEmptyState(icon: Icons.description_outlined, title: l10n.emptyStateDefaultTitle, description: l10n.demoDataNotice)
+          ? AppEmptyState(icon: Icons.description_outlined, title: l10n.emptyStateDefaultTitle, description: dataSourceNotice(l10n))
           : Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 620),
@@ -72,5 +83,32 @@ class DocumentsPlaceholderScreen extends ConsumerWidget {
               ),
             ),
     );
+  }
+
+  /// Fetches §28's invoice from the server and hands it to the browser.
+  ///
+  /// The page above is a PREVIEW, built from this app's own model. The file is
+  /// rendered by the server from the stored document, and where the two could
+  /// ever disagree it is the file that is right — it is the one a customer
+  /// ends up holding.
+  Future<void> _downloadInvoice(BuildContext context, WidgetRef ref, Order order) async {
+    try {
+      final bytes = await ref.read(orderRepositoryProvider).invoicePdf(order.id);
+      if (bytes.isEmpty) {
+        if (context.mounted) AppToast.error(context, 'The server returned an empty file.');
+        return;
+      }
+      await downloadBytes(
+        bytes: bytes,
+        filename: '${order.orderNumber}.pdf',
+        mimeType: 'application/pdf',
+      );
+    } on Failure catch (e) {
+      if (context.mounted) AppToast.error(context, e.message);
+    } catch (_) {
+      if (context.mounted) {
+        AppToast.error(context, 'Could not generate the invoice.');
+      }
+    }
   }
 }
