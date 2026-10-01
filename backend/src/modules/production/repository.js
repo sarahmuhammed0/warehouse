@@ -141,18 +141,36 @@ export async function billOfMaterials({ businessId, productId, conn = pool }) {
  * cannot become unrepairable.
  */
 export async function replaceBillOfMaterials(conn, { businessId, productId, lines }) {
-  const keep = lines.map((line) => line.materialProductId);
-  if (keep.length) {
+  // Which rows are actually going away, read first and then deleted by exact
+  // key — rather than one `... AND material_product_id NOT IN (?)`.
+  //
+  // That form read better but deadlocked. `uq_bom_product_material` leads on
+  // `product_id`, so a NOT IN over `material_product_id` is a RANGE scan within
+  // the product's group, and InnoDB's next-key locking extends the gap lock to
+  // the following index record — which belongs to the next product_id, very
+  // possibly another business's. Two recipes saved at the same moment, for
+  // unrelated products, could each hold the gap the other's INSERT needed, and
+  // one of them came back 409 "Another change was being saved at the same
+  // time." Deleting by (product, material) equality takes a record lock on
+  // exactly the row being removed and locks no gap at all.
+  //
+  // The common edit — changing a quantity, adding a line — removes nothing, and
+  // then this issues no DELETE whatever.
+  const keep = new Set(lines.map((line) => String(line.materialProductId)));
+
+  const [existing] = await conn.query(
+    `SELECT material_product_id FROM bill_of_materials
+      WHERE business_id = ? AND product_id = ?`,
+    [businessId, productId]
+  );
+
+  for (const row of existing) {
+    if (keep.has(String(row.material_product_id))) continue;
     await conn.query(
       `DELETE FROM bill_of_materials
-        WHERE business_id = ? AND product_id = ? AND material_product_id NOT IN (?)`,
-      [businessId, productId, keep]
+        WHERE business_id = ? AND product_id = ? AND material_product_id = ?`,
+      [businessId, productId, row.material_product_id]
     );
-  } else {
-    await conn.query(`DELETE FROM bill_of_materials WHERE business_id = ? AND product_id = ?`, [
-      businessId,
-      productId,
-    ]);
   }
 
   for (const line of lines) {

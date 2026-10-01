@@ -98,7 +98,64 @@ export async function checkDatabaseConnection() {
  * @param {(conn: import('mysql2/promise').PoolConnection) => Promise<T>} fn
  * @returns {Promise<T>}
  */
-export async function runInTransaction(fn) {
+/**
+ * InnoDB picks a victim when two transactions deadlock, and rolls it back
+ * completely. MySQL's own manual is explicit that an application must be ready
+ * to re-issue such a transaction — a deadlock is a normal outcome of concurrent
+ * writes, not a fault.
+ *
+ * A lock-wait timeout is retried for the same reason: the statement was rolled
+ * back, nothing was applied, and the contention it lost to has since finished.
+ *
+ * Retrying is safe because the rollback leaves nothing behind: `fn` starts again
+ * against the state it would have seen had it gone second. It is NOT a licence
+ * for `fn` to have effects outside the transaction — a retry would repeat them.
+ * Nothing passed to `runInTransaction` does.
+ */
+const RETRYABLE_LOCK_ERRORS = new Set(["ER_LOCK_DEADLOCK", "ER_LOCK_WAIT_TIMEOUT"]);
+export const MAX_TRANSACTION_ATTEMPTS = 3;
+
+/** Whether this is a rolled-back-and-safe-to-repeat lock failure. */
+export const isRetryableLockError = (error) => RETRYABLE_LOCK_ERRORS.has(error?.code);
+
+/**
+ * The retry loop, with the thing being retried passed in — so it can be tested
+ * without provoking a real deadlock, which is the kind of code that otherwise
+ * ships unexercised and is discovered to be wrong on the night it matters.
+ *
+ * @template T
+ * @param {() => Promise<T>} attemptOnce
+ * @param {{ attempts?: number, backoffMs?: (attempt: number) => number }} [options]
+ * @returns {Promise<T>}
+ */
+export async function withLockRetry(attemptOnce, { attempts = MAX_TRANSACTION_ATTEMPTS, backoffMs } = {}) {
+  const pause = backoffMs ?? ((attempt) => 25 * attempt);
+
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await attemptOnce();
+    } catch (error) {
+      if (!isRetryableLockError(error) || attempt >= attempts) {
+        // Logged on the way out, so a 409 that reaches a user is visible here
+        // along with how many attempts it took before giving up.
+        if (isRetryableLockError(error)) {
+          logger.warn({ code: error.code, attempts: attempt }, "Transaction gave up after lock contention");
+        }
+        throw error;
+      }
+      logger.warn({ code: error.code, attempt }, "Retrying a transaction after lock contention");
+      // A short, growing pause. Retrying instantly tends to reproduce the very
+      // interleaving that deadlocked, so the two transactions collide again.
+      await new Promise((resolve) => setTimeout(resolve, pause(attempt)));
+    }
+  }
+}
+
+export function runInTransaction(fn) {
+  return withLockRetry(() => runTransactionOnce(fn));
+}
+
+async function runTransactionOnce(fn) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();

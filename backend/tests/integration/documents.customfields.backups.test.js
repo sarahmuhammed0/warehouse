@@ -195,16 +195,24 @@ test("§28: the document's own figures and §55's names reach the page", async (
       response.on("end", () => callback(null, Buffer.concat(chunks)));
     });
   // Compared byte for byte, not merely by length — a length check passes even
-  // when every figure on the page has changed. The single exception is the
-  // trailer's /ID, which pdfkit randomises per render: it identifies the FILE
-  // instance, not the document, and the PDF spec requires it to be unique.
-  // Everything that is actually the invoice is identical.
-  const withoutFileId = (buffer) =>
-    buffer.toString("latin1").replace(/\/ID \[<[0-9a-f]+> <[0-9a-f]+>\]/, "/ID [pinned]");
+  // when every figure on the page has changed.
+  //
+  // Two fields are normalised away, and both describe the FILE rather than the
+  // invoice: the trailer's /ID, which the PDF spec requires to be unique per
+  // file, and CreationDate, which is when this copy was produced. Normalising
+  // the date is not a loophole — leaving it in made this test fail whenever the
+  // two renders happened to straddle a second boundary, which is a property of
+  // the clock, not of the document. Everything that is actually the invoice —
+  // every figure, every §55 snapshot name — is identical.
+  const fileMetadataRemoved = (buffer) =>
+    buffer
+      .toString("latin1")
+      .replace(/\/ID \[<[0-9a-f]+> <[0-9a-f]+>\]/, "/ID [pinned]")
+      .replace(/\(D:\d{14}Z?\)/g, "(D:pinned)");
 
   assert.equal(
-    withoutFileId(again.body),
-    withoutFileId(res.body),
+    fileMetadataRemoved(again.body),
+    fileMetadataRemoved(res.body),
     "a reprint must be the same document, byte for byte"
   );
 });
