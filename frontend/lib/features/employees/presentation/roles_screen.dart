@@ -59,13 +59,18 @@ class _RolesScreenState extends ConsumerState<RolesScreen> {
                   ],
                 ),
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: AppCard(
-                    title: Text('${selected.name} — ${l10n.fieldPermission}'),
-                    child: _PermissionMatrix(role: selected),
-                  ),
-                ),
+              // Not Expanded, and not wrapped in its own scroll view.
+              //
+              // `PageScaffold` already puts its body inside a
+              // SingleChildScrollView, so the height arriving here is
+              // unbounded — and an Expanded under an unbounded constraint is a
+              // layout error, thrown on every frame. It rendered something, so
+              // nothing looked obviously wrong, while the screen logged
+              // thousands of exceptions and never reached a settled state. The
+              // page's own scroll view is what scrolls this.
+              AppCard(
+                title: Text('${selected.name} — ${l10n.fieldPermission}'),
+                child: _PermissionMatrix(role: selected),
               ),
             ],
           );

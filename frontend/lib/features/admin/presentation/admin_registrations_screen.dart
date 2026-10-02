@@ -1,3 +1,4 @@
+import '../../settings/data/business_type_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -146,7 +147,7 @@ class _RegistrationCardState extends ConsumerState<_RegistrationCard> {
               StatusBadge(label: r.status, tone: StatusTone.warning),
             ],
           ),
-          _Detail(label: l10n.fieldBusinessType, value: r.businessType),
+          _Detail(label: l10n.fieldBusinessType, value: businessTypeLabelFor(r.businessType)),
           _Detail(label: l10n.fieldPhone, value: r.phone),
           if (r.ownerName != null)
             _Detail(label: l10n.registrationOwner, value: '${r.ownerName} · ${r.ownerPhone ?? ''}'),

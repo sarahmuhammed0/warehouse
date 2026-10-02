@@ -213,7 +213,7 @@ class ApiOrderRepository implements OrderRepository {
   @override
   Future<Uint8List> invoicePdf(String id) async {
     final response = await _client.dio.get<List<int>>(
-      '/orders//pdf',
+      '/orders/$id/pdf',
       options: Options(responseType: ResponseType.bytes),
     );
     return Uint8List.fromList(response.data ?? const []);

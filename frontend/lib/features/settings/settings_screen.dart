@@ -218,14 +218,17 @@ class _BusinessSection extends ConsumerWidget {
           SettingsField(label: l10n.fieldName, initialValue: settings.businessName, onChanged: (v) => controller.update((s) => s.copyWith(businessName: v))),
           SettingsField(label: 'Currency', initialValue: settings.currency, onChanged: (v) => controller.update((s) => s.copyWith(currency: v))),
           const Divider(),
-          Text('Business type (spec §33) — determines which sidebar modules are enabled.', style: AppTypography.helperText),
+          // Two things were being shown to the user that were never meant for
+          // them: an internal specification reference, and the Dart enum's own
+          // identifiers — "furnitureFactory" rather than "Furniture Factory".
+          Text('Business type — determines which modules are enabled.', style: AppTypography.helperText),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               for (final type in BusinessType.values)
                 ChoiceChip(
-                  label: Text(type.name),
+                  label: Text(businessTypeLabel(type)),
                   selected: ref.watch(businessTypeProvider) == type,
                   onSelected: (_) => ref.read(businessTypeProvider.notifier).set(type),
                 ),

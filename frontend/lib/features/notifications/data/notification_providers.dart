@@ -16,6 +16,12 @@ import 'notification_models.dart';
 /// **Demo mode:** low/out-of-stock entries derived live from the demo product
 /// list (never fabricated), plus two seeded entries for the types demo mode
 /// has no trigger for.
+/// The notifications API, as a provider rather than built on each access — see
+/// `productVariantApiProvider` for why that distinction mattered.
+final notificationApiProvider = Provider<ApiNotificationRepository>(
+  (ref) => ApiNotificationRepository(ref.watch(apiClientProvider)),
+);
+
 final notificationsProvider = NotifierProvider<NotificationsController, List<AppNotification>>(NotificationsController.new);
 
 class NotificationsController extends Notifier<List<AppNotification>> {
@@ -27,9 +33,11 @@ class NotificationsController extends Notifier<List<AppNotification>> {
   // rebuild through this plain field instead.
   final Set<String> _readIds = {};
 
-  bool get _backend => AppModeConfig.mode == AppMode.backend;
+  // Read through the provider, not the constant, so a test can reach this
+  // branch — `flutter test` always compiles as demo.
+  bool get _backend => ref.read(appModeProvider) == AppMode.backend;
 
-  ApiNotificationRepository get _api => ApiNotificationRepository(ref.read(apiClientProvider));
+  ApiNotificationRepository get _api => ref.read(notificationApiProvider);
 
   @override
   List<AppNotification> build() {

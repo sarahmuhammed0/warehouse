@@ -141,7 +141,17 @@ class _AdminBusinessFormScreenState extends ConsumerState<AdminBusinessFormScree
                     // module filter reads — never a free-text field, or a
                     // typo here would silently change which modules a
                     // business gets.
-                    options: [for (final type in BusinessType.values) AppSelectOption(businessTypeLabel(type), businessTypeLabel(type))],
+                    //
+                    // The option's VALUE is the wire key and only its text is
+                    // the label. Both used to be the label, which crashed this
+                    // screen outright in backend mode: a record holds
+                    // `furniture_factory`, that matched none of the options,
+                    // and DropdownButton asserts when its value is not among
+                    // its items.
+                    options: [
+                      for (final type in BusinessType.values)
+                        AppSelectOption(businessTypeApiValue(type), businessTypeLabel(type)),
+                    ],
                     onChanged: _saving ? null : (value) => setState(() => _businessType = value),
                   ),
                   AppTextField(

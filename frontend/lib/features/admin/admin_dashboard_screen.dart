@@ -1,3 +1,4 @@
+import '../settings/data/business_type_config.dart';
 import '../../core/config/data_source_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -773,7 +774,7 @@ class _BusinessRow extends StatelessWidget {
                 flex: 3,
                 child: Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: AppTag(label: business.businessType),
+                  child: AppTag(label: businessTypeLabelFor(business.businessType)),
                 ),
               ),
               Expanded(child: count(row?.employeeCount)),

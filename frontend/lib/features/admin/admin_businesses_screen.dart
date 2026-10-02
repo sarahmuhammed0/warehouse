@@ -1,3 +1,4 @@
+import '../settings/data/business_type_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,7 +34,7 @@ class AdminBusinessesScreen extends ConsumerWidget {
 
     final columns = <AppTableColumn<AdminBusiness>>[
       AppTableColumn(label: l10n.fieldName, cellBuilder: (context, item) => Text(item.name)),
-      AppTableColumn(label: l10n.fieldBusinessType, cellBuilder: (context, item) => Text(item.businessType)),
+      AppTableColumn(label: l10n.fieldBusinessType, cellBuilder: (context, item) => Text(businessTypeLabelFor(item.businessType))),
       AppTableColumn(label: l10n.fieldPhone, cellBuilder: (context, item) => Text(item.phone)),
       // Derived, like everywhere else the admin sees a count — `metrics` is
       // null only while the aggregate is still loading, and a dash is shown

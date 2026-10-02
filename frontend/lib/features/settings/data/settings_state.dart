@@ -119,11 +119,18 @@ class BusinessSettingsController extends Notifier<BusinessSettingsData> {
   /// flight.
   bool _loaded = false;
 
+  // Read through the provider, not the constant: `flutter test` always compiles
+  // as demo, so reading `AppModeConfig.mode` here made the whole load-and-save
+  // path unreachable by any test — the screen simply showed its defaults and
+  // never fetched. Same seam as the stock engine, the notification centre and
+  // the variant list.
+  bool get _backend => ref.read(appModeProvider) == AppMode.backend;
+
   @override
   BusinessSettingsData build() {
     ref.onDispose(() => _debounce?.cancel());
 
-    if (AppModeConfig.mode == AppMode.demo) {
+    if (!_backend) {
       _loaded = true;
       return const BusinessSettingsData();
     }
@@ -153,7 +160,7 @@ class BusinessSettingsController extends Notifier<BusinessSettingsData> {
   /// only the fields that actually differ are sent.
   void update(BusinessSettingsData Function(BusinessSettingsData current) updater) {
     state = updater(state);
-    if (AppModeConfig.mode == AppMode.demo) return;
+    if (!_backend) return;
 
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), _flush);

@@ -150,16 +150,10 @@ class StockEngine {
   }
 }
 
-/// Which mode the engine is running in.
-///
-/// A provider rather than a direct read of [AppModeConfig], and only here: the
-/// mode is a compile-time constant, so the branch above — the one that decides
-/// whether stock moves twice — would otherwise be unreachable in a test, since
-/// `flutter test` always compiles as demo. Safety logic that cannot be
-/// exercised is a liability, and this is the one place the mode changes
-/// BEHAVIOUR rather than merely selecting a repository: everywhere else a test
-/// overrides the repository provider instead, so those keep reading the
-/// constant directly.
-final appModeProvider = Provider<AppMode>((ref) => AppModeConfig.mode);
+// `appModeProvider` — which the branch above reads, so that the decision about
+// whether stock moves twice can be exercised by a test — now lives in
+// `core/config/app_mode.dart`, next to the constant it reads. It was declared
+// here while the engine was its only user; the notification centre and the
+// variant list need the same seam for the same reason.
 
 final stockEngineProvider = Provider<StockEngine>(StockEngine.new);

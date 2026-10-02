@@ -29,11 +29,17 @@ const String kDemoBusinessErbil = 'biz-2';
 const String kDemoBusinessCityStore = 'biz-3';
 const String kDemoBusinessNorthern = 'biz-4';
 
+/// `type` is the WIRE value the backend's `business_type` enum uses, not the
+/// human label — the same thing a real record holds, so demo and backend data
+/// have one shape and the screens need one way to display it. These carried
+/// labels until the admin edit screen's type dropdown was found to crash in
+/// backend mode: its options were keyed by label, so the server's
+/// `furniture_factory` matched none of them. See `businessTypeLabelFor`.
 const List<DemoBusiness> kDemoBusinesses = [
-  DemoBusiness(id: kDemoBusinessKarwan, name: 'Karwan Furniture Factory', type: 'Furniture Factory'),
-  DemoBusiness(id: kDemoBusinessErbil, name: 'Erbil Central Warehouse', type: 'Warehouse'),
-  DemoBusiness(id: kDemoBusinessCityStore, name: 'City Storage Store', type: 'Storage Store'),
-  DemoBusiness(id: kDemoBusinessNorthern, name: 'Northern Distribution Center', type: 'Distribution Center'),
+  DemoBusiness(id: kDemoBusinessKarwan, name: 'Karwan Furniture Factory', type: 'furniture_factory'),
+  DemoBusiness(id: kDemoBusinessErbil, name: 'Erbil Central Warehouse', type: 'warehouse'),
+  DemoBusiness(id: kDemoBusinessCityStore, name: 'City Storage Store', type: 'storage_store'),
+  DemoBusiness(id: kDemoBusinessNorthern, name: 'Northern Distribution Center', type: 'distribution_center'),
 ];
 
 /// Which tenant a record created at runtime (e.g. a business user adding a

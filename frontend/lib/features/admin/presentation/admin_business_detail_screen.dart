@@ -1,3 +1,4 @@
+import '../../settings/data/business_type_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -126,7 +127,7 @@ class AdminBusinessDetailScreen extends ConsumerWidget {
                   // Type, Address, Phone, Email, Status. Logo is omitted —
                   // nothing populates `logoUrl` yet, and an empty avatar
                   // would imply an upload feature that doesn't exist.
-                  _row(l10n.fieldBusinessType, business.businessType),
+                  _row(l10n.fieldBusinessType, businessTypeLabelFor(business.businessType)),
                   _row(l10n.fieldPhone, business.phone),
                   if (business.email != null) _row(l10n.fieldEmail, business.email!),
                   if (business.address != null) _row(l10n.fieldAddress, business.address!),

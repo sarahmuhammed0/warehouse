@@ -55,6 +55,35 @@ String businessTypeApiValue(BusinessType type) => switch (type) {
       BusinessType.custom => 'custom',
     };
 
+/// The reverse of [businessTypeApiValue]: the wire value a record stores, back
+/// to the [BusinessType] it means. Null for anything unrecognised, which is the
+/// honest answer — a type this build has never heard of must not be silently
+/// rendered as one it has.
+BusinessType? businessTypeFromApiValue(String? value) {
+  if (value == null) return null;
+  for (final type in BusinessType.values) {
+    if (businessTypeApiValue(type) == value) return type;
+  }
+  return null;
+}
+
+/// Human text for a business type as it is STORED on a record.
+///
+/// Needed because the two sides spell it differently and both reach the screen:
+/// the server stores `furniture_factory`, while demo data and the registration
+/// flow have historically carried the label itself. Four admin screens printed
+/// the stored string straight out, so in backend mode they displayed
+/// `furniture_factory` to the operator.
+///
+/// An unrecognised value is returned unchanged rather than blanked or replaced:
+/// if a record somehow holds something this build does not know, showing it is
+/// more useful than hiding it.
+String businessTypeLabelFor(String? stored) {
+  if (stored == null || stored.trim().isEmpty) return '—';
+  final known = businessTypeFromApiValue(stored);
+  return known == null ? stored : businessTypeLabel(known);
+}
+
 /// Which type the *demo* business is — a real deployment reads this from
 /// the authenticated business's own record (set once at System Admin
 /// creation time, §3); there is no such record in this frontend-only

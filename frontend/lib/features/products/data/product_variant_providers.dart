@@ -6,6 +6,18 @@ import '../../inventory/data/inventory_providers.dart';
 import 'api_product_variant_repository.dart';
 import 'product_variant_models.dart';
 
+/// The variants API, as a provider rather than built on each access.
+///
+/// Every other module reaches its repository this way, and the two that did not
+/// — this and the notification centre — were the two a test could not point at
+/// a stub: they constructed their own client, so a widget test overriding every
+/// repository still watched them talk to a real HTTP client and silently fail.
+/// There is no Local counterpart because the demo behaviour lives in the
+/// controller itself.
+final productVariantApiProvider = Provider<ApiProductVariantRepository>(
+  (ref) => ApiProductVariantRepository(ref.watch(apiClientProvider)),
+);
+
 final productVariantsProvider = NotifierProvider<ProductVariantsController, Map<String, List<ProductVariant>>>(ProductVariantsController.new);
 
 class ProductVariantsController extends Notifier<Map<String, List<ProductVariant>>> {
@@ -16,9 +28,11 @@ class ProductVariantsController extends Notifier<Map<String, List<ProductVariant
   /// apart from "not looked yet".
   final Set<String> _loaded = {};
 
-  bool get _backend => AppModeConfig.mode == AppMode.backend;
+  // Read through the provider, not the constant, so a test can reach this
+  // branch — flutter test always compiles as demo.
+  bool get _backend => ref.read(appModeProvider) == AppMode.backend;
 
-  ApiProductVariantRepository get _api => ApiProductVariantRepository(ref.read(apiClientProvider));
+  ApiProductVariantRepository get _api => ref.read(productVariantApiProvider);
 
   @override
   Map<String, List<ProductVariant>> build() => {};

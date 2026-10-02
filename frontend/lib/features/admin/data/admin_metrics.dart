@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/repositories/demo_businesses.dart';
+import '../../../core/repositories/paged_query.dart';
 import '../../employees/data/employee_providers.dart';
 import '../../orders/data/order_models.dart';
 import '../../orders/data/order_providers.dart';
 import '../../products/data/product_providers.dart';
+import 'admin_providers.dart';
 
 /// Per-business record counts for the System Admin's overview screens.
 ///
@@ -90,13 +91,28 @@ final adminMetricsProvider = FutureProvider<AdminMetrics>((ref) async {
   final products = ref.watch(productRepositoryProvider);
   final orders = ref.watch(orderRepositoryProvider);
 
+  // WHICH businesses, from the repository rather than from `kDemoBusinesses`.
+  //
+  // That demo list was the business list for as long as there was only demo
+  // data. In backend mode it is a set of ids that do not exist on the server,
+  // so every drill-down below asked for a business that is not there and the
+  // overview screens showed "Something went wrong" — four screens broken by
+  // one hardcoded constant. Demo mode is unaffected: its repository returns
+  // exactly those businesses.
+  final businesses = await ref.watch(adminRepositoryProvider).listBusinesses(
+    // One page, large enough for the platform the admin is looking at. The
+    // cards above are platform TOTALS, so a second page silently missing from
+    // them would be worse than a slow query.
+    const PagedQuery(pageSize: 100, sortField: 'name', sortAscending: true),
+  );
+
   final result = <String, BusinessMetrics>{};
   // Kept so the platform series below is folded from exactly the rows that
   // produced the per-business counts.
   final allSales = <Order>[];
   final allOrders = <Order>[];
 
-  for (final business in kDemoBusinesses) {
+  for (final business in businesses.items) {
     final employeeRows = await employees.listForBusiness(business.id);
     final productRows = await products.listForBusiness(business.id);
     final orderRows = await orders.listForBusiness(business.id, type: OrderType.standard);
