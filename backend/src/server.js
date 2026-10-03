@@ -3,7 +3,7 @@ import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { closePool } from "./db/pool.js";
 import { startBackupScheduler, stopBackupScheduler } from "./modules/backups/scheduler.js";
-import { backupsConfigured } from "./modules/backups/service.js";
+import { backupsConfigured, reconcileInterruptedBackups } from "./modules/backups/service.js";
 
 const server = app.listen(env.server.port, () => {
   logger.info(
@@ -17,6 +17,13 @@ const server = app.listen(env.server.port, () => {
   // configuration and hoping.
   if (backupsConfigured()) {
     logger.info({ directory: env.backups.directory, keepLast: env.backups.keepLast }, "Backups are configured");
+
+    // Any dump left mid-flight by a process that is no longer running. Fire and
+    // forget: it must not delay the server accepting requests, and it is a
+    // tidying step rather than something the API depends on.
+    reconcileInterruptedBackups().catch((error) =>
+      logger.error({ err: error }, "Could not reconcile interrupted backups")
+    );
   } else {
     const say = env.isProduction ? logger.warn : logger.info;
     say.call(logger, "No backup target is configured (BACKUP_DIR is unset) — no backup can be taken.");

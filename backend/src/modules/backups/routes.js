@@ -3,6 +3,8 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { logger } from "../../utils/logger.js";
+import { writeAuditLog } from "../auth/repository.js";
+import { getClientIp } from "../../utils/requestInfo.js";
 import {
   backupsConfigured,
   backupsUnconfiguredNote,
@@ -101,6 +103,20 @@ backupsRouter.post("/", async (req, res, next) => {
     const backupId = await recordAttempt({ triggerType: "manual", userId: req.auth.userId });
     const [rows] = await pool.query(`SELECT * FROM backups WHERE id = ?`, [backupId]);
 
+    // Recorded in the trail as well as in the backups table. The row says a
+    // backup happened; the trail says who asked for it and from where — which is
+    // what makes a dump taken at an odd hour something anyone can notice.
+    await writeAuditLog({
+      actorType: "system_admin",
+      actorId: req.auth.userId,
+      module: "settings",
+      action: "backup.started",
+      description: `Started a manual database backup (${rows[0].filename}).`,
+      ip: getClientIp(req),
+      referenceType: "backups",
+      referenceId: backupId,
+    });
+
     // Deliberately not awaited. The dump runs on after the response; its outcome
     // is written to the row either way, and `performBackup` never throws, so
     // there is no unhandled rejection to lose the process to.
@@ -150,6 +166,28 @@ backupsRouter.get("/:id/download", validate(idParamsSchema, "params"), async (re
       // rather than sending a 404 that reads like "no such backup".
       throw errors.notFound("backup file");
     }
+
+    // Written to the TRAIL, not only to the application log.
+    //
+    // This hands one person a file containing every tenant's customers, prices,
+    // orders and payment history — the largest single disclosure the system can
+    // make. A log line is rotated away and lives outside the database; §30's
+    // trail is queryable, is part of the backup itself, and is what the platform
+    // activity feed shows. An action of this size should be answerable months
+    // later from the data, not from whatever happened to still be in the logs.
+    //
+    // `businessId` is null because the action belongs to no tenant: the feed
+    // renders that as "Platform", which is exactly what it is.
+    await writeAuditLog({
+      actorType: "system_admin",
+      actorId: req.auth.userId,
+      module: "settings",
+      action: "backup.downloaded",
+      description: `Downloaded the full database backup ${path.basename(row.filename)}.`,
+      ip: getClientIp(req),
+      referenceType: "backups",
+      referenceId: row.id,
+    });
 
     logger.warn(
       { backupId: row.id, adminId: req.auth.userId },

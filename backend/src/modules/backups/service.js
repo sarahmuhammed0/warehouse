@@ -263,6 +263,41 @@ async function filenameForRow(backupId) {
   return rows[0]?.filename ?? filenameFor(new Date());
 }
 
+/**
+ * Marks abandoned `running` rows as failed. Called once at startup.
+ *
+ * A dump is written by a process. If that process is killed — a deploy, an OOM, a
+ * host reboot, an operator pressing Ctrl-C — the row stays `running` for ever,
+ * because the only code that would have updated it died. The backups list then
+ * shows a backup apparently in progress, indefinitely, and nobody can tell a live
+ * dump from one that died weeks ago. That is worse than a failure: a failure is
+ * something you act on.
+ *
+ * Only rows older than the dump timeout are touched, and that is what makes this
+ * safe with more than one API instance. A backup that has been running longer
+ * than the time it is allowed to take is dead by definition, so an instance
+ * starting up can never mark another instance's live dump as failed.
+ */
+export async function reconcileInterruptedBackups() {
+  const [result] = await pool.query(
+    `UPDATE backups
+        SET status = 'failed',
+            completed_at = NOW(),
+            error_message = 'Interrupted: the process taking this backup stopped before it finished.'
+      WHERE status = 'running'
+        AND started_at < DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+    [Math.ceil(env.backups.timeoutMs / 1000)]
+  );
+
+  if (result.affectedRows > 0) {
+    logger.warn(
+      { count: result.affectedRows },
+      "Marked abandoned in-progress backups as failed — their process did not finish"
+    );
+  }
+  return result.affectedRows;
+}
+
 /** Inserts the row for an attempt about to start, and returns its id. */
 export async function recordAttempt({ triggerType, userId = null, now = new Date() }) {
   const [result] = await pool.query(

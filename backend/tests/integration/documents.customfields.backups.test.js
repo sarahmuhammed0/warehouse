@@ -17,6 +17,8 @@ import { createDefaultRoles, findOwnerRoleId } from "../../src/modules/rbac/repo
 import { adjustStock } from "../../src/modules/inventory/service.js";
 import { signAccessToken } from "../../src/utils/token.js";
 import { hashPassword } from "../../src/utils/password.js";
+import { env } from "../../src/config/env.js";
+import { reconcileInterruptedBackups } from "../../src/modules/backups/service.js";
 import { requireDatabase, testPhone, cleanupTestData } from "./helpers.js";
 
 async function fixture() {
@@ -620,6 +622,87 @@ test("§33: a backup that is not completed has no file to download", async (t) =
     admin.token
   ).send();
   assert.equal(failedRes.status, 422);
+});
+
+test("§33: an abandoned backup is reconciled, a live one is left alone", async (t) => {
+  if (!(await requireDatabase(t))) return;
+  const admin = await systemAdmin();
+  t.after(async () => {
+    await pool.query(`DELETE FROM backups WHERE created_by = ?`, [admin.id]);
+    await cleanupTestData({ adminIds: [admin.id], phones: [admin.phone] });
+  });
+
+  // Two rows that both say `running`. One started longer ago than a dump is
+  // allowed to take, so the process writing it cannot still exist. The other
+  // started a moment ago and may well be in flight — possibly on a DIFFERENT API
+  // instance, which is the case that makes a blanket "fail everything running"
+  // wrong: it would destroy another instance's live backup record.
+  const timeoutSeconds = Math.ceil(env.backups.timeoutMs / 1000);
+
+  const [abandoned] = await pool.query(
+    `INSERT INTO backups (filename, trigger_type, status, started_at, created_by)
+     VALUES ('warehouse-os-abandoned.sql', 'manual', 'running', DATE_SUB(NOW(), INTERVAL ? SECOND), ?)`,
+    [timeoutSeconds + 60, admin.id]
+  );
+  const [live] = await pool.query(
+    `INSERT INTO backups (filename, trigger_type, status, started_at, created_by)
+     VALUES ('warehouse-os-live.sql', 'manual', 'running', NOW(), ?)`,
+    [admin.id]
+  );
+
+  await reconcileInterruptedBackups();
+
+  const [rows] = await pool.query(`SELECT id, status, error_message FROM backups WHERE id IN (?, ?)`, [
+    abandoned.insertId,
+    live.insertId,
+  ]);
+  const byId = new Map(rows.map((r) => [String(r.id), r]));
+
+  assert.equal(byId.get(String(abandoned.insertId)).status, "failed");
+  assert.match(byId.get(String(abandoned.insertId)).error_message, /interrupted/i);
+
+  assert.equal(
+    byId.get(String(live.insertId)).status,
+    "running",
+    "a dump that may still be running — perhaps on another instance — must not be marked failed"
+  );
+});
+
+test("§33: downloading a full backup is recorded in the trail, not only in the log", async (t) => {
+  if (!(await requireDatabase(t))) return;
+  const admin = await systemAdmin();
+  t.after(async () => {
+    await pool.query(`DELETE FROM audit_logs WHERE actor_id = ? AND actor_type = 'system_admin'`, [admin.id]);
+    await pool.query(`DELETE FROM backups WHERE created_by = ?`, [admin.id]);
+    await cleanupTestData({ adminIds: [admin.id], phones: [admin.phone] });
+  });
+
+  // A completed row whose file does not exist: the download fails, which is the
+  // point — the audit row must be written only when a file is actually handed
+  // over, never on an attempt that produced nothing.
+  const [missing] = await pool.query(
+    `INSERT INTO backups (filename, trigger_type, status, started_at, size_bytes, completed_at, created_by)
+     VALUES ('warehouse-os-not-on-disk.sql', 'manual', 'completed', NOW(), 2048, NOW(), ?)`,
+    [admin.id]
+  );
+
+  const res = await auth(
+    request(app).get(`/api/admin/backups/${missing.insertId}/download`),
+    admin.token
+  ).send();
+
+  // 404 for the FILE, which is a different thing from "no such backup".
+  assert.equal(res.status, 404, JSON.stringify(res.body));
+
+  const [rows] = await pool.query(
+    `SELECT action FROM audit_logs WHERE actor_id = ? AND action = 'backup.downloaded'`,
+    [admin.id]
+  );
+  assert.equal(
+    rows.length,
+    0,
+    "a download that handed over nothing must not be recorded as a disclosure"
+  );
 });
 
 test("§33: restoring is refused over the API, whatever the state of the backup", async (t) => {
