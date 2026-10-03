@@ -29,6 +29,20 @@ import { AppError } from "./AppError.js";
  * @returns {AppError | null} null when the error is not client-correctable.
  */
 export function toAppError(error, options = {}) {
+  // The pool refusing a waiter, which carries no `code` at all — mysql2 throws a
+  // bare `new Error("Queue limit reached.")` (lib/base/pool.js). Matched on the
+  // message because that is the only signal there is, and checked FIRST because
+  // the code-based switch below would never see it and it would surface as a
+  // 500. It means the server is saturated: 503 is the truthful answer, and the
+  // one a load balancer or a client can act on.
+  if (error instanceof Error && error.message === "Queue limit reached.") {
+    return new AppError(
+      "SERVICE_UNAVAILABLE",
+      "The service is busy. Please try again in a moment.",
+      503
+    );
+  }
+
   const code = error?.code;
   if (typeof code !== "string") return null;
 

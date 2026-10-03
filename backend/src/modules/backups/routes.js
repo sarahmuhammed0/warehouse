@@ -1,5 +1,15 @@
 import { Router } from "express";
+import { stat } from "node:fs/promises";
+import path from "node:path";
 
+import { logger } from "../../utils/logger.js";
+import {
+  backupsConfigured,
+  backupsUnconfiguredNote,
+  filePathFor,
+  performBackup,
+  recordAttempt,
+} from "./service.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireAccountType } from "../../middleware/requireAccountType.js";
 import { validate } from "../../middleware/validate.js";
@@ -73,33 +83,38 @@ backupsRouter.get("/:id", validate(idParamsSchema, "params"), async (req, res, n
  * would produce the worst possible outcome: a UI that reports a successful
  * backup while no recoverable file exists.
  *
- * So the row is created as `pending` with an honest note, the endpoint answers
- * 202 rather than 201, and §33 is left with a recorded intent that an operator's
- * job can pick up. `docs/backend-phase9.md` records what completing it needs.
+ * Answers 202, not 201: a dump of a live database takes as long as it takes, and
+ * holding an HTTP request open for it would make a slow backup look like a
+ * broken server. The row is the status, and it is polled or re-listed.
+ *
+ * `fileProduced` is still in the response, and still means exactly what it says.
+ * Where no target is configured it is false and the request is REFUSED rather
+ * than recorded — a queue of intents nothing will ever drain is the thing that
+ * makes an operator believe they have backups.
  */
 backupsRouter.post("/", async (req, res, next) => {
   try {
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `warehouse-os-${stamp}.sql`;
+    if (!backupsConfigured()) {
+      throw errors.validation(backupsUnconfiguredNote);
+    }
 
-    const [result] = await pool.query(
-      `INSERT INTO backups (filename, trigger_type, status, started_at, error_message, created_by)
-       VALUES (?, 'manual', 'pending', NOW(), ?, ?)`,
-      [
-        filename,
-        "Requested. No dump has been taken: this deployment has no configured backup target.",
-        req.auth.userId,
-      ]
+    const backupId = await recordAttempt({ triggerType: "manual", userId: req.auth.userId });
+    const [rows] = await pool.query(`SELECT * FROM backups WHERE id = ?`, [backupId]);
+
+    // Deliberately not awaited. The dump runs on after the response; its outcome
+    // is written to the row either way, and `performBackup` never throws, so
+    // there is no unhandled rejection to lose the process to.
+    performBackup(backupId).catch((error) =>
+      logger.error({ err: error, backupId }, "Backup rejected unexpectedly")
     );
 
-    const [rows] = await pool.query(`SELECT * FROM backups WHERE id = ?`, [result.insertId]);
     res.status(202).json(
       ok({
         ...view(rows[0]),
-        // Unambiguous, because a client that showed this as done would be lying
-        // to whoever is relying on it.
+        // The dump is running; nothing restorable exists until the row says
+        // `completed`. Saying `true` here would be a guess about the future.
         fileProduced: false,
-        note: "Recorded as requested. No file has been written — configure a backup target to complete it.",
+        note: "Started. The backup is listed as running, and becomes completed once the file is written.",
       })
     );
   } catch (err) {
@@ -108,17 +123,64 @@ backupsRouter.post("/", async (req, res, next) => {
 });
 
 /**
- * Restore is deliberately absent.
+ * The file itself. The only way a dump leaves the server.
  *
- * It is the most destructive operation in the system — it replaces every
- * tenant's data — and there is nothing to restore FROM while no dump is being
- * taken. An endpoint that accepted the request and did nothing would be worse
- * than none at all: it would be relied upon in exactly the moment it was needed.
+ * `completed` only: a `running` row's file is half-written, and handing that over
+ * is how someone restores a truncated database. The filename is taken through
+ * `basename` on the way to disk, so a row cannot name a path outside the backup
+ * directory.
+ */
+backupsRouter.get("/:id/download", validate(idParamsSchema, "params"), async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(`SELECT * FROM backups WHERE id = ?`, [req.params.id]);
+    const row = rows[0];
+    if (!row) throw errors.notFound("backup");
+
+    if (row.status !== "completed") {
+      throw errors.validation(
+        `That backup is "${row.status}" — only a completed backup has a file that can be downloaded.`
+      );
+    }
+
+    const file = filePathFor(row.filename);
+    try {
+      await stat(file);
+    } catch {
+      // The row says the file exists and it does not. Worth saying plainly
+      // rather than sending a 404 that reads like "no such backup".
+      throw errors.notFound("backup file");
+    }
+
+    logger.warn(
+      { backupId: row.id, adminId: req.auth.userId },
+      "A full database backup was downloaded"
+    );
+    res.download(file, path.basename(row.filename));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Restore stays refused, and now for a better reason than "there is nothing to
+ * restore from".
+ *
+ * It replaces every tenant's data in one irreversible step. An HTTP request is
+ * the wrong authority for that: a stolen admin session, a mis-click in a list, a
+ * CSRF against a logged-in browser — any of them would destroy the whole
+ * platform's data, and no confirmation dialog meaningfully guards it, because
+ * the attacker is the one answering the dialog.
+ *
+ * So it is done from a shell on the machine, by someone who can already read the
+ * dump file, with the database named explicitly: `npm run db:restore`. That tool
+ * requires the server to be stopped and makes its own safety copy first. See
+ * docs/deployment.md, "Restoring".
  */
 backupsRouter.post("/:id/restore", validate(idParamsSchema, "params"), async (req, res, next) => {
   try {
     throw errors.validation(
-      "Restore is not available in this deployment. No backup target is configured, so there is no dump to restore from."
+      "Restoring is deliberately not possible over the API — it would replace every business's data on one request. " +
+        "Download the backup and run `npm run db:restore` on the server. See docs/deployment.md."
     );
   } catch (err) {
     next(err);

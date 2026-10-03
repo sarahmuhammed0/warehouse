@@ -17,6 +17,23 @@ import { errorHandler } from "./middleware/errorHandler.js";
 
 export const app = express();
 
+/**
+ * How far to trust X-Forwarded-For — the exact number of proxies in front of
+ * this server, from configuration, never a blanket `true`.
+ *
+ * `trust proxy: true` would accept whatever a client puts in the header, which
+ * is worse than not trusting it at all: §7's login lockout is counted per IP, so
+ * a caller that can choose its own IP never gets locked out, and every audit row
+ * records an address the client made up.
+ *
+ * At the default of 0 nothing is trusted and `getClientIp` reads the TCP peer —
+ * correct when the server is exposed directly, and correct for local
+ * development. Behind the nginx in `docker-compose.prod.yml` it is 1.
+ */
+if (env.server.trustProxyHops > 0) {
+  app.set("trust proxy", env.server.trustProxyHops);
+}
+
 app.use(helmet());
 app.use(
   cors({

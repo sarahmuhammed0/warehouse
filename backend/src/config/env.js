@@ -25,6 +25,20 @@ export const env = {
 
   server: {
     port: readInt("PORT", 4000),
+
+    // How many reverse proxies sit in front of this server. 0 means none, and
+    // is the only safe default.
+    //
+    // This is not a convenience setting. With it at 0 behind nginx, every
+    // request appears to come from nginx: §7's login lockout becomes global, so
+    // one attacker locks out every user in the system, and the audit trail
+    // records the proxy's address for every action. Set too high, or trusted
+    // blindly, a client can put whatever it likes in X-Forwarded-For and pick
+    // its own identity — which defeats the lockout it is counted for.
+    //
+    // So it is the exact hop count for the deployment, stated deliberately.
+    // One nginx in front of the API is 1. See docs/deployment.md.
+    trustProxyHops: readInt("TRUST_PROXY_HOPS", 0),
     corsOrigin: (process.env.CORS_ORIGIN || "http://localhost:5173")
       .split(",")
       .map((origin) => origin.trim())
@@ -43,6 +57,10 @@ export const env = {
     password: process.env.DB_PASSWORD || "",
     connectionLimit: readInt("DB_CONNECTION_LIMIT", 10),
     connectTimeoutMs: readInt("DB_CONNECT_TIMEOUT_MS", 3000),
+    // How many callers may wait for a connection before the pool refuses. See
+    // `db/pool.js` — the point is that it refuses at all, so an overloaded
+    // server answers 503 instead of leaving requests hanging for ever.
+    queueLimit: readInt("DB_QUEUE_LIMIT", 50),
   },
 
   // Auth foundation only (architecture §8/§10) — no /api/auth/* routes
@@ -92,6 +110,37 @@ export const env = {
     adminPhone: process.env.SEED_ADMIN_PHONE || "",
     adminPassword: process.env.SEED_ADMIN_PASSWORD || "",
     adminName: process.env.SEED_ADMIN_NAME || "System Administrator",
+  },
+
+  // §33 backups.
+  //
+  // Off unless a directory is configured, and that is deliberate: a backup
+  // subsystem that silently writes nowhere is worse than one that says it is
+  // not set up. The server logs which of the two it is at startup.
+  backups: {
+    // Absolute path on the machine (or mounted volume) the API runs on. Empty
+    // means there is no backup target, and the endpoint reports exactly that
+    // instead of pretending.
+    directory: process.env.BACKUP_DIR || "",
+
+    // mysqldump is not always on PATH — notably on Windows, where it lives
+    // inside the MySQL installation directory.
+    mysqldumpPath: process.env.MYSQLDUMP_PATH || "mysqldump",
+
+    // How many completed backups to keep. Older files are removed once a new
+    // one succeeds, so a disk cannot fill up silently.
+    keepLast: readInt("BACKUP_KEEP_LAST", 14),
+
+    // A daily automatic dump. Off by default: a schedule nobody asked for,
+    // writing to an unconfigured path, is just a cron job that fails nightly.
+    scheduleEnabled: process.env.BACKUP_SCHEDULE === "true",
+
+    // Minutes after local midnight. 02:00 by default.
+    scheduleMinuteOfDay: readInt("BACKUP_SCHEDULE_MINUTE", 120),
+
+    // A dump that has not finished by then is recorded as failed, so a hung
+    // mysqldump cannot leave a row sitting at "running" for ever.
+    timeoutMs: readInt("BACKUP_TIMEOUT_MS", 10 * 60 * 1000),
   },
 
   // Administrator-only, used exclusively by `npm run db:provision`.

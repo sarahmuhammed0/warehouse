@@ -22,6 +22,26 @@ export const pool = mysql.createPool({
   password: env.db.password,
   waitForConnections: true,
   connectionLimit: env.db.connectionLimit,
+
+  // A BOUND on the queue, which was previously unlimited.
+  //
+  // With no limit, a traffic spike or a slow query does not produce errors — it
+  // produces requests that wait, without end, for a connection. The caller sees
+  // a hanging page rather than a failure, and the queue grows until memory does.
+  // This is not hypothetical: it is how the test suite produced "failures" with
+  // durations in the minutes, where the tests were only ever waiting.
+  //
+  // Past this many waiters the pool rejects immediately, the error handler turns
+  // that into a 503, and the client gets a fast, honest answer it can retry. A
+  // load balancer can act on a 503; it can do nothing with a request that never
+  // returns.
+  queueLimit: env.db.queueLimit,
+  // Idle connections are closed rather than held for the life of the process, so
+  // a quiet night does not keep every connection of a busy afternoon checked out
+  // against the server's max_connections.
+  maxIdle: env.db.connectionLimit,
+  idleTimeout: 60_000,
+  enableKeepAlive: true,
   connectTimeout: env.db.connectTimeoutMs,
   namedPlaceholders: true,
   // DECIMAL columns arrive as strings by default so that a value the

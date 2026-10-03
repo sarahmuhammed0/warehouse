@@ -18,7 +18,12 @@
     "migrate:make": "knex migrate:make",
     "db:provision": "node scripts/db-provision.mjs",
     "db:verify": "node scripts/db-verify.mjs",
-    "rbac:backfill": "node scripts/rbac-backfill.mjs"
+    "rbac:backfill": "node scripts/rbac-backfill.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:verify-backup": "node scripts/db-verify-backup.mjs",
+    "admin:create": "node scripts/create-admin.mjs",
+    "test:ci": "node --test --env-file-if-exists=tests/test.env --env-file-if-exists=tests/ci.env \"tests/unit/*.test.js\" \"tests/integration/*.test.js\""
   },
   "engines": {
     "node": ">=20.0.0"

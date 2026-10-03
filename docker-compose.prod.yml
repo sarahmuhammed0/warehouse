@@ -1,0 +1,143 @@
+# Production stack: MySQL, the API, and nginx serving the built app.
+#
+# Separate from `docker-compose.yml`, which is the DEVELOPMENT database only and
+# says so in its own header. Keeping them apart is the point: `docker compose up`
+# in this repository must never be the thing that starts production, and a
+# development convenience must never be reachable from a production file.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Everything it needs comes from `.env.production` — see .env.production.example
+# and docs/deployment.md.
+
+name: warehouse-os
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:?set DB_NAME}
+      MYSQL_USER: ${DB_USER:?set DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    # NO ports block, deliberately. The database is reachable only from the other
+    # containers on this network. Publishing 3306 to the host is how a database
+    # ends up exposed to the internet by a firewall rule somebody else wrote.
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      # utf8mb4 throughout: product names, customer names and addresses here are
+      # Kurdish and Arabic, and latin1 would mangle them on the way in.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # The pool is sized per API instance; this leaves room for several plus the
+      # operator's own connection.
+      - --max-connections=200
+    healthcheck:
+      # The API waits for this, so it has to mean "accepting queries", not just
+      # "the process started".
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # Migrations run as their own one-shot container, not on API startup.
+  #
+  # Two API replicas starting together would otherwise race to migrate the same
+  # database. This runs once, to completion, and the API waits for it to succeed —
+  # so a failed migration stops the deploy instead of leaving half the instances
+  # running against a schema they do not expect.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: "no"
+    command: ["npm", "run", "migrate"]
+    environment:
+      NODE_ENV: production
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-20}
+      DB_QUEUE_LIMIT: ${DB_QUEUE_LIMIT:-50}
+
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
+
+      # Same origin as the app, because nginx serves both. Anything else here
+      # would be a cross-origin deployment that nobody asked for.
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN}
+
+      # Exactly one proxy — the nginx below. See src/app.js: a blanket `true`
+      # would let a client choose the IP the login lockout counts against.
+      TRUST_PROXY_HOPS: "1"
+
+      BACKUP_DIR: /var/backups/warehouse-os
+      MYSQLDUMP_PATH: mysqldump
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-true}
+      BACKUP_SCHEDULE_MINUTE: ${BACKUP_SCHEDULE_MINUTE:-120}
+      BACKUP_KEEP_LAST: ${BACKUP_KEEP_LAST:-14}
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # A NAMED volume, so dumps survive the container being rebuilt. It is still
+      # on the same host as the database — copy it off the machine as well, or a
+      # dead host takes the backups with it. docs/deployment.md says so too.
+      - backups:/var/backups/warehouse-os
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Not published to the host: nginx reaches it over the compose network, and
+    # the API should not be addressable except through the proxy that sets
+    # X-Forwarded-For.
+    expose:
+      - "4000"
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # The built app, from `npm run build:web` — see docs/deployment.md. Mounted
+      # rather than baked into an image so a front-end-only change is a copy and a
+      # reload, not a rebuild of everything.
+      - ./frontend/build/web:/usr/share/nginx/html:ro
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/index.html"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  mysql_data:
+  backups:

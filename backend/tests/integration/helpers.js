@@ -12,10 +12,31 @@
 import { pool, checkDatabaseConnection } from "../../src/db/pool.js";
 import { hashPassword } from "../../src/utils/password.js";
 
+/**
+ * Whether a missing database is a skip or a failure.
+ *
+ * Skipping is right on a developer's machine: the unit tests still run without
+ * MySQL, and nobody wants `npm test` to fail because they have not started a
+ * container. It is dangerous anywhere that reads the exit code. With the database
+ * down, `npm test` exits ZERO having run 104 of 350 tests — the integration suite
+ * skips, node:test counts no failures, and a deployment pipeline sees green
+ * having verified almost nothing.
+ *
+ * So CI sets `REQUIRE_DATABASE=true` (see the `test:ci` script) and a missing
+ * database becomes a hard failure. Default behaviour is unchanged.
+ */
+const DATABASE_REQUIRED = process.env.REQUIRE_DATABASE === "true";
+
 export async function requireDatabase(t) {
   const status = await checkDatabaseConnection();
   if (!status.reachable) {
-    t.skip(`MySQL not reachable at the configured host/port — see docs/environment.md. (${status.error})`);
+    const message = `MySQL not reachable at the configured host/port — see docs/environment.md. (${status.error})`;
+    if (DATABASE_REQUIRED) {
+      // Thrown, not skipped: REQUIRE_DATABASE is how a caller says "a skipped
+      // integration suite is a failed run".
+      throw new Error(`${message} REQUIRE_DATABASE is set, so this is a failure rather than a skip.`);
+    }
+    t.skip(message);
     return false;
   }
   return true;

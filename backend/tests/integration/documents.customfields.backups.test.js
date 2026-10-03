@@ -567,32 +567,86 @@ test("§33: requesting a backup records the intent and does not claim a file exi
     await cleanupTestData({ adminIds: [admin.id], phones: [admin.phone] });
   });
 
+  // The test environment configures no BACKUP_DIR, which is the case this
+  // asserts: asked to back up with nowhere to write, the endpoint REFUSES.
+  //
+  // It used to record the request as `pending` with a note saying no file had
+  // been written. That was honest about the file and dishonest about the queue —
+  // it left rows that looked like pending work when nothing would ever drain
+  // them, which is how an operator ends up believing they have backups. A
+  // refusal is the one answer that cannot be misread.
   const res = await auth(request(app).post("/api/admin/backups"), admin.token).send();
 
-  // 202, not 201: accepted, not done.
-  assert.equal(res.status, 202, JSON.stringify(res.body));
-  assert.equal(res.body.data.status, "pending");
-  assert.equal(res.body.data.triggerType, "manual");
-  assert.equal(
-    res.body.data.fileProduced,
-    false,
-    "a UI that showed this as complete would be lying to whoever relies on it"
+  assert.equal(res.status, 422, JSON.stringify(res.body));
+  assert.match(res.body.error.message, /no backup target is configured/i);
+  assert.match(res.body.error.message, /BACKUP_DIR/);
+
+  const [rows] = await pool.query(`SELECT COUNT(*) AS n FROM backups WHERE created_by = ?`, [admin.id]);
+  assert.equal(Number(rows[0].n), 0, "a refused request must not leave a row behind");
+});
+
+test("§33: a backup that is not completed has no file to download", async (t) => {
+  if (!(await requireDatabase(t))) return;
+  const admin = await systemAdmin();
+  t.after(async () => {
+    await pool.query(`DELETE FROM backups WHERE created_by = ?`, [admin.id]);
+    await cleanupTestData({ adminIds: [admin.id], phones: [admin.phone] });
+  });
+
+  // A row mid-dump. Its file is half-written, and handing that over is exactly
+  // how someone restores a truncated database.
+  const [running] = await pool.query(
+    `INSERT INTO backups (filename, trigger_type, status, started_at, created_by)
+     VALUES ('warehouse-os-running.sql', 'manual', 'running', NOW(), ?)`,
+    [admin.id]
   );
-  assert.match(res.body.data.note, /No file has been written/i);
-  assert.match(res.body.data.filename, /\.sql$/);
 
-  const read = await auth(request(app).get(`/api/admin/backups/${res.body.data.id}`), admin.token).send();
-  assert.equal(read.status, 200);
-  assert.equal(read.body.data.status, "pending");
-  assert.match(read.body.data.errorMessage, /no configured backup target/i);
-
-  // Restore refuses rather than pretending, because there is nothing to restore.
-  const restore = await auth(
-    request(app).post(`/api/admin/backups/${res.body.data.id}/restore`),
+  const res = await auth(
+    request(app).get(`/api/admin/backups/${running.insertId}/download`),
     admin.token
   ).send();
+
+  assert.equal(res.status, 422, JSON.stringify(res.body));
+  assert.match(res.body.error.message, /running/);
+  assert.match(res.body.error.message, /only a completed backup/i);
+
+  const [failed] = await pool.query(
+    `INSERT INTO backups (filename, trigger_type, status, started_at, error_message, created_by)
+     VALUES ('warehouse-os-failed.sql', 'manual', 'failed', NOW(), 'disk full', ?)`,
+    [admin.id]
+  );
+  const failedRes = await auth(
+    request(app).get(`/api/admin/backups/${failed.insertId}/download`),
+    admin.token
+  ).send();
+  assert.equal(failedRes.status, 422);
+});
+
+test("§33: restoring is refused over the API, whatever the state of the backup", async (t) => {
+  if (!(await requireDatabase(t))) return;
+  const admin = await systemAdmin();
+  t.after(async () => {
+    await pool.query(`DELETE FROM backups WHERE created_by = ?`, [admin.id]);
+    await cleanupTestData({ adminIds: [admin.id], phones: [admin.phone] });
+  });
+
+  // Not "there is nothing to restore from" — that was true only while no dump
+  // was taken. It is refused because one request would replace every business's
+  // data, and a session is the wrong authority for that.
+  const [row] = await pool.query(
+    `INSERT INTO backups (filename, trigger_type, status, started_at, size_bytes, completed_at, created_by)
+     VALUES ('warehouse-os-complete.sql', 'manual', 'completed', NOW(), 1024, NOW(), ?)`,
+    [admin.id]
+  );
+
+  const restore = await auth(
+    request(app).post(`/api/admin/backups/${row.insertId}/restore`),
+    admin.token
+  ).send();
+
   assert.equal(restore.status, 422, JSON.stringify(restore.body));
-  assert.match(restore.body.error.message, /not available/i);
+  assert.match(restore.body.error.message, /deliberately not possible over the API/i);
+  assert.match(restore.body.error.message, /db:restore/);
 });
 
 after(() => closePool());

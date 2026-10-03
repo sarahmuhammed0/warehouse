@@ -2,10 +2,16 @@
 node_modules/
 
 # Environment — real secrets never committed; .example files are.
+#
+# The negations are per-pattern, not per-suffix: `!.env.example` un-ignores that
+# exact name and nothing else, so `.env.production.example` was caught by
+# `.env.*` and would never have been committed. Anything ending `.example` is
+# a template by definition and is safe, so that is what the last two lines say.
 .env
 .env.*
-!.env.example
-!*/.env.example
+!*.env.example
+!.env*.example
+!*/.env*.example
 
 # Build output (Flutter's own frontend/.gitignore also covers frontend/build/,
 # .dart_tool/, etc. — kept here too as a repo-root backstop)
