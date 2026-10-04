@@ -23,7 +23,8 @@
     "db:backup": "node scripts/db-backup.mjs",
     "db:verify-backup": "node scripts/db-verify-backup.mjs",
     "admin:create": "node scripts/create-admin.mjs",
-    "test:ci": "node --test --env-file-if-exists=tests/test.env --env-file-if-exists=tests/ci.env \"tests/unit/*.test.js\" \"tests/integration/*.test.js\""
+    "test:ci": "node --test --env-file-if-exists=tests/test.env --env-file-if-exists=tests/ci.env \"tests/unit/*.test.js\" \"tests/integration/*.test.js\"",
+    "db:purge-test-data": "node scripts/purge-test-data.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
