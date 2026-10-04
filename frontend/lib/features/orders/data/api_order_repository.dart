@@ -98,9 +98,21 @@ class ApiOrderRepository implements OrderRepository {
     );
   }
 
+  /// The status filter, converted to the wire vocabulary before the query is
+  /// built.
+  ///
+  /// `buildListQuery` serialises an enum by its name, which is right for every
+  /// status here except one: `partiallyReturned` is `partially_returned` on the
+  /// server. Only this repository knows that, so only it can do the conversion.
+  static PagedQuery _withWireStatus(PagedQuery query) {
+    final status = query.filters['status'];
+    if (status is! OrderStatus) return query;
+    return query.copyWith(filters: {...query.filters, 'status': _statusNames[status]});
+  }
+
   @override
   Future<PaginatedResult<Order>> list(PagedQuery query) async {
-    final result = await _client.getList('/orders?${buildListQuery(query)}');
+    final result = await _client.getList('/orders?${buildListQuery(_withWireStatus(query))}');
     final page = result.meta['pagination'] as Map<String, dynamic>?;
     return PaginatedResult(
       // The list endpoint does not carry line items — a page of orders with

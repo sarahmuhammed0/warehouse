@@ -57,6 +57,11 @@ class ConfirmDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return AlertDialog(
+      // Scrollable, so a form taller than the window scrolls instead of
+      // overflowing. Without it a short viewport — a laptop, or a browser
+      // pane beside an editor — renders the striped overflow banner across
+      // the dialog and clips whatever did not fit, including the buttons.
+      scrollable: true,
       // A destructive confirmation gets a tinted icon well above the
       // question (§17's "destructive confirmation styling") — the colour
       // arrives before the sentence is read, which is the point of asking.

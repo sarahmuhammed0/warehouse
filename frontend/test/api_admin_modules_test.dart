@@ -588,6 +588,27 @@ void main() {
       );
     });
 
+    test('a status filter is sent as the wire value, not a Dart enum', () async {
+      // The Businesses screen stores a BusinessAccountStatus in its filters.
+      // Interpolated, that is "BusinessAccountStatus.active", which the endpoint
+      // rejects — the whole list came back 422 and the screen showed "Something
+      // went wrong". It only broke against a real server: the demo repository
+      // compares the enum in memory and never serialises it.
+      final s = stubbedApi({'GET /admin/businesses': listEnvelope([])});
+
+      await ApiAdminRepository(s.client).listBusinesses(
+        const PagedQuery(filters: {'status': BusinessAccountStatus.active}),
+      );
+
+      final sent = s.stub.calls.single.fullPath;
+      expect(sent, contains('status=active'));
+      expect(
+        sent,
+        isNot(contains('BusinessAccountStatus')),
+        reason: 'the Dart enum name must never reach the wire',
+      );
+    });
+
     test('a reset surfaces the generated password once', () async {
       final s = stubbedApi({
         'POST /admin/businesses/8551/reset-password': oneEnvelope({'temporaryPassword': 'Zq4TnP9xLm2W'}),

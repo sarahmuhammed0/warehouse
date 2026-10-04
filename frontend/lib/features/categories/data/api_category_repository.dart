@@ -104,8 +104,23 @@ String buildListQuery(PagedQuery query) {
   };
   for (final entry in query.filters.entries) {
     final value = entry.value;
-    if (value == null || '$value'.isEmpty) continue;
-    params[entry.key] = '$value';
+    if (value == null) continue;
+
+    // An enum is serialised by its NAME, never by "$value".
+    //
+    // A filter dropdown stores the module's own enum — the Businesses screen
+    // puts a `BusinessAccountStatus` in `filters['status']` — and interpolating
+    // one yields "BusinessAccountStatus.active", which no endpoint accepts. The
+    // whole list then came back 422 and the screen showed "Something went
+    // wrong", but only against a real server: the demo repositories compare the
+    // enum in memory and never serialise it, which is why it survived this long.
+    //
+    // Where a wire value differs from the Dart name — OrderStatus
+    // .partiallyReturned is `partially_returned` — the repository that owns that
+    // vocabulary converts it before calling here, because only it knows.
+    final serialised = value is Enum ? value.name : '$value';
+    if (serialised.isEmpty) continue;
+    params[entry.key] = serialised;
   }
   return params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
 }

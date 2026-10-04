@@ -172,9 +172,28 @@ class _HeaderRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(child: titleBlock),
+        // The title takes two thirds, the actions up to one third.
+        //
+        // The actions used to be a bare `Wrap` here, with no width bound. A Wrap
+        // given unbounded width never wraps — it lays its children out on one
+        // line as wide as they need — so between 600px (where the Column branch
+        // above stops) and whatever the buttons happen to total, the row simply
+        // overflowed and Flutter painted its striped banner across the header.
+        // A browser pane beside an editor is exactly that width.
+        //
+        // `Flexible` gives the Wrap a real maximum, so it wraps onto a second
+        // line instead, and `WrapAlignment.end` keeps the buttons against the
+        // right edge where they have always sat.
+        Expanded(flex: 2, child: titleBlock),
         if (actions.isNotEmpty)
-          Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.sm, children: actions),
+          Flexible(
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: actions,
+            ),
+          ),
       ],
     );
   }

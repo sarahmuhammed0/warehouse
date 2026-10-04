@@ -88,6 +88,11 @@ class _SupplierFormDialogState extends ConsumerState<SupplierFormDialog> {
     final l10n = AppLocalizations.of(context)!;
     final isEditing = widget.editing != null;
     return AlertDialog(
+      // Scrollable, so a form taller than the window scrolls instead of
+      // overflowing. Without it a short viewport — a laptop, or a browser
+      // pane beside an editor — renders the striped overflow banner across
+      // the dialog and clips whatever did not fit, including the buttons.
+      scrollable: true,
       title: Text(isEditing ? '${l10n.edit} — ${widget.editing!.name}' : '${l10n.add} ${l10n.navSuppliers}'),
       content: SizedBox(
         width: 460,

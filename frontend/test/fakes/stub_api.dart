@@ -16,9 +16,14 @@ import 'package:warehouse_os_app/core/network/api_client.dart';
 /// One recorded call — a request body with the wrong key fails as quietly as a
 /// parse, so tests assert on these too.
 class StubCall {
-  StubCall(this.method, this.path, this.body);
+  StubCall(this.method, this.path, this.body, {this.fullPath = ''});
   final String method;
   final String path;
+
+  /// The same as [path] today, kept as an explicit name for tests that assert
+  /// on query parameters — so a later change to what [path] means cannot
+  /// silently turn those assertions into no-ops.
+  final String fullPath;
   final Map<String, dynamic>? body;
 }
 
@@ -36,7 +41,7 @@ class StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final body = options.data is Map<String, dynamic> ? options.data as Map<String, dynamic> : null;
-    calls.add(StubCall(options.method, options.path, body));
+    calls.add(StubCall(options.method, options.path, body, fullPath: options.path));
 
     // Matched without the query string: a test cares that the right endpoint
     // was called, and asserts the query separately where it matters.

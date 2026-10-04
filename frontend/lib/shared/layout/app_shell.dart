@@ -331,6 +331,22 @@ class _CompactShellState extends State<_CompactShell> {
           ),
           child: AppTopBar(
             pageContext: widget.pageContext,
+            // Navigation is also shown inline from the tablet breakpoint up,
+            // not only behind the menu button.
+            //
+            // This shell covers everything from 600px to 1023px, which includes
+            // a browser window beside an editor and a small laptop — and at
+            // those sizes there is ample room for the pills, so hiding every
+            // destination behind a hamburger made the app look like it had no
+            // navigation at all. The menu stays, because it carries the full
+            // list; these are the same pills the desktop shell shows, and
+            // `_NavPills` already scrolls horizontally, so they cannot overflow
+            // however many there are.
+            //
+            // Below 600px they are deliberately left out: the bar there is only
+            // wide enough for the menu button, the page name and the account.
+            navItems: context.isMobile ? const [] : widget.navItems,
+            currentPath: widget.currentPath,
             onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
             showSearch: widget.showSearch,
           ),

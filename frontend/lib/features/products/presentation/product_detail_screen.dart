@@ -203,6 +203,10 @@ class ProductDetailScreen extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        // Scrollable, so a form taller than the window scrolls instead of
+        // overflowing. Without it a short viewport renders the striped
+        // overflow banner and clips whatever did not fit.
+        scrollable: true,
         title: Text(l10n.fieldBarcode),
         content: SizedBox(
           width: 260,
@@ -264,6 +268,10 @@ class _VariantsCard extends ConsumerWidget {
     await showAppDialog<void>(
       context,
       builder: (context) => AlertDialog(
+        // Scrollable, so a form taller than the window scrolls instead of
+        // overflowing. Without it a short viewport renders the striped
+        // overflow banner and clips whatever did not fit.
+        scrollable: true,
         title: Text('${l10n.add} — ${l10n.fieldModule}'),
         content: SizedBox(
           width: 360,

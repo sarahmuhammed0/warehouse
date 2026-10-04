@@ -95,6 +95,11 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
     final rolesAsync = ref.watch(rolesProvider);
 
     return AlertDialog(
+      // Scrollable, so a form taller than the window scrolls instead of
+      // overflowing. Without it a short viewport — a laptop, or a browser
+      // pane beside an editor — renders the striped overflow banner across
+      // the dialog and clips whatever did not fit, including the buttons.
+      scrollable: true,
       title: Text(isEditing ? '${l10n.edit} — ${widget.editing!.name}' : '${l10n.add} ${l10n.navEmployees}'),
       content: SizedBox(
         width: 440,

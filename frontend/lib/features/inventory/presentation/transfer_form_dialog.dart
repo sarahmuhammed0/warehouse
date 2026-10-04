@@ -86,6 +86,11 @@ class _TransferFormDialogState extends ConsumerState<TransferFormDialog> {
     final destinations = warehouses.where((w) => w.id != _fromId).toList();
 
     return AlertDialog(
+      // Scrollable, so a form taller than the window scrolls instead of
+      // overflowing. Without it a short viewport — a laptop, or a browser
+      // pane beside an editor — renders the striped overflow banner across
+      // the dialog and clips whatever did not fit, including the buttons.
+      scrollable: true,
       title: Text('${l10n.add} ${l10n.transfer}'),
       content: SizedBox(
         width: 460,
