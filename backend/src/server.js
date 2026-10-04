@@ -38,11 +38,21 @@ async function shutdown(signal) {
   server.close(async () => {
     await closePool();
     logger.info("Shutdown complete.");
-    process.exit(0);
+    // Flushed before exiting, for the same reason as the crash handler below: to
+    // anything that is not a terminal, pino writes asynchronously and
+    // `process.exit` discards the buffer. Without this, a restart loop shows no
+    // "Shutdown complete" and it is impossible to tell a clean stop from a kill.
+    if (typeof logger.flush === "function") logger.flush();
+    setTimeout(() => process.exit(0), 100).unref();
   });
 
-  // Don't hang forever if something doesn't close cleanly.
-  setTimeout(() => process.exit(1), 5000).unref();
+  // Don't hang forever if something doesn't close cleanly. Logged, so a shutdown
+  // that had to be forced is distinguishable from one that was not.
+  setTimeout(() => {
+    logger.warn("Shutdown did not complete within 5s — exiting anyway.");
+    if (typeof logger.flush === "function") logger.flush();
+    setTimeout(() => process.exit(1), 100).unref();
+  }, 5000).unref();
 }
 
 process.on("SIGINT", () => shutdown("SIGINT"));
@@ -57,9 +67,21 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // An uncaught exception leaves the process in an unknown state, so this one does
-// exit — but it exits deliberately, after logging what happened, so a process
-// supervisor restarts it and the reason is in the log rather than lost.
+// exit — but deliberately, after the reason has actually been written.
+//
+// `logger.fatal(...)` followed by `process.exit(1)` does NOT achieve that. pino
+// writes asynchronously to anything that is not a TTY, and `process.exit` drops
+// whatever is still buffered — so a crash logged to a file or to Docker's stdout
+// produced an EMPTY log. Found exactly that way: the same EADDRINUSE crash
+// printed a full stack when run in a terminal and nothing at all when redirected
+// to a file, which is the one case where the reason matters most.
+//
+// So the exit is deferred by a tick and the code set rather than forced, giving
+// the logger's stream a chance to flush first. `unref` means this timer cannot
+// itself hold the process open if the flush finishes sooner.
 process.on("uncaughtException", (error) => {
   logger.fatal({ err: error }, "Uncaught exception — exiting");
-  process.exit(1);
+  process.exitCode = 1;
+  if (typeof logger.flush === "function") logger.flush();
+  setTimeout(() => process.exit(1), 250).unref();
 });
