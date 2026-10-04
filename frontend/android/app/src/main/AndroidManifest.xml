@@ -1,4 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The app is a client for the Warehouse OS API: without this, a RELEASE
+         build installs and launches and then every request fails, with nothing
+         on screen to explain why.
+
+         Flutter's template puts INTERNET only in the debug and profile
+         manifests, because that is what its own tooling needs to attach. Those
+         two are not merged into a release build, so this is the one place it can
+         be declared for the APK anybody actually installs. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="warehouse_os_app"
         android:name="${applicationName}"

@@ -260,7 +260,79 @@ processes saturates the machine; that file is never read by a production run.
 
 ---
 
-## 9. What is still not done
+## 9. Building the Android app
+
+The same `APP_MODE` rule as the web build applies, and there is no script
+guarding it here — so pass the defines explicitly, every time:
+
+```bash
+cd frontend
+flutter build apk --release \
+  --dart-define=APP_MODE=backend \
+  --dart-define=API_BASE_URL=https://warehouse.example.com/api
+```
+
+**`API_BASE_URL` must be reachable from the phone.** `localhost` means the
+phone itself, so a build pointed there reaches nothing. Use the server's real
+address.
+
+**It must be `https` for a release APK.** Android blocks cleartext traffic by
+default since Android 9, and the release manifest deliberately does not override
+that — the app carries passwords and access tokens. A release build pointed at
+`http://` will fail every request, and the app will look broken with nothing to
+say why.
+
+For testing against a development server on your LAN, use a **debug** build,
+where cleartext is allowed for exactly this reason:
+
+```bash
+flutter build apk --debug \
+  --dart-define=APP_MODE=backend \
+  --dart-define=API_BASE_URL=http://192.168.1.50:4000/api
+```
+
+You will also need `CORS_ORIGIN` on the API to include wherever the app is
+served from, and the host's firewall to allow the port.
+
+### Signing
+
+Without `android/key.properties`, a release APK is signed with the **debug**
+key. The build still succeeds — that is deliberate, so internal test builds work
+on a machine with no keystore — and it prints a warning saying so.
+
+A debug-signed APK cannot go to the Play Store, and switching to a real key
+later means every existing install must be **uninstalled** first, because the
+signature changes and Android refuses the upgrade. So create the key before you
+distribute anything you intend to update:
+
+```bash
+keytool -genkey -v -keystore warehouse-os.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias warehouse-os
+```
+
+Then `frontend/android/key.properties`:
+
+```properties
+storeFile=C:/secure/path/warehouse-os.jks
+storePassword=...
+keyAlias=warehouse-os
+keyPassword=...
+```
+
+That file and `*.jks`/`*.keystore` are already gitignored. **Keep a backup of
+the keystore somewhere other than the build machine** — losing it means you can
+never publish an update to that app again, with no recovery path.
+
+### The toolchain warnings
+
+`flutter doctor` reports missing `cmdline-tools` and unaccepted Android
+licenses. Neither blocks `flutter build apk` — both debug and release build fine
+as they are. Accepting the licences (`flutter doctor --android-licenses`) is
+worth doing before you set up any automated build, since it is interactive.
+
+---
+
+## 10. What is still not done
 
 Honest list. None of it stops the system being used; all of it is worth knowing.
 

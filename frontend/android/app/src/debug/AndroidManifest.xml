@@ -4,4 +4,16 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Plain http:// is allowed in DEBUG builds only.
+         Since Android 9 (targetSdk 28+) cleartext traffic is blocked by default,
+         so a debug APK pointed at a development server — http://192.168.x.x:4000
+         — fails before it sends anything, and the app simply shows errors with
+         no indication that Android refused the request rather than the server.
+         Testing against a local API is exactly what a debug build is for.
+
+         Deliberately NOT set in the main manifest. A release APK must use https,
+         because it carries passwords and access tokens, and declaring this
+         there would silently permit sending them in clear text. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>
