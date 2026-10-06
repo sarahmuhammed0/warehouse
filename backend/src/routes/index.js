@@ -7,6 +7,7 @@ import { authRouter } from "../modules/auth/routes.js";
 import { adminAuthRouter } from "../modules/admin-auth/routes.js";
 import { businessesRouter, registrationRouter } from "../modules/businesses/routes.js";
 import { adminBusinessRouter, adminBusinessesActivityRouter } from "../modules/businesses/adminRoutes.js";
+import { activityRouter, adminActivityCountsRouter } from "../modules/activity/routes.js";
 import { unitsRouter } from "../modules/units/routes.js";
 import { categoriesRouter } from "../modules/categories/routes.js";
 import { warehousesRouter, storageLocationsRouter } from "../modules/locations/routes.js";
@@ -42,6 +43,9 @@ apiRouter.use("/admin/businesses", businessesRouter); // System-Admin-only (see 
 // per-business figures. Falls through from businessesRouter.
 apiRouter.use("/admin/businesses", adminBusinessRouter);
 apiRouter.use("/admin/activity", adminBusinessesActivityRouter); // §56 platform feed
+// "What is new since I last looked", for the navigation badges. Falls through
+// from the feed above, which owns "/" and has no "/counts".
+apiRouter.use("/admin/activity", adminActivityCountsRouter);
 // §33 dumps the whole database, every tenant in it — platform operations, not a
 // business feature. System Admin only.
 apiRouter.use("/admin/backups", backupsRouter);
@@ -70,6 +74,8 @@ apiRouter.use("/stock-transfers", transfersRouter);
 apiRouter.use("/products", variantsRouter);
 apiRouter.use("/reports", reportsRouter);
 apiRouter.use("/notifications", notificationsRouter);
+// The counts behind the navigation badges — "what is new since I last looked".
+apiRouter.use("/activity", activityRouter);
 apiRouter.use("/users", usersRouter);
 apiRouter.use("/roles", rolesRouter);
 apiRouter.use("/audit-logs", auditRouter);

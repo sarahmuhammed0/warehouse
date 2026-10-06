@@ -4,6 +4,7 @@ import '../../features/admin/data/registration_queue_repository.dart';
 import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/providers/auth_state.dart';
 import '../../routing/app_routes.dart';
+import 'nav_activity_provider.dart';
 import 'nav_indicator.dart';
 
 /// What each navigation item is currently asking for, keyed by route.
@@ -87,8 +88,30 @@ final navIndicatorsProvider = Provider<Map<String, NavIndicator>>((ref) {
   return indicators;
 });
 
+/// Everything the navigation currently has to say: the pending queues above,
+/// plus "this many arrived since you last opened it" for the record lists.
+///
+/// The two are kept apart because they clear differently, which is the whole
+/// reason they are different kinds. A pending registration stays until somebody
+/// DECIDES it; a new order stays until somebody LOOKS at it. Merging them would
+/// mean either registrations silently clearing when the screen was opened, or
+/// arrivals never clearing at all.
+///
+/// A pending action wins where both exist: it is the stronger claim, and
+/// Registrations is the only route that can carry one today anyway.
+final navBadgesProvider = Provider<Map<String, NavIndicator>>((ref) {
+  final activity = ref.watch(navActivityProvider).asData?.value ?? const <String, int>{};
+  final pending = ref.watch(navIndicatorsProvider);
+
+  return {
+    for (final entry in activity.entries)
+      if (entry.value > 0) entry.key: NavIndicator.unread(entry.value),
+    ...pending,
+  };
+});
+
 /// The indicator for one route, or null. Watching this rather than the whole
 /// map means an item only rebuilds when ITS own badge changes.
 final navIndicatorProvider = Provider.family<NavIndicator?, String>((ref, route) {
-  return ref.watch(navIndicatorsProvider.select((all) => all[route]));
+  return ref.watch(navBadgesProvider.select((all) => all[route]));
 });

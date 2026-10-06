@@ -10,6 +10,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/theme_controller.dart';
 import '../navigation/app_rail.dart';
+import '../navigation/nav_activity_provider.dart';
 import '../navigation/app_sidebar.dart';
 import '../navigation/app_topbar.dart';
 import '../navigation/nav_items.dart';
@@ -105,8 +106,10 @@ class AppShell extends ConsumerWidget {
       }
     }
 
-    return ResponsiveLayout(
-      desktop: (context) => _DesktopShell(
+    return _MarkRouteSeen(
+      route: currentPath,
+      child: ResponsiveLayout(
+        desktop: (context) => _DesktopShell(
         navItems: navItems,
         brandLabel: brandLabel,
         brandSubtitle: brandSubtitle,
@@ -134,11 +137,59 @@ class AppShell extends ConsumerWidget {
         brandIcon: brandIcon,
         currentPath: currentPath,
         pageContext: pageContext,
-        showSearch: showSearch,
-        child: child,
+          showSearch: showSearch,
+          child: child,
+        ),
       ),
     );
   }
+}
+
+/// Records that the destination now on screen has been looked at, so its
+/// "arrived since you last opened it" badge clears.
+///
+/// A widget rather than a line in `AppShell.build`, for two reasons: writing to
+/// storage during a build is a side effect in the wrong place, and this way the
+/// mark happens once per route change instead of once per rebuild — the shell
+/// rebuilds on every theme toggle, window resize and permission change.
+///
+/// It renders nothing of its own.
+class _MarkRouteSeen extends ConsumerStatefulWidget {
+  const _MarkRouteSeen({required this.route, required this.child});
+
+  final String route;
+  final Widget child;
+
+  @override
+  ConsumerState<_MarkRouteSeen> createState() => _MarkRouteSeenState();
+}
+
+class _MarkRouteSeenState extends ConsumerState<_MarkRouteSeen> {
+  @override
+  void initState() {
+    super.initState();
+    _mark();
+  }
+
+  @override
+  void didUpdateWidget(_MarkRouteSeen old) {
+    super.didUpdateWidget(old);
+    if (old.route != widget.route) _mark();
+  }
+
+  /// After the frame, so the first paint of a screen is never waiting on a
+  /// storage write, and errors here can never take a screen down with them —
+  /// failing to remember a visit is worth a stale badge, not a blank page.
+  void _mark() {
+    final route = widget.route;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(navSeenMarkerProvider)(route).catchError((_) {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// A floating chrome panel — the rounded white surface the header and the

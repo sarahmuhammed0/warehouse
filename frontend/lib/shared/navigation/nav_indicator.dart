@@ -34,6 +34,10 @@ class NavIndicator {
 
   const NavIndicator.pendingAction(this.count) : kind = NavIndicatorKind.pendingAction;
 
+  /// Records that arrived since the item was last opened. Clears by looking,
+  /// unlike [NavIndicator.pendingAction], which clears only by deciding.
+  const NavIndicator.unread(this.count) : kind = NavIndicatorKind.unread;
+
   final int count;
   final NavIndicatorKind kind;
 
