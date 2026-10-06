@@ -103,6 +103,9 @@ class ApiProductionRepository implements ProductionRepository {
               'quantityRequired': line.quantityRequired,
             },
         ],
+      // The form collected an employee and this request never carried it, so
+      // the assignment was dropped on every single run that was created.
+      if (draft.assignedUserId != null) 'assignedUserId': int.tryParse(draft.assignedUserId!),
       'note': draft.notes,
     });
     return getById('${created['id']}');

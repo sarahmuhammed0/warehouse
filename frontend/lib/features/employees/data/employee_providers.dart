@@ -31,6 +31,19 @@ class EmployeeListController extends PagedListController<Employee> {
   }
 }
 
+/// Active employees for an assignment picker — the same shape as
+/// `customerPickerOptionsProvider`, built on the paged list because employees
+/// have no dedicated picker endpoint.
+///
+/// One page of 100 is the cap, like `allForPicker()` elsewhere: a business with
+/// more staff than that needs a searchable picker rather than a longer page.
+final employeePickerOptionsProvider = FutureProvider.autoDispose<List<Employee>>((ref) async {
+  final page = await ref.watch(employeeRepositoryProvider).list(
+        const PagedQuery(pageSize: 100, filters: {'status': 'active'}, sortField: 'name'),
+      );
+  return page.items;
+});
+
 final rolesProvider = FutureProvider.autoDispose<List<Role>>((ref) {
   ref.watch(rolesVersionProvider);
   return ref.watch(employeeRepositoryProvider).listRoles();

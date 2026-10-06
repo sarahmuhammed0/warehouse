@@ -146,10 +146,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_categoryId == null) {
-      setState(() => _error = AppLocalizations.of(context)!.requiredFieldMessage);
-      return;
-    }
     setState(() {
       _saving = true;
       _error = null;
@@ -160,7 +156,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       code: _code.text.trim(),
       sku: _s(_sku),
       barcode: _s(_barcode),
-      categoryId: _categoryId!,
+      // No category is a product the server accepts — `createProductSchema` has
+      // `categoryId: idSchema.nullable().optional()`, and `''` is already how
+      // this model carries "none" (see `_fromJson`, which maps a null id to it).
+      //
+      // The asterisk came off this field because a brand-new business has no
+      // categories to choose from, but the guard that enforced it was left in
+      // place: `if (_categoryId == null) _error = requiredFieldMessage`, which
+      // blocked the save anyway and named no field while doing it. An unmarked
+      // field that silently refuses to submit is worse than a marked one.
+      categoryId: _categoryId ?? '',
       brand: _s(_brand),
       description: _s(_description),
       shortDescription: _s(_shortDescription),
@@ -253,9 +258,23 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     ],
                   ),
                   categoriesAsync.when(
+                    // NOT required, despite the asterisk this used to carry.
+                    //
+                    // createProductSchema has categoryId as nullable and
+                    // optional — a product with no category is one the server
+                    // accepts. The asterisk was decoration while the dropdown
+                    // left required unchecked; enforcing it now would block
+                    // something the system allows.
+                    //
+                    // And it would block it at the worst moment: a brand new
+                    // business has no categories at all, so this list is empty
+                    // on the first visit. A mandatory field with nothing in it
+                    // to choose is not a field somebody forgot to fill in — it
+                    // is a dead end, and nothing on the form says "create a
+                    // category first". That is the same shape as the missing
+                    // warehouse that made stock impossible to add.
                     data: (categories) => AppDropdownField<String>(
                       label: l10n.fieldCategory,
-                      required: true,
                       value: _categoryId,
                       options: [for (final c in categories) AppSelectOption(c.id, c.name)],
                       onChanged: (value) => setState(() => _categoryId = value),

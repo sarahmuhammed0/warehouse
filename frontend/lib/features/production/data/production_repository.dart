@@ -135,7 +135,7 @@ class LocalProductionRepository with DemoRepository implements ProductionReposit
       materials: draft.materials,
       cost: 0,
       status: ProductionStatus.planned,
-      assignedTo: draft.assignedTo,
+      assignedTo: draft.assignedUserName,
       notes: draft.notes,
       createdAt: DateTime.now(),
     );

@@ -46,11 +46,32 @@ class ProductionOrder {
 }
 
 class ProductionDraft {
-  const ProductionDraft({required this.productId, required this.productName, required this.quantityPlanned, required this.materials, this.assignedTo, this.notes});
+  const ProductionDraft({
+    required this.productId,
+    required this.productName,
+    required this.quantityPlanned,
+    required this.materials,
+    this.assignedUserId,
+    this.assignedUserName,
+    this.notes,
+  });
   final String productId;
   final String productName;
   final int quantityPlanned;
   final List<BomLine> materials;
-  final String? assignedTo;
+
+  /// Who the run is assigned to, as the id the server stores in
+  /// `production_orders.assigned_user_id`.
+  ///
+  /// This was `assignedTo`, a free-typed name — which the server has nowhere to
+  /// put, so [ApiProductionRepository.create] left it out of the request
+  /// entirely and the form's Employee box discarded whatever was typed in it.
+  final String? assignedUserId;
+
+  /// The label the picker showed for [assignedUserId], carried so demo mode can
+  /// display the assignment without a second lookup. The API path sends the id
+  /// and reads the name back from the server.
+  final String? assignedUserName;
+
   final String? notes;
 }

@@ -38,6 +38,7 @@ class _CostLine {
 }
 
 class _PurchaseFormScreenState extends ConsumerState<PurchaseFormScreen> {
+  final _formKey = GlobalKey<FormState>();
   final List<_CostLine> _lines = [];
   String? _supplierId;
   String? _supplierName;
@@ -58,8 +59,14 @@ class _PurchaseFormScreenState extends ConsumerState<PurchaseFormScreen> {
 
   Future<void> _submit() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_supplierId == null || _lines.isEmpty) {
-      setState(() => _error = l10n.requiredFieldMessage);
+    // Two unrelated problems used to share one nameless message: a supplier that
+    // was not chosen, and a purchase with no lines in it. "This field is
+    // required." named neither, and the supplier picker it half-meant was
+    // neither marked nor reddened, because the screen had no `Form` at all.
+    setState(() => _error = null);
+    if (!_formKey.currentState!.validate()) return;
+    if (_lines.isEmpty) {
+      setState(() => _error = l10n.addAtLeastOneItem);
       return;
     }
     setState(() {
@@ -96,27 +103,47 @@ class _PurchaseFormScreenState extends ConsumerState<PurchaseFormScreen> {
       title: '${l10n.add} ${l10n.navPurchases}',
       showBackButton: true,
       backFallbackRoute: AppRoutes.purchases,
-      body: Column(
+      body: Form(
+        key: _formKey,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,
         children: [
           AppCard(
             title: Text(l10n.fieldSupplier),
             child: suppliersAsync.when(
-              data: (suppliers) => AppSearchableSelectField<String>(
-                label: l10n.fieldSupplier,
-                hintText: l10n.selectPlaceholder,
-                options: [for (final s in suppliers) AppSelectOption(s.id, s.name)],
-                onSelected: (id) {
-                  final match = suppliers.firstWhere((s) => s.id == id);
-                  setState(() {
-                    _supplierId = id;
-                    _supplierName = match.name;
-                  });
-                },
-              ),
+              data: (suppliers) {
+                // An empty required picker is a dead end, not a field somebody
+                // forgot. A business with no suppliers yet could never get past
+                // this screen, and the form said "This field is required."
+                // rather than naming the thing to go and do.
+                if (suppliers.isEmpty) {
+                  return AppEmptyState(
+                    icon: Icons.local_shipping_outlined,
+                    title: l10n.noSuppliersYet,
+                    actionLabel: '${l10n.add} ${l10n.navSuppliers}',
+                    onAction: () => context.go(AppRoutes.suppliers),
+                  );
+                }
+                return AppSearchableSelectField<String>(
+                  key: const ValueKey('purchaseSupplierPicker'),
+                  label: l10n.fieldSupplier,
+                  hintText: l10n.selectPlaceholder,
+                  required: true,
+                  options: [for (final s in suppliers) AppSelectOption(s.id, s.name)],
+                  onSelected: (id) {
+                    final match = suppliers.firstWhere((s) => s.id == id);
+                    setState(() {
+                      _supplierId = id;
+                      _supplierName = match.name;
+                    });
+                  },
+                );
+              },
               loading: () => const LinearProgressIndicator(),
-              error: (_, _) => const SizedBox.shrink(),
+              // Not `SizedBox.shrink()` — swallowing this removed the required
+              // field from the page and left a form nothing could satisfy.
+              error: (_, _) => Text(l10n.unableToLoad, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           ),
           AppCard(
@@ -203,10 +230,11 @@ class _PurchaseFormScreenState extends ConsumerState<PurchaseFormScreen> {
             spacing: 12,
             children: [
               AppButton(label: l10n.cancel, variant: AppButtonVariant.text, onPressed: _saving ? null : () => context.go(AppRoutes.purchases)),
-              AppButton(label: l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
+              AppButton(key: const ValueKey('purchaseSave'), label: l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
             ],
           ),
         ],
+        ),
       ),
     );
   }

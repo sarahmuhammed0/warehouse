@@ -93,7 +93,11 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
 
   Future<void> _submit() async {
     if (_lines.isEmpty) {
-      setState(() => _error = AppLocalizations.of(context)!.requiredFieldMessage);
+      // "Add at least one item." — not "This field is required.", which is what
+      // this said while pointing at no field, because the thing that is missing
+      // is not a field. The customer deliberately is not required: §18 allows an
+      // anonymous cash customer, and so does `createOrderSchema`.
+      setState(() => _error = AppLocalizations.of(context)!.addAtLeastOneItem);
       return;
     }
     setState(() {
@@ -287,7 +291,7 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
             spacing: 12,
             children: [
               AppButton(label: l10n.cancel, variant: AppButtonVariant.text, onPressed: _saving ? null : () => context.go(isQuickSale ? AppRoutes.sales : AppRoutes.orders)),
-              AppButton(label: l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
+              AppButton(key: const ValueKey('orderSave'), label: l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
             ],
           ),
         ],

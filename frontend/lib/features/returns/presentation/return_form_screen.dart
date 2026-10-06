@@ -36,6 +36,7 @@ class ReturnFormScreen extends ConsumerStatefulWidget {
 }
 
 class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
+  final _formKey = GlobalKey<FormState>();
   Order? _order;
   final Map<String, int> _returnQuantities = {};
   final Map<String, ItemCondition> _conditions = {};
@@ -73,8 +74,16 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
             condition: _conditions[item.productId] ?? ItemCondition.sellable,
           ),
     ];
-    if (_order == null || items.isEmpty || _reason.text.trim().isEmpty) {
-      setState(() => _error = l10n.requiredFieldMessage);
+    // Three different problems used to share one nameless message — no order
+    // picked, no quantity entered, no reason given — printed as "This field is
+    // required." above the buttons while none of the three fields it could have
+    // meant was marked or reddened. The order picker and the reason answer for
+    // themselves now; only the quantities are not a field, so only they still
+    // need a line of their own.
+    setState(() => _error = null);
+    if (!_formKey.currentState!.validate()) return;
+    if (items.isEmpty) {
+      setState(() => _error = l10n.addAtLeastOneItem);
       return;
     }
     setState(() {
@@ -119,7 +128,9 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
       title: '${l10n.add} ${l10n.navReturns}',
       showBackButton: true,
       backFallbackRoute: AppRoutes.returns,
-      body: Column(
+      body: Form(
+        key: _formKey,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 16,
         children: [
@@ -127,8 +138,10 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
             title: Text(l10n.fieldOrderNumber),
             child: ordersAsync.when(
               data: (orders) => AppSearchableSelectField<String>(
+                key: const ValueKey('returnOrderPicker'),
                 label: l10n.fieldOrderNumber,
                 hintText: l10n.selectPlaceholder,
+                required: true,
                 options: [for (final o in orders) AppSelectOption(o.id, '${o.orderNumber} — ${o.customerName ?? l10n.noneOption}')],
                 onSelected: (id) => setState(() {
                   _order = orders.firstWhere((o) => o.id == id);
@@ -137,7 +150,9 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
                 }),
               ),
               loading: () => const LinearProgressIndicator(),
-              error: (_, _) => const SizedBox.shrink(),
+              // Not `SizedBox.shrink()` — swallowing this removed the required
+              // field from the page and left a form nothing could satisfy.
+              error: (_, _) => Text(l10n.unableToLoad, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           ),
           if (_order == null)
@@ -189,10 +204,11 @@ class _ReturnFormScreenState extends ConsumerState<ReturnFormScreen> {
             spacing: 12,
             children: [
               AppButton(label: l10n.cancel, variant: AppButtonVariant.text, onPressed: _saving ? null : () => context.go(AppRoutes.returns)),
-              AppButton(label: l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
+              AppButton(key: const ValueKey('returnSave'), label: l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
             ],
           ),
         ],
+        ),
       ),
     );
   }

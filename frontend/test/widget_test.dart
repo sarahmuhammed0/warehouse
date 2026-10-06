@@ -2752,6 +2752,59 @@ void main() {
       expect((await container.read(productRepositoryProvider).getById('prod-1')).currentQuantity, before + 7);
     });
 
+    testWidgets('Add stock says why rather than doing nothing when the quantity is unusable', (tester) async {
+      // The dialog used to `return` from _submit on an unreadable quantity:
+      // nothing saved, nothing said, dialog still open. Indistinguishable from
+      // a dead button, and one of the ways "adding stock does not apply" was
+      // reported.
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+      final before = (await container.read(productRepositoryProvider).getById('prod-1')).currentQuantity;
+
+      await tapQuickAction(tester, 'quickAddStock');
+      await tester.tap(find.byKey(const ValueKey('stockProductPicker')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('3-Seat Sofa — Charcoal').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const ValueKey('stockQuantity')), '0');
+      await tester.tap(find.byKey(const ValueKey('stockAdjustSave')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter a quantity greater than zero.'), findsOneWidget);
+      expect(find.byType(StockAdjustmentDialog), findsOneWidget, reason: 'it must stay open to be corrected');
+      expect(
+        (await container.read(productRepositoryProvider).getById('prod-1')).currentQuantity,
+        before,
+        reason: 'and nothing moved',
+      );
+    });
+
+    testWidgets('Add stock will not accept a decimal it cannot use', (tester) async {
+      // StockChange.delta is an int through the whole engine, so "2.5" left
+      // int.tryParse with null and the save silently did nothing. The field now
+      // refuses the '.' as it is typed, which makes the limit visible instead of
+      // turning it into a dead button.
+      final container = businessContainer();
+      addTearDown(container.dispose);
+      await pumpDashboard(tester, container);
+
+      await tapQuickAction(tester, 'quickAddStock');
+      await tester.tap(find.byKey(const ValueKey('stockProductPicker')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('3-Seat Sofa — Charcoal').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const ValueKey('stockQuantity')), '2.5');
+      await tester.pump();
+
+      final field = tester.widget<TextField>(
+        find.descendant(of: find.byKey(const ValueKey('stockQuantity')), matching: find.byType(TextField)),
+      );
+      expect(field.controller?.text, '25', reason: "the '.' is filtered out as it is typed");
+    });
+
     testWidgets('Generate report opens Reports', (tester) async {
       final container = businessContainer();
       addTearDown(container.dispose);

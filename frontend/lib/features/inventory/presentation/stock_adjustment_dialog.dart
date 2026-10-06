@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide required;
+import '../../../core/error/failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -49,8 +50,21 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
 
   Future<void> _submit(Product product) async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Anything this cannot turn into a usable quantity is reported, not
+    // swallowed. It used to `return` on both counts — no save, no message, no
+    // closed dialog — so a quantity the engine could not take looked exactly
+    // like a button that does nothing, which is one of the ways "adding stock
+    // does not apply" was reported.
+    //
+    // `int` because [StockChange.delta] is an int all the way through the
+    // engine; the field no longer lets a '.' be typed, so the only way to land
+    // here is an empty or malformed box.
     final qty = int.tryParse(_quantity.text.trim()) ?? 0;
-    if (qty <= 0) return;
+    if (qty <= 0) {
+      setState(() => _error = AppLocalizations.of(context)!.quantityMustBePositive);
+      return;
+    }
 
     setState(() {
       _saving = true;
@@ -68,6 +82,17 @@ class _StockAdjustmentDialogState extends ConsumerState<StockAdjustmentDialog> {
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
       if (mounted) Navigator.of(context).pop();
+    } on Failure catch (e) {
+      // The server's own words. "Insufficient stock. Available quantity: 3." is
+      // something the person can act on; "Unable to save" is not.
+      if (mounted) setState(() => _error = e.message);
+    } on StateError catch (e) {
+      // A refusal the repository raised before sending anything — most often
+      // that there is no warehouse to put the stock in. That message named the
+      // exact problem and was being discarded in favour of "Unable to save",
+      // so a business whose stock could never work looked like it was merely
+      // failing to save.
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) setState(() => _error = AppLocalizations.of(context)!.unableToSave);
     } finally {
