@@ -91,6 +91,15 @@ void main() {
       expect(find.text('No suppliers yet. Add one first — a purchase has to come from somebody.'), findsOneWidget);
       expect(find.text('Add Suppliers'), findsOneWidget);
       expect(find.text('This field is required.'), findsNothing);
+
+      // And pressing Create there must not answer "Unable to save": with no
+      // picker in the tree `validate()` passes, and `_supplierId!` would throw a
+      // null check into the generic catch. Same defect as the Production form,
+      // found by driving the real app.
+      await tap(tester, 'purchaseSave');
+      expect(find.text('Unable to save. Please try again.'), findsNothing);
+      expect(find.text('No suppliers yet. Add one first — a purchase has to come from somebody.'), findsWidgets);
+      expect(posts(app.stub, '/purchases'), isEmpty);
     });
   });
 

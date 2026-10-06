@@ -65,6 +65,15 @@ class _PurchaseFormScreenState extends ConsumerState<PurchaseFormScreen> {
     // neither marked nor reddened, because the screen had no `Form` at all.
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
+    // Same shape as the Production form: with no suppliers at all the picker is
+    // replaced by the empty state, so there is no field for `validate()` to fail
+    // on and `_supplierId!` below would throw a null check into the generic
+    // catch, answering "Unable to save" under a panel that already says what is
+    // actually wrong.
+    if (_supplierId == null) {
+      setState(() => _error = l10n.noSuppliersYet);
+      return;
+    }
     if (_lines.isEmpty) {
       setState(() => _error = l10n.addAtLeastOneItem);
       return;

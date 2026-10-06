@@ -59,6 +59,18 @@ class _ProductionFormScreenState extends ConsumerState<ProductionFormScreen> {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
 
+    // The empty-picker case does not go through the form at all: when there are
+    // no finished products the picker is replaced by the empty state, so there
+    // is no Product field for `validate()` to fail on and it passes. Without
+    // this, `_product!` below threw a null check straight into the generic
+    // `catch (_)` and the screen answered "Unable to save. Please try again." —
+    // which is both untrue and unactionable, sitting directly underneath a panel
+    // already explaining that a product has to be created first.
+    if (_product == null) {
+      setState(() => _error = l10n.noFinishedProductsYet);
+      return;
+    }
+
     setState(() => _saving = true);
     // Safe to parse: the quantity field is validated above as a whole number
     // greater than zero. It used to fall back to `?? 1`, so an unreadable box

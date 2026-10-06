@@ -125,6 +125,34 @@ void main() {
       );
     });
 
+    testWidgets('pressing Create on that screen says the true thing, not "Unable to save"', (tester) async {
+      // Found by driving the real app, not by this suite: with no products the
+      // picker is REPLACED by the empty state, so there is no Product field for
+      // `validate()` to fail on and it passes. `_product!` then threw a null
+      // check into the generic `catch (_)`, and the screen answered "Unable to
+      // save. Please try again." directly underneath a panel already explaining
+      // that a product has to be created first.
+      final app = apiBackedApp(extraResponses: {
+        'GET /products': {
+          'success': true,
+          'data': const [],
+          'meta': {'pagination': {'page': 1, 'pageSize': 20, 'total': 0}},
+        },
+      });
+      addTearDown(app.container.dispose);
+      await pumpAppAt(tester, app.container, AppRoutes.productionNew);
+
+      await tapCreate(tester);
+
+      expect(find.text('Unable to save. Please try again.'), findsNothing);
+      expect(
+        find.text('No finished products yet. Create one first — a production run needs something to make.'),
+        findsWidgets,
+        reason: 'the reason it cannot be saved is the reason already on screen',
+      );
+      expect(runsPosted(app.stub), isEmpty);
+    });
+
     testWidgets('raw materials alone are not something to produce', (tester) async {
       // The picker only offers finished goods. A business holding nothing but
       // raw materials has an empty picker for the same reason, and the same
