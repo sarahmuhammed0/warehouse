@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
+import 'nav_indicator.dart';
+import 'nav_indicators_provider.dart';
 import 'nav_items.dart';
 
 /// The slim icon rail down the side of the desktop shell — the reference
@@ -47,6 +50,7 @@ class AppRail extends StatelessWidget {
                   for (final item in items)
                     _RailButton(
                       key: ValueKey('nav:${item.route}'),
+                      route: item.route,
                       icon: item.icon,
                       label: item.labelBuilder(l10n),
                       selected: currentPath == item.route ||
@@ -76,23 +80,26 @@ class AppRail extends StatelessWidget {
 /// One rail destination. Selected is a filled brand circle — the reference's
 /// own treatment, and the one state strong enough to read at this size with
 /// no label beside it.
-class _RailButton extends StatelessWidget {
+class _RailButton extends ConsumerWidget {
   const _RailButton({
     super.key,
+    required this.route,
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
+  final String route;
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final indicator = ref.watch(navIndicatorProvider(route));
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 3),
@@ -108,10 +115,17 @@ class _RailButton extends StatelessWidget {
             hoverColor: selected ? null : colors.surfaceMuted,
             child: SizedBox(
               height: 40,
-              child: Icon(
-                icon,
-                size: 20,
-                color: selected ? colors.onPrimary : colors.textSecondary,
+              child: NavIndicatorBadge(
+                indicator: indicator,
+                semanticLabel: label,
+                // A dot, not a number: a count inside a 20px icon button is
+                // unreadable, and the tooltip already names the destination.
+                showCount: false,
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: selected ? colors.onPrimary : colors.textSecondary,
+                ),
               ),
             ),
           ),

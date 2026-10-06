@@ -6,6 +6,8 @@ import '../../core/config/app_mode.dart';
 import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/providers/auth_state.dart';
 import '../../features/notifications/data/notification_providers.dart';
+import 'nav_indicator.dart';
+import 'nav_indicators_provider.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../routing/app_routes.dart';
 import '../../theme/app_colors.dart';
@@ -264,6 +266,7 @@ class _NavPills extends StatelessWidget {
             for (final item in items)
               _NavPill(
                 key: ValueKey('nav:${item.route}'),
+                route: item.route,
                 label: item.labelBuilder(l10n),
                 selected: currentPath == item.route || currentPath.startsWith('${item.route}/'),
                 onTap: () => context.go(item.route),
@@ -275,16 +278,25 @@ class _NavPills extends StatelessWidget {
   }
 }
 
-class _NavPill extends StatelessWidget {
-  const _NavPill({super.key, required this.label, required this.selected, required this.onTap});
+class _NavPill extends ConsumerWidget {
+  const _NavPill({
+    super.key,
+    required this.route,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
+  final String route;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final indicator = ref.watch(navIndicatorProvider(route));
+
     return Material(
       // The selected pill is a white chip lifted off the muted track, the
       // way the reference marks the current section — not a filled accent
@@ -299,11 +311,15 @@ class _NavPill extends StatelessWidget {
         hoverColor: colors.primary.withValues(alpha: 0.06),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 9),
-          child: Text(
-            label,
-            style: AppTypography.button.copyWith(
-              color: selected ? colors.textPrimary : colors.textSecondary,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          child: NavIndicatorBadge(
+            indicator: indicator,
+            semanticLabel: label,
+            child: Text(
+              label,
+              style: AppTypography.button.copyWith(
+                color: selected ? colors.textPrimary : colors.textSecondary,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
             ),
           ),
         ),

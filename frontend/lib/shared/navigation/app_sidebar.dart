@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/generated/app_localizations.dart';
@@ -6,6 +7,8 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_typography.dart';
+import 'nav_indicator.dart';
+import 'nav_indicators_provider.dart';
 import 'nav_items.dart';
 
 /// One sidebar widget, reused for both the business app and the System
@@ -177,7 +180,7 @@ class _Brand extends StatelessWidget {
   }
 }
 
-class _NavTile extends StatelessWidget {
+class _NavTile extends ConsumerWidget {
   const _NavTile({
     super.key,
     required this.item,
@@ -194,7 +197,8 @@ class _NavTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final indicator = ref.watch(navIndicatorProvider(item.route));
     final colors = context.colors;
     final fg = selected ? colors.primary : colors.textSecondary;
 
@@ -213,18 +217,30 @@ class _NavTile extends StatelessWidget {
               vertical: 10,
             ),
             child: collapsed
-                ? Center(child: Icon(item.icon, size: 20, color: fg))
+                ? Center(
+                    child: NavIndicatorBadge(
+                      indicator: indicator,
+                      semanticLabel: label,
+                      // No room for a number beside a bare icon.
+                      showCount: false,
+                      child: Icon(item.icon, size: 20, color: fg),
+                    ),
+                  )
                 : Row(
                     children: [
                       Icon(item.icon, size: 20, color: fg),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
-                        child: Text(
-                          label,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.navLabel.copyWith(
-                            color: fg,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                        child: NavIndicatorBadge(
+                          indicator: indicator,
+                          semanticLabel: label,
+                          child: Text(
+                            label,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.navLabel.copyWith(
+                              color: fg,
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
