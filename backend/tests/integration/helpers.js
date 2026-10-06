@@ -122,6 +122,29 @@ export async function cleanupTestData({ businessIds = [], userIds = [], adminIds
       [businessIds]
     );
     await pool.query(`DELETE FROM roles WHERE business_id IN (?)`, [businessIds]);
+
+    // Then the warehouse, and anything standing on it. Every new business is
+    // created WITH a warehouse now — a business that has none cannot hold stock
+    // at all, which is the reason — so `warehouses.business_id`, also RESTRICT,
+    // blocks the delete below for EVERY test that creates a business, not only
+    // the ones that touch stock.
+    //
+    // Deleted in FK order, innermost first. Nothing references `inventory` or
+    // `inventory_movements`; the two `_items` tables cascade from their parents;
+    // `storage_locations` has to come last of the five because each of the
+    // others can point at a bin inside it.
+    //
+    // Scoped by `business_id` like the rest of this helper rather than by
+    // warehouse id: these tables are all tenant-scoped (§36), so this clears a
+    // test's stock whether it went to the default warehouse or to one the test
+    // created itself.
+    await pool.query(`DELETE FROM inventory_movements WHERE business_id IN (?)`, [businessIds]);
+    await pool.query(`DELETE FROM inventory WHERE business_id IN (?)`, [businessIds]);
+    await pool.query(`DELETE FROM stock_transfers WHERE business_id IN (?)`, [businessIds]);
+    await pool.query(`DELETE FROM production_orders WHERE business_id IN (?)`, [businessIds]);
+    await pool.query(`DELETE FROM storage_locations WHERE business_id IN (?)`, [businessIds]);
+    await pool.query(`DELETE FROM warehouses WHERE business_id IN (?)`, [businessIds]);
+
     await pool.query(`DELETE FROM businesses WHERE id IN (?)`, [businessIds]);
   }
 }

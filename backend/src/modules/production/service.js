@@ -3,7 +3,8 @@ import { errors } from "../../utils/AppError.js";
 import { nextDocumentNumber } from "../documents/numbering.js";
 import { planOutbound } from "../inventory/allocation.js";
 import { adjustStock } from "../inventory/service.js";
-import { defaultWarehouseId } from "../locations/repository.js";
+import { defaultWarehouseId, warehousesRepository } from "../locations/repository.js";
+import { findUser } from "../users/repository.js";
 import { billOfMaterials, findProduct, productionMaterials } from "./repository.js";
 import { notifyProductionCompleted } from "../notifications/triggers.js";
 
@@ -117,9 +118,23 @@ export async function createProductionOrder({ businessId, userId, data }) {
       }
     }
 
+    // Both of these arrive as bare numbers the client chooses, and both were
+    // inserted without a tenant check (§36) while every product on the same run
+    // was checked. The warehouse one is the worse of the two: a run naming
+    // another factory's warehouse would have drawn that factory's materials and
+    // put the finished goods there. The assignment is a smaller leak of the same
+    // shape — somebody else's staff listed as responsible for your run — and it
+    // only became reachable from the UI when the Employee field started sending
+    // an id instead of discarding a typed name.
     const warehouseId = data.warehouseId ?? (await defaultWarehouseId(businessId, conn));
     if (!warehouseId) {
       throw errors.validation("No default warehouse is configured. Create one before producing stock.");
+    }
+    if (data.warehouseId && !(await warehousesRepository.findById({ businessId, id: data.warehouseId }))) {
+      throw errors.validation(`Warehouse ${data.warehouseId} does not exist.`);
+    }
+    if (data.assignedUserId && !(await findUser({ businessId, id: data.assignedUserId, conn }))) {
+      throw errors.validation(`User ${data.assignedUserId} does not exist.`);
     }
 
     const productionNumber = await nextDocumentNumber(conn, { businessId, documentType: "production" });

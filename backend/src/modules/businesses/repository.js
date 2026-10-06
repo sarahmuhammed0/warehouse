@@ -82,6 +82,26 @@ export async function createBusinessWithOwner({ business, owner, status = "activ
     await createDefaultRoles(conn, businessId);
     const ownerRoleId = await findOwnerRoleId(conn, businessId);
 
+    // A warehouse, in the same transaction and for the same reason as the roles
+    // above: without one the business cannot do the thing it exists to do.
+    //
+    // Stock lives in a warehouse — `inventory` is keyed on (business, product,
+    // variant, warehouse, location) — so a business with none cannot hold any.
+    // Every new business was in that state: a product could be created, it
+    // showed "Out of stock", and adding stock failed because there was nowhere
+    // to put it. The product list reads its quantity as the sum of inventory
+    // rows, so it stayed at zero for ever with no indication why.
+    //
+    // Named rather than left for the owner to discover: somebody signing in for
+    // the first time should be able to add a product and put stock in it, and
+    // "create a warehouse first" is not a step anyone is told about. They can
+    // rename it, add others, or change which is the default.
+    await conn.query(
+      `INSERT INTO warehouses (business_id, name, code, location_type, is_default, status)
+       VALUES (?, 'Main Warehouse', 'MAIN', 'warehouse', TRUE, 'active')`,
+      [businessId]
+    );
+
     // The owner account is created active even for a `pending` business: it
     // is the business that is awaiting a decision, not the person. Login
     // checks both, so a pending business cannot get in either way — and

@@ -270,6 +270,58 @@ test("§22: a run can carry its own materials, substituting the recipe", async (
   assert.equal(res.body.data.materials[0].quantityRequired, 7);
 });
 
+test("§22: a run can be assigned to someone, and reads back who", async (t) => {
+  // The client's Employee field used to be a free-typed name that
+  // `ApiProductionRepository.create` left out of the request entirely, so every
+  // run was created unassigned however carefully the box was filled in. It now
+  // sends `assignedUserId`, which is what this proves the server takes and
+  // gives back — the contract that change depends on.
+  if (!(await requireDatabase(t))) return;
+  const f = await fixture();
+  t.after(() => cleanup(f.businessId));
+  await putBom(f);
+
+  const res = await newRun(f, { quantityPlanned: 1, assignedUserId: f.userId });
+
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  assert.equal(res.body.data.assignedUserId, f.userId);
+  assert.equal(res.body.data.assignedUserName, "Foreman", "the name comes from the join, not the request");
+
+  // And it survives a re-read, rather than only being echoed by the create.
+  const again = await auth(request(app).get(`/api/production-orders/${res.body.data.id}`), f.token);
+  assert.equal(again.status, 200);
+  assert.equal(again.body.data.assignedUserName, "Foreman");
+});
+
+test("a run cannot be assigned to somebody from another factory", async (t) => {
+  // `assignedUserId` is an id the client now chooses, so it is worth knowing it
+  // is scoped (§36) rather than trusted.
+  if (!(await requireDatabase(t))) return;
+  const [a, b] = [await fixture(), await fixture()];
+  t.after(() => cleanup(a.businessId));
+  t.after(() => cleanup(b.businessId));
+  await putBom(a);
+
+  const res = await newRun(a, { quantityPlanned: 1, assignedUserId: b.userId });
+
+  assert.ok(res.status >= 400, `a stranger's id must not be accepted (got ${res.status})`);
+});
+
+test("a run cannot draw from another factory's warehouse", async (t) => {
+  // The same hole as `assignedUserId`, in the field next to it: every material
+  // on a run is checked against the tenant, and `warehouseId` was taken raw.
+  // Accepting it would have moved one factory's stock on another's instruction.
+  if (!(await requireDatabase(t))) return;
+  const [a, b] = [await fixture(), await fixture()];
+  t.after(() => cleanup(a.businessId));
+  t.after(() => cleanup(b.businessId));
+  await putBom(a);
+
+  const res = await newRun(a, { quantityPlanned: 1, warehouseId: b.warehouseId });
+
+  assert.ok(res.status >= 400, `a stranger's warehouse must not be accepted (got ${res.status})`);
+});
+
 test("a product with no recipe and no materials cannot be produced", async (t) => {
   if (!(await requireDatabase(t))) return;
   const f = await fixture();
