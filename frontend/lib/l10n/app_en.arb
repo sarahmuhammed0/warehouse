@@ -37,6 +37,8 @@
 
   "search": "Search",
   "searchPlaceholder": "Search…",
+  "searchPrompt": "Type a product, customer, supplier or order number to search for.",
+  "searchPartial": "Some modules could not be searched with your permissions.",
   "filters": "Filters",
   "clearFilters": "Clear filters",
   "apply": "Apply",

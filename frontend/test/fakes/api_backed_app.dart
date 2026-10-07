@@ -60,13 +60,22 @@ import 'fake_auth.dart';
 
 /// One recorded call, so a test can assert what was SENT.
 class RecordedCall {
-  RecordedCall(this.method, this.path, this.body);
+  RecordedCall(this.method, this.path, this.body, {String? fullPath}) : fullPath = fullPath ?? path;
   final String method;
+
+  /// Without the query string — what the stub map is keyed on.
   final String path;
+
+  /// With it. Kept because some contracts live entirely in the query: whether
+  /// the global search actually sent its term, which page was asked for, how a
+  /// list was sorted. Matching only on [path] would let a search that forgot
+  /// its term pass, which is the defect `global_search_test.dart` exists for.
+  final String fullPath;
+
   final Map<String, dynamic>? body;
 
   @override
-  String toString() => '$method $path';
+  String toString() => '$method $fullPath';
 }
 
 class FullStubAdapter implements HttpClientAdapter {
@@ -84,7 +93,7 @@ class FullStubAdapter implements HttpClientAdapter {
   Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     final body = options.data is Map<String, dynamic> ? options.data as Map<String, dynamic> : null;
     final path = options.path.split('?').first;
-    calls.add(RecordedCall(options.method, path, body));
+    calls.add(RecordedCall(options.method, path, body, fullPath: options.path));
 
     final envelope = responses['${options.method} $path'];
     if (envelope != null) return _json(envelope);
@@ -375,15 +384,36 @@ Map<String, Map<String, dynamic>> fullBackendFixture() {
 }
 
 /// Mounts the app at [route] on a desktop-width view.
-Future<void> pumpAppAt(WidgetTester tester, ProviderContainer container, String route) async {
+/// Mounts the app at [route] on a desktop-width view.
+///
+/// [settle] false pumps for a fixed time instead of waiting for the tree to go
+/// quiet. Needed when a test deliberately makes an endpoint fail: the app passes
+/// through the dashboard on the way to [route], and a dashboard whose own data
+/// is refused keeps scheduling frames, so `pumpAndSettle` times out on scenery
+/// rather than on the screen under test.
+Future<void> pumpAppAt(
+  WidgetTester tester,
+  ProviderContainer container,
+  String route, {
+  bool settle = true,
+}) async {
   tester.view.physicalSize = const Size(1440, 1000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
   await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const WarehouseOsApp()));
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(seconds: 2));
+  }
 
   container.read(routerProvider).go(route);
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 2));
+  }
 }

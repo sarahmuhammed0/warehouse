@@ -35,6 +35,8 @@
 
   "search": "بحث",
   "searchPlaceholder": "بحث…",
+  "searchPrompt": "اكتب اسم منتج أو عميل أو مورّد أو رقم طلب للبحث عنه.",
+  "searchPartial": "تعذّر البحث في بعض الوحدات بصلاحياتك.",
   "filters": "التصفية",
   "clearFilters": "مسح التصفية",
   "apply": "تطبيق",

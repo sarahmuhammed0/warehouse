@@ -140,10 +140,15 @@ class AppTopBar extends ConsumerWidget implements PreferredSizeWidget {
                   ),
                   const SizedBox(width: AppSpacing.md),
                 ] else if (showSearch) ...[
+                  // Opens the results screen, which carries the search field
+                  // itself. It used to land there with no query and no input,
+                  // so it listed every row in the business under `Search: ""`
+                  // — which is what "the search doesn't work" looked like.
                   _HeaderCircle(
+                    key: const ValueKey('headerSearchButton'),
                     icon: Icons.search,
                     tooltip: l10n.search,
-                    onTap: () => context.push(AppRoutes.search),
+                    onTap: () => context.push('${AppRoutes.search}?q='),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                 ],
@@ -331,7 +336,7 @@ class _NavPill extends ConsumerWidget {
 /// The header's circular control chrome. Shared by the menu button, the
 /// search shortcut and the two popup triggers, so they are all one size.
 class _HeaderCircle extends StatelessWidget {
-  const _HeaderCircle({this.icon, this.onTap, this.tooltip, this.child})
+  const _HeaderCircle({super.key, this.icon, this.onTap, this.tooltip, this.child})
       : assert(icon != null || child != null, 'a header circle needs something to show');
 
   final IconData? icon;
