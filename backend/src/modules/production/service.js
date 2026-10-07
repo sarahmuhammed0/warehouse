@@ -96,11 +96,23 @@ export async function createProductionOrder({ businessId, userId, data }) {
           conn,
         });
 
-    if (!materials.length) {
-      throw errors.validation(
-        `"${product.name}" has no bill of materials, so there is nothing to make it from. Add one first, or send the materials with the run.`
-      );
-    }
+    // A RUN WITHOUT MATERIALS IS ALLOWED.
+    //
+    // This used to refuse: "has no bill of materials, so there is nothing to
+    // make it from. Add one first, or send the materials with the run." That
+    // made §21's recipe a precondition of §22's run, which it is not — and it
+    // was a dead end in practice, because nothing in the application writes a
+    // bill of materials yet, so a brand-new business could never produce
+    // anything at all.
+    //
+    // What it means downstream is already handled rather than special-cased:
+    // `estimatedCost([])` is null (unknown, not zero), and the completion loop
+    // over an empty list simply consumes nothing, so the finished goods still
+    // appear and the ledger still explains them. A factory that does not track
+    // its inputs — or tracks them elsewhere — records output, which is a real
+    // way to work, not a mistake to refuse.
+    //
+    // Every OTHER rule below still holds for whatever materials there are.
 
     // Every material must be this tenant's own product, and must not be the
     // finished good itself — the database's own CHECK forbids that in a BOM,

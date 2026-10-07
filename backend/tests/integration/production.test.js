@@ -322,20 +322,41 @@ test("a run cannot draw from another factory's warehouse", async (t) => {
   assert.ok(res.status >= 400, `a stranger's warehouse must not be accepted (got ${res.status})`);
 });
 
-test("a product with no recipe and no materials cannot be produced", async (t) => {
+test("§21's recipe is optional — a product with no bill of materials can still be produced", async (t) => {
+  // This used to be refused with "has no bill of materials ... Add one first".
+  // That made the recipe a precondition of a run, which it is not, and it was a
+  // dead end: nothing in the application writes a bill of materials, so a new
+  // business could never produce anything.
   if (!(await requireDatabase(t))) return;
   const f = await fixture();
   t.after(() => cleanup(f.businessId));
 
-  const res = await newRun(f);
-  assert.equal(res.status, 422, JSON.stringify(res.body));
-  assert.match(res.body.error.message, /no bill of materials/);
+  const res = await newRun(f, { quantityPlanned: 3 });
 
-  const [[left]] = await pool.query(
-    `SELECT COUNT(*) AS n FROM production_orders WHERE business_id = ?`,
-    [f.businessId]
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  assert.equal(res.body.data.materials.length, 0, "nothing is invented to fill the gap");
+  assert.equal(
+    res.body.data.productionCost,
+    null,
+    "cost is UNKNOWN rather than zero — nothing was costed, which is not the same as free"
   );
-  assert.equal(Number(left.n), 0);
+});
+
+test("§22: a run with no materials makes the goods and consumes nothing", async (t) => {
+  // The other half: allowing the run is only useful if completing it works.
+  if (!(await requireDatabase(t))) return;
+  const f = await fixture();
+  t.after(() => cleanup(f.businessId));
+
+  const created = await newRun(f, { quantityPlanned: 4 });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  const before = { wood: await stockOf(f.businessId, f.woodId), table: await stockOf(f.businessId, f.tableId) };
+  const done = await setStatus(f, created.body.data.id, { status: "completed" });
+
+  assert.equal(done.status, 200, JSON.stringify(done.body));
+  assert.equal(await stockOf(f.businessId, f.tableId), before.table + 4, "the finished goods exist");
+  assert.equal(await stockOf(f.businessId, f.woodId), before.wood, "and nothing was taken for them");
 });
 
 test("a run cannot be made of itself, of a stranger, or of nothing", async (t) => {
