@@ -221,7 +221,12 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     // A real backend resolves categoryName server-side; the local repo
     // fakes the same lookup so the list/detail screens never see a blank
     // category label.
-    final created = _fromDraft('prod-${_nextId++}', draft, businessId: kDemoBusinessForNewRecords, categoryName: _categoryNameFor(draft.categoryId), createdAt: DateTime.now());
+    // Starts with no stock, exactly as the server does: a product's quantity is
+    // the sum of what sits in its locations, and `createProductSchema` has no
+    // field to set it. Taking `draft.currentQuantity` here instead would make
+    // demo mode the odd one out — and, now that the product form puts the typed
+    // opening stock through `adjustQuantity`, would count it twice.
+    final created = _fromDraft('prod-${_nextId++}', _draftWithQuantity(draft, 0), businessId: kDemoBusinessForNewRecords, categoryName: _categoryNameFor(draft.categoryId), createdAt: DateTime.now());
     _items.add(created);
     return created;
   }
@@ -231,7 +236,11 @@ class LocalProductRepository with DemoRepository implements ProductRepository {
     await simulatedLatency();
     final index = _items.indexWhere((p) => p.id == id);
     if (index == -1) throw StateError('Product not found');
-    final updated = _fromDraft(id, draft, businessId: _items[index].businessId, categoryName: _categoryNameFor(draft.categoryId), createdAt: _items[index].createdAt);
+    // Keeps the stock it already has — editing a product's details is not how
+    // stock moves, here or on the server (`updateProductSchema` has no quantity
+    // either). [adjustQuantity] is the only way, so the ledger always explains
+    // the level.
+    final updated = _fromDraft(id, _draftWithQuantity(draft, _items[index].currentQuantity), businessId: _items[index].businessId, categoryName: _categoryNameFor(draft.categoryId), createdAt: _items[index].createdAt);
     _items[index] = updated;
     return updated;
   }

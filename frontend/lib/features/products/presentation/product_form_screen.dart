@@ -10,6 +10,8 @@ import '../../../shared/cards/app_card.dart';
 import '../../../shared/forms/app_select_field.dart';
 import '../../../shared/forms/app_text_field.dart';
 import '../../../shared/layout/page_scaffold.dart';
+import '../../../core/error/failure.dart';
+import '../../../shared/feedback/app_toast.dart';
 import '../../../theme/app_typography.dart';
 import '../../categories/data/category_providers.dart';
 import '../data/product_models.dart';
@@ -42,6 +44,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _description = TextEditingController();
   final _shortDescription = TextEditingController();
   final _currentQuantity = TextEditingController(text: '0');
+
+  /// The stock the product already had when this form opened — 0 for a new one.
+  /// See [_loadExisting].
+  int _openingQuantity = 0;
   final _minStock = TextEditingController();
   final _maxStock = TextEditingController();
   final _reorderLevel = TextEditingController();
@@ -96,6 +102,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _description.text = product.description ?? '';
     _shortDescription.text = product.shortDescription ?? '';
     _currentQuantity.text = '${product.currentQuantity}';
+    // What it held when the form opened, so an edit moves stock by the
+    // DIFFERENCE rather than re-adding the whole figure. Leaving the box
+    // untouched must change nothing.
+    _openingQuantity = product.currentQuantity;
     _minStock.text = product.minStock?.toString() ?? '';
     _maxStock.text = product.maxStock?.toString() ?? '';
     _reorderLevel.text = product.reorderLevel?.toString() ?? '';
@@ -197,19 +207,62 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       warrantyPeriod: _s(_warrantyPeriod),
     );
 
+    // THE TYPED QUANTITY HAS TO ACTUALLY MOVE STOCK.
+    //
+    // `toRequestJson` deliberately does not send `currentQuantity`, and the
+    // server would refuse it anyway: a product's stock is the sum of what sits
+    // in its locations, so it cannot be a column somebody writes. That is
+    // right — but the form still offered an editable "Current quantity" box,
+    // collected it into the draft, and then dropped it. Typing 50 saved 0, and
+    // the product landed OUT OF STOCK with nothing saying why.
+    //
+    // So the number goes where stock actually lives: through the inventory
+    // endpoint, which moves the level and writes the ledger row together (§12).
+    // On an edit it moves by the DIFFERENCE, so leaving the box alone changes
+    // nothing and correcting 12 to 20 records a +8 rather than another 20.
+    final typedQuantity = _i(_currentQuantity) ?? 0;
+    final l10n = AppLocalizations.of(context)!;
+
     try {
       final repo = ref.read(productRepositoryProvider);
+      final String productId;
+      final int delta;
       if (_isEditing) {
         await repo.update(widget.productId!, draft);
+        productId = widget.productId!;
+        delta = typedQuantity - _openingQuantity;
       } else {
-        await repo.create(draft);
+        final created = await repo.create(draft);
+        productId = created.id;
+        delta = typedQuantity;
       }
+
+      // The product is saved either way. If the stock cannot follow — most
+      // often because the business has no warehouse to put it in — that is
+      // reported rather than swallowed, and the product is NOT left looking
+      // like a failed save when it was created successfully.
+      String? stockProblem;
+      if (delta != 0) {
+        try {
+          await repo.adjustQuantity(productId, delta);
+        } on Failure catch (e) {
+          stockProblem = e.message;
+        } on StateError catch (e) {
+          stockProblem = e.message;
+        }
+      }
+
       await ref.read(productListControllerProvider.notifier).reload();
       ref.invalidate(productPickerOptionsProvider);
-      if (_isEditing) ref.invalidate(productByIdProvider(widget.productId!));
-      if (mounted) context.go(AppRoutes.products);
+      ref.invalidate(productByIdProvider(productId));
+      if (!mounted) return;
+      if (stockProblem != null) AppToast.error(context, stockProblem);
+      context.go(AppRoutes.products);
+    } on Failure catch (e) {
+      // The server's own words — "A product code must be unique", and the like.
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = AppLocalizations.of(context)!.unableToSave);
+      if (mounted) setState(() => _error = l10n.unableToSave);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -246,12 +299,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 14,
                 children: [
-                  AppTextField(label: l10n.fieldName, controller: _name, required: true, validator: required(l10n.requiredFieldMessage)),
+                  AppTextField(key: const ValueKey('productName'), label: l10n.fieldName, controller: _name, required: true, validator: required(l10n.requiredFieldMessage)),
                   Wrap(
                     spacing: 14,
                     runSpacing: 14,
                     children: [
-                      SizedBox(width: 220, child: AppTextField(label: l10n.fieldCode, controller: _code, required: true, validator: required(l10n.requiredFieldMessage))),
+                      SizedBox(width: 220, child: AppTextField(key: const ValueKey('productCode'), label: l10n.fieldCode, controller: _code, required: true, validator: required(l10n.requiredFieldMessage))),
                       SizedBox(width: 220, child: AppTextField(label: l10n.fieldSku, controller: _sku)),
                       SizedBox(width: 220, child: AppTextField(label: l10n.fieldBarcode, controller: _barcode)),
                       SizedBox(width: 220, child: AppTextField(label: l10n.fieldBrand, controller: _brand)),
@@ -327,7 +380,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 spacing: 14,
                 runSpacing: 14,
                 children: [
-                  SizedBox(width: 160, child: AppTextField.number(label: l10n.fieldCurrentQuantity, controller: _currentQuantity, allowDecimal: false)),
+                  SizedBox(width: 160, child: AppTextField.number(key: const ValueKey('productQuantity'), label: l10n.fieldCurrentQuantity, controller: _currentQuantity, allowDecimal: false)),
                   SizedBox(width: 160, child: AppTextField.number(label: l10n.fieldMinStock, controller: _minStock, allowDecimal: false)),
                   SizedBox(width: 160, child: AppTextField.number(label: l10n.fieldMaxStock, controller: _maxStock, allowDecimal: false)),
                   SizedBox(width: 160, child: AppTextField.number(label: l10n.fieldReorderLevel, controller: _reorderLevel, allowDecimal: false)),
@@ -403,7 +456,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               spacing: 12,
               children: [
                 AppButton(label: l10n.cancel, variant: AppButtonVariant.text, onPressed: _saving ? null : () => context.go(AppRoutes.products)),
-                AppButton(label: _isEditing ? l10n.update : l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
+                AppButton(key: const ValueKey('productSave'), label: _isEditing ? l10n.update : l10n.create, loading: _saving, onPressed: _saving ? null : _submit),
               ],
             ),
           ],
