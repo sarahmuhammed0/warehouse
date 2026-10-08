@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_elevation.dart';
@@ -239,7 +238,6 @@ class _DesktopShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
     final split = splitNavItems(navItems, primaryRoutes: primaryRoutes);
     // An area small enough that every destination fits in the header gets
     // no rail at all — a 68px white column holding two controls reads as a
@@ -279,6 +277,18 @@ class _DesktopShell extends ConsumerWidget {
                       child: AppRail(
                         items: split.secondary,
                         currentPath: currentPath,
+                        // Theme only. Signing out lives in the account menu in
+                        // the header — next to the name of the account being
+                        // signed out of, which is where people look for it and
+                        // where the compact layouts already keep it.
+                        //
+                        // It used to be in both, which is the one thing §8
+                        // forbids: two ways to reach the same destination makes
+                        // a reader check whether they do the same thing. The
+                        // theme toggle avoids that already — `showThemeToggle:
+                        // !hasRailNav` puts it in the header only when there is
+                        // no rail to hold it — and this now follows the same
+                        // rule from the other direction.
                         footer: [
                           RailActionButton(
                             icon: isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
@@ -286,11 +296,6 @@ class _DesktopShell extends ConsumerWidget {
                             onPressed: () => ref
                                 .read(themeModeProvider.notifier)
                                 .setMode(isDark ? ThemeMode.light : ThemeMode.dark),
-                          ),
-                          RailActionButton(
-                            icon: Icons.logout,
-                            tooltip: l10n.logout,
-                            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
                           ),
                         ],
                       ),

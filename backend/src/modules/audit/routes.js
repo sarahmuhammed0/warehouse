@@ -4,10 +4,14 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { requireAccountType } from "../../middleware/requireAccountType.js";
 import { authorize } from "../../middleware/authorize.js";
 import { validate } from "../../middleware/validate.js";
-import { listQuerySchema } from "../../validation/common.js";
+import { listQuerySchema, idParamsSchema } from "../../validation/common.js";
 import { ok, paginated } from "../../utils/responseEnvelope.js";
 import { parsePagination, paginationMeta } from "../../db/pagination.js";
-import { listAuditLogs, listAuditActions } from "./repository.js";
+import { listAuditLogs, listAuditActions, findAuditLog } from "./repository.js";
+import { pool } from "../../db/pool.js";
+import { errors } from "../../utils/AppError.js";
+import { writeActivityPdf } from "../documents/activityPdf.js";
+import { defaultTemplate, templateView } from "../documents/templates.js";
 
 const tenant = (req) => req.auth.businessId;
 
@@ -54,6 +58,41 @@ auditRouter.get("/", authorize("settings.view"), validate(listQuerySchema, "quer
     next(err);
   }
 });
+
+/**
+ * One entry, as a filed document.
+ *
+ * The trail is evidence (§30): the printed copy is what gets attached to a
+ * dispute or handed to an auditor. Same permission as reading the trail at all —
+ * being able to print a record must not be an easier door than reading it.
+ *
+ * Declared BEFORE `/actions` would matter if the paths could collide; they
+ * cannot, because this one requires a numeric id.
+ */
+auditRouter.get(
+  "/:id/pdf",
+  authorize("settings.view"),
+  validate(idParamsSchema, "params"),
+  async (req, res, next) => {
+    try {
+      const businessId = tenant(req);
+      const row = await findAuditLog({ businessId, id: req.params.id });
+      if (!row) throw errors.notFound("activity record");
+
+      const [[business]] = await pool.query(`SELECT * FROM businesses WHERE id = ? LIMIT 1`, [businessId]);
+      const template = templateView(await defaultTemplate({ businessId }));
+
+      // Everything is looked up before a byte goes out: once the headers are
+      // sent an error can no longer become a JSON response.
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="activity-${row.id}.pdf"`);
+
+      writeActivityPdf({ stream: res, business, template, entry: view(row) });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /** What this business has actually recorded, for the screen's filter list. */
 auditRouter.get("/actions", authorize("settings.view"), async (req, res, next) => {

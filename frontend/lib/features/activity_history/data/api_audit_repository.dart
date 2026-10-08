@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/paginated_result.dart';
 import '../../../core/repositories/paged_query.dart';
@@ -45,5 +48,16 @@ class ApiAuditRepository implements AuditRepository {
       pageSize: (page?['pageSize'] as int?) ?? query.pageSize,
       total: (page?['total'] as int?) ?? result.data.length,
     );
+  }
+
+  /// §30's entry as a document. Gated on `settings.view`, the same permission
+  /// that reads the trail at all — printing must not be an easier door.
+  @override
+  Future<Uint8List> entryPdf(String id) async {
+    final response = await _client.dio.get<List<int>>(
+      '/audit-logs/$id/pdf',
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(response.data ?? const []);
   }
 }

@@ -1,10 +1,18 @@
+import 'dart:typed_data';
+
 import '../../../core/network/paginated_result.dart';
 import '../../../core/repositories/demo_data_source.dart';
 import '../../../core/repositories/paged_query.dart';
+import '../../../core/error/failure.dart';
 import 'audit_models.dart';
 
 abstract class AuditRepository {
   Future<PaginatedResult<AuditLogEntry>> list(PagedQuery query);
+
+  /// One entry as §28's document, rendered by the server from the row as
+  /// recorded. The trail is evidence; a printed copy is what gets attached to a
+  /// dispute, so it comes from the record rather than from this screen.
+  Future<Uint8List> entryPdf(String id);
 }
 
 class LocalAuditRepository with DemoRepository implements AuditRepository {
@@ -32,5 +40,17 @@ class LocalAuditRepository with DemoRepository implements AuditRepository {
     final userName = query.filters['userName'] as String?;
     if (userName != null) pool = pool.where((e) => e.userName == userName).toList();
     return paginateInMemory<AuditLogEntry>(pool, query, matches: (item, q) => item.description.toLowerCase().contains(q) || item.userName.toLowerCase().contains(q));
+  }
+
+  /// Demo mode has no PDF engine — the document is rendered by the server, from
+  /// the row as recorded. Refusing is the honest answer; producing a plausible
+  /// file here would be a document this system never actually issued.
+  @override
+  Future<Uint8List> entryPdf(String id) async {
+    await simulatedLatency();
+    throw const Failure(
+      'DEMO_MODE',
+      'Documents are produced by the server. Connect a backend to download this record.',
+    );
   }
 }

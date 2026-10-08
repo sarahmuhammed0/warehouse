@@ -1,5 +1,23 @@
 import PDFDocument from "pdfkit";
 
+import {
+  PAGE_MARGIN,
+  FOOTER_SPACE,
+  INK,
+  INK_SOFT,
+  PAPER_SOFT,
+  RULE,
+  ON_DARK,
+  attachFooter,
+  drawBand,
+  drawMetaStrip,
+  drawNotePanel,
+  formatDate,
+  geometry,
+  humanise,
+  money,
+} from "./documentChrome.js";
+
 /**
  * §28's PDF, generated server-side.
  *
@@ -30,69 +48,17 @@ import PDFDocument from "pdfkit";
  *
  *   band     who issued it and which document this is — the two questions asked
  *            before any number is looked at
- *   meta     who it is for and how it was paid, as labelled pairs
+ *   meta     who it is for and whether it is settled, as labelled pairs
  *   summary  the figures that get quoted, in boxes, with the one that settles
  *            the account given the accent
  *   table    the lines, with a filled header and banded rows so the eye keeps
  *            its place across a wide row
  *   totals   the arithmetic, right-aligned under the table it belongs to
  *   footer   the business's own words, on every page
- */
-
-const PAGE_MARGIN = 44;
-const BAND_HEIGHT = 86;
-const FOOTER_SPACE = 64;
-
-/** Ink, fills and rules. One place, so the document stays of a piece. */
-const INK = "#14304A";
-const INK_SOFT = "#5A6B7C";
-const PAPER_SOFT = "#F1F5F9";
-const RULE = "#D8E0E8";
-const ACCENT = "#0F766E";
-const ON_DARK = "#FFFFFF";
-
-/** Right-aligned money in a fixed column, so the decimal points line up. */
-function money(value, currency) {
-  const amount = Number(value ?? 0).toFixed(2);
-  return currency ? `${amount} ${currency}` : amount;
-}
-
-function formatDate(value, format) {
-  if (!value) return "";
-  const date = value instanceof Date ? value : new Date(String(value).replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-
-  switch (format) {
-    case "DD/MM/YYYY":
-      return `${dd}/${mm}/${yyyy}`;
-    case "MM/DD/YYYY":
-      return `${mm}/${dd}/${yyyy}`;
-    default:
-      return `${yyyy}-${mm}-${dd}`;
-  }
-}
-
-/** Status reads as a word, not as a column name: `partially_paid` → `Partially paid`. */
-function humanise(value) {
-  const text = String(value ?? "").replace(/_/g, " ").trim();
-  if (!text) return "";
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/**
- * Writes an order's invoice into `stream`.
  *
- * @param {object} args
- * @param {import('node:stream').Writable} args.stream
- * @param {object} args.business   the businesses row
- * @param {object} args.template   templateView()'s shape
- * @param {object} args.order      orderView()'s shape
- * @param {object[]} args.items    the order's lines, as stored
- * @param {object[]} [args.payments]
+ * The band, meta strip, note panel and footer live in `documentChrome.js` —
+ * they are what ALL of this system's paperwork looks like, not what an invoice
+ * looks like, and the activity record uses the same ones.
  */
 export function writeInvoicePdf({ stream, business, template, order, items, payments = [] }) {
   const doc = new PDFDocument({ size: "A4", margin: PAGE_MARGIN });
@@ -100,62 +66,15 @@ export function writeInvoicePdf({ stream, business, template, order, items, paym
 
   const currency = template.currency || business.currency || "";
   const fields = template.fields;
-  const left = PAGE_MARGIN;
-  const right = doc.page.width - PAGE_MARGIN;
-  const contentWidth = right - left;
+  const { left, right, contentWidth } = geometry(doc);
+  const drawFooter = attachFooter(doc, { business, footerText: template.footerText });
 
-  /** The business's own words, pinned to the bottom of whichever page we are on. */
-  const drawFooter = () => {
-    const y = doc.page.height - PAGE_MARGIN - 22;
-    doc.save();
-    doc.moveTo(left, y - 10).lineTo(right, y - 10).lineWidth(0.5).strokeColor(RULE).stroke();
-    const contact = [business.name, business.phone, business.email].filter(Boolean).join("  ·  ");
-    doc.font("Helvetica").fontSize(7.5).fillColor(INK_SOFT);
-    doc.text(contact, left, y, { width: contentWidth, align: "left", lineBreak: false });
-    if (template.footerText) {
-      doc.text(String(template.footerText), left, y + 10, { width: contentWidth, align: "left", lineBreak: false });
-    }
-    doc.restore();
-  };
-
-  // Every page gets the footer, including ones a long table creates.
-  doc.on("pageAdded", drawFooter);
-
-  // ---- the band: who issued it, and which document this is --------------
-  doc.save();
-  doc.rect(0, 0, doc.page.width, BAND_HEIGHT).fill(INK);
-
-  doc.font("Helvetica-Bold").fontSize(16).fillColor(ON_DARK);
-  doc.text(String(business.name ?? ""), left, 22, { width: contentWidth * 0.55, lineBreak: false });
-
-  const issuerLines = [business.address, business.city, business.country].filter(Boolean).join(", ");
-  doc.font("Helvetica").fontSize(8).fillColor("#C7D4E0");
-  if (issuerLines) doc.text(issuerLines, left, 44, { width: contentWidth * 0.55, lineBreak: false });
-  const issuerContact = [business.phone, business.email].filter(Boolean).join("  ·  ");
-  if (issuerContact) doc.text(issuerContact, left, 55, { width: contentWidth * 0.55, lineBreak: false });
-  if (fields.taxInfo && business.tax_number) {
-    doc.text(`Tax number: ${business.tax_number}`, left, 66, { width: contentWidth * 0.55, lineBreak: false });
-  }
-
-  // The document's own identity, top right, where an invoice is read from.
-  const idWidth = contentWidth * 0.4;
-  const idLeft = right - idWidth;
-  doc.font("Helvetica-Bold").fontSize(15).fillColor(ON_DARK);
-  doc.text(String(template.invoiceTitle || "INVOICE").toUpperCase(), idLeft, 22, {
-    width: idWidth,
-    align: "right",
-    lineBreak: false,
+  drawBand(doc, {
+    business,
+    title: template.invoiceTitle || "INVOICE",
+    identity: [`No. ${order.orderNumber ?? ""}`, formatDate(order.orderDate ?? order.createdAt, template.dateFormat)],
+    showTaxNumber: fields.taxInfo,
   });
-  doc.font("Helvetica").fontSize(9).fillColor("#C7D4E0");
-  doc.text(`No. ${order.orderNumber ?? ""}`, idLeft, 44, { width: idWidth, align: "right", lineBreak: false });
-  doc.text(formatDate(order.orderDate ?? order.createdAt, template.dateFormat), idLeft, 56, {
-    width: idWidth,
-    align: "right",
-    lineBreak: false,
-  });
-  doc.restore();
-
-  doc.y = BAND_HEIGHT + 18;
 
   if (template.headerText) {
     doc.font("Helvetica").fontSize(8.5).fillColor(INK_SOFT);
@@ -163,26 +82,14 @@ export function writeInvoicePdf({ stream, business, template, order, items, paym
     doc.y += 8;
   }
 
-  // ---- meta: who it is for, and how it was settled ----------------------
-  const meta = [
-    ["Billed to", order.customerName || "—"],
+  drawMetaStrip(doc, [
+    ["Billed to", order.customerName],
     ...(fields.customerAddress && order.customerPhone ? [["Phone", order.customerPhone]] : []),
-    ["Payment", humanise(order.paymentStatus) || "—"],
-    ["Status", humanise(order.status) || "—"],
-  ];
-
-  const metaTop = doc.y;
-  const metaWidth = contentWidth / meta.length;
-  meta.forEach(([label, value], index) => {
-    const x = left + index * metaWidth;
-    doc.font("Helvetica").fontSize(7).fillColor(INK_SOFT);
-    doc.text(label.toUpperCase(), x, metaTop, { width: metaWidth - 8, lineBreak: false });
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(INK);
-    doc.text(String(value), x, metaTop + 11, { width: metaWidth - 8, lineBreak: false });
-  });
-  doc.y = metaTop + 34;
-  doc.moveTo(left, doc.y).lineTo(right, doc.y).lineWidth(0.5).strokeColor(RULE).stroke();
-  doc.y += 16;
+    // Whether it is settled. There is no `payment_method` on an order — a method
+    // belongs to each payment — so this is the honest field to print.
+    ["Payment", humanise(order.paymentStatus)],
+    ["Status", humanise(order.status)],
+  ]);
 
   // ---- summary: the figures people open the file for --------------------
   //
@@ -351,35 +258,12 @@ export function writeInvoicePdf({ stream, business, template, order, items, paym
   }
 
   // ---- the business's own words -----------------------------------------
-  const notes = [
+  doc.y += 12;
+  drawNotePanel(doc, [
     fields.paymentTerms ? template.paymentTerms : null,
     fields.returnPolicy ? template.returnPolicy : null,
     fields.thankYou ? template.thankYouMessage : null,
-  ].filter(Boolean);
-
-  if (notes.length > 0) {
-    doc.y += 12;
-    if (doc.y > doc.page.height - PAGE_MARGIN - FOOTER_SPACE - 40) {
-      doc.addPage();
-      doc.y = PAGE_MARGIN;
-    }
-    doc.save();
-    const notesTop = doc.y;
-    doc.font("Helvetica").fontSize(8.5).fillColor(INK_SOFT);
-    const notesHeight = notes.reduce(
-      (sum, note) => sum + doc.heightOfString(String(note), { width: contentWidth - 24 }) + 3,
-      14
-    );
-    doc.roundedRect(left, notesTop, contentWidth, notesHeight, 4).fill(PAPER_SOFT);
-    doc.fillColor(INK_SOFT);
-    let noteY = notesTop + 8;
-    for (const note of notes) {
-      doc.text(String(note), left + 12, noteY, { width: contentWidth - 24 });
-      noteY = doc.y + 3;
-    }
-    doc.restore();
-    doc.y = notesTop + notesHeight + 6;
-  }
+  ]);
 
   if (fields.signature && template.signatureText) {
     doc.y += 24;

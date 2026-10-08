@@ -9,6 +9,7 @@ import '../../shared/pagination/pagination_bar.dart';
 import '../../shared/tables/app_data_table.dart';
 import '../../shared/tables/table_column.dart';
 import 'data/audit_models.dart';
+import 'presentation/activity_entry_dialog.dart';
 import 'data/audit_providers.dart';
 
 /// Activity History / audit log (spec §28/§30) — the same shape the
@@ -45,6 +46,10 @@ class ActivityHistoryPlaceholderScreen extends ConsumerWidget {
             columns: columns,
             rows: state.items,
             idOf: (item) => item.id,
+            // The table shows four columns because a table has to fit. Opening
+            // a row gives the rest of the record — the actor, the reference,
+            // the address — and the option to file it as a document.
+            onRowTap: (item) => showActivityEntryDialog(context, item),
             loading: state.loading,
             errorMessage: state.error,
             onRetry: controller.reload,

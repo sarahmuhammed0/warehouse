@@ -1,5 +1,5 @@
 import { defineListSpec, buildWhere, buildOrderBy } from "../../db/listQuery.js";
-import { queryAll, queryCount } from "../../db/pool.js";
+import { pool, queryAll, queryCount } from "../../db/pool.js";
 
 /**
  * §30's activity log, read back.
@@ -71,6 +71,23 @@ export async function listAuditLogs({ businessId, query, pagination }) {
 }
 
 /** The distinct actions a business has actually recorded — for a filter list. */
+/**
+ * One entry, scoped to the business that owns it (§36).
+ *
+ * The id alone is not enough: audit ids are sequential across every tenant, so
+ * fetching by id without the business check would hand one business another's
+ * trail — which is exactly the record you least want leaking.
+ */
+export async function findAuditLog({ businessId, id }) {
+  const [rows] = await pool.query(
+    `SELECT a.*, u.name AS actor_name
+       FROM audit_logs a ${JOINS}
+      WHERE a.id = ? AND a.business_id = ? LIMIT 1`,
+    [id, businessId]
+  );
+  return rows[0] ?? null;
+}
+
 export async function listAuditActions({ businessId }) {
   return queryAll(
     `SELECT a.module, a.action, COUNT(*) AS total

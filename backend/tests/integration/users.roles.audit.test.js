@@ -699,4 +699,75 @@ test("§30: the log is read-only, tenant-scoped, and not for everyone", async (t
   );
 });
 
+// ---- §30: one entry, as a filed document --------------------------------
+
+test("§30: an activity entry prints as a PDF", async (t) => {
+  // The trail is evidence, and a printed copy is what gets attached to a
+  // dispute. It has to be reachable one entry at a time, not only as a list.
+  if (!(await requireDatabase(t))) return;
+  const f = await fixture();
+  t.after(() => cleanup(f.businessId));
+
+  await auth(request(app).post("/api/customers"), f.token).send({ name: "Printed Buyer" });
+
+  let list;
+  for (let i = 0; i < 60; i += 1) {
+    list = await auth(request(app).get("/api/audit-logs"), f.token).send();
+    if ((list.body.data ?? []).length >= 1) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const entry = list.body.data[0];
+
+  const res = await auth(request(app).get(`/api/audit-logs/${entry.id}/pdf`), f.token)
+    .buffer()
+    .parse((response, callback) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => callback(null, Buffer.concat(chunks)));
+    });
+
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.match(res.headers["content-type"], /application\/pdf/);
+  assert.match(res.headers["content-disposition"], new RegExp(`filename="activity-${entry.id}\\.pdf"`));
+  assert.equal(res.body.subarray(0, 5).toString("latin1"), "%PDF-", "a real PDF, not an error page");
+});
+
+test("§30: one business cannot print another's activity, and a clerk cannot print any", async (t) => {
+  // The id alone would be enough to fetch the row — audit ids run across every
+  // tenant — so the tenant check is the whole protection here, on the record you
+  // least want leaking.
+  if (!(await requireDatabase(t))) return;
+  const [a, b] = [await fixture(), await fixture()];
+  t.after(() => cleanup(a.businessId));
+  t.after(() => cleanup(b.businessId));
+
+  await auth(request(app).post("/api/customers"), a.token).send({ name: "A's Buyer" });
+  let list;
+  for (let i = 0; i < 60; i += 1) {
+    list = await auth(request(app).get("/api/audit-logs"), a.token).send();
+    if ((list.body.data ?? []).length >= 1) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const entry = list.body.data[0];
+
+  const crossed = await auth(request(app).get(`/api/audit-logs/${entry.id}/pdf`), b.token).send();
+  assert.equal(crossed.status, 404, "B must not be handed A's record");
+
+  // Same permission as reading the trail: printing must not be an easier door.
+  const phone = testPhone();
+  const clerk = await auth(request(app).post("/api/users"), a.token).send({
+    name: "Clerk",
+    phone,
+    roleId: (await pool.query(`SELECT id FROM roles WHERE business_id = ? AND name = 'Sales Staff'`, [a.businessId]))[0][0].id,
+  });
+  const login = await request(app)
+    .post("/api/auth/login")
+    .send({ phone, password: clerk.body.data.temporaryPassword });
+  const refused = await auth(
+    request(app).get(`/api/audit-logs/${entry.id}/pdf`),
+    login.body.data.accessToken
+  ).send();
+  assert.equal(refused.status, 403);
+});
+
 after(() => closePool());
