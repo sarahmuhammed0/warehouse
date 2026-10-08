@@ -35,6 +35,11 @@
 
   "search": "بحث",
   "searchPlaceholder": "بحث…",
+  "saveAsPdf": "حفظ كملف PDF",
+  "pdfSaved": "تم حفظ {name}",
+  "addProductsTitle": "إضافة منتجات",
+  "addMoreProducts": "إضافة المزيد",
+  "selectedCount": "{count} محدد",
   "searchPrompt": "اكتب اسم منتج أو عميل أو مورّد أو رقم طلب للبحث عنه.",
   "searchPartial": "تعذّر البحث في بعض الوحدات بصلاحياتك.",
   "filters": "التصفية",

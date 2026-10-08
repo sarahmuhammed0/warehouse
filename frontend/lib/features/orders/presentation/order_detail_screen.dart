@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/download/file_download.dart';
+import '../../../core/error/failure.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../routing/app_routes.dart';
 import '../../../shared/badges/status_badge.dart';
@@ -10,6 +12,7 @@ import '../../../shared/buttons/app_button.dart';
 import '../../../shared/cards/app_card.dart';
 import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/feedback/app_error_state.dart';
+import '../../../shared/feedback/app_toast.dart';
 import '../../../shared/feedback/confirm_dialog.dart';
 import '../../../shared/layout/page_scaffold.dart';
 import '../../../shared/layout/responsive/responsive_layout.dart';
@@ -55,6 +58,16 @@ class OrderDetailScreen extends ConsumerWidget {
         showBackButton: true,
         backFallbackRoute: isSale ? AppRoutes.sales : AppRoutes.orders,
         secondaryActions: [
+          // Every record reached from a history list can be filed. The document
+          // is rendered by the server from what was STORED, so a reprint of last
+          // year's sale still shows last year's names and prices (§55).
+          AppButton(
+            key: const ValueKey('orderSavePdf'),
+            label: l10n.saveAsPdf,
+            icon: Icons.picture_as_pdf_outlined,
+            variant: AppButtonVariant.outline,
+            onPressed: () => _saveAsPdf(context, ref, order),
+          ),
           for (final next in order.allowedNextStatuses)
             AppButton(
               label: next == OrderStatus.cancelled ? l10n.cancelAction : orderStatusLabel(l10n, next),
@@ -75,6 +88,33 @@ class OrderDetailScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Fetches §28's document and hands it to the browser as a file.
+  ///
+  /// The screen is a view of the order; the PDF is rendered by the SERVER from
+  /// the stored document, and where the two could ever disagree the file is
+  /// right — it is the one somebody ends up holding.
+  ///
+  /// Every failure says what happened. An empty body, a refusal, a network
+  /// error: each is reported in its own words rather than as a button that did
+  /// nothing, which is the whole reason this is not a bare `try {} catch {}`.
+  Future<void> _saveAsPdf(BuildContext context, WidgetRef ref, Order order) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final bytes = await ref.read(orderRepositoryProvider).invoicePdf(order.id);
+      if (bytes.isEmpty) {
+        if (context.mounted) AppToast.error(context, l10n.unableToLoad);
+        return;
+      }
+      final filename = '${order.orderNumber}.pdf';
+      await downloadBytes(bytes: bytes, filename: filename, mimeType: 'application/pdf');
+      if (context.mounted) AppToast.success(context, l10n.pdfSaved(filename));
+    } on Failure catch (e) {
+      if (context.mounted) AppToast.error(context, e.message);
+    } catch (_) {
+      if (context.mounted) AppToast.error(context, l10n.unableToLoad);
+    }
   }
 
   Future<void> _transition(BuildContext context, WidgetRef ref, Order order, OrderStatus next) async {

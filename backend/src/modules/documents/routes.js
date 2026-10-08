@@ -110,6 +110,11 @@ orderPdfRouter.get(
       const order = {
         orderNumber: row.order_number,
         status: row.status,
+        // Whether it is settled, which is the question asked of an invoice
+        // second only to what it is for. There is no `payment_method` on an
+        // order — a method belongs to each payment, not to the order — so this
+        // is the honest field to print.
+        paymentStatus: row.payment_status,
         orderDate: row.order_date,
         createdAt: row.created_at,
         customerName: row.customer_name,

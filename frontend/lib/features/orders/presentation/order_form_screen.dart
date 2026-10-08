@@ -10,7 +10,9 @@ import '../../../shared/feedback/app_empty_state.dart';
 import '../../../shared/forms/app_select_field.dart';
 import '../../../shared/forms/app_text_field.dart';
 import '../../../shared/layout/page_scaffold.dart';
+import '../../../theme/app_spacing.dart';
 import '../../../theme/app_typography.dart';
+import 'product_multi_picker.dart';
 import '../../customers/data/customer_providers.dart';
 import '../../dashboard/data/dashboard_metrics.dart';
 import '../../inventory/data/inventory_models.dart';
@@ -60,7 +62,6 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
   String? _customerId;
   String? _customerName;
   final _extraCharges = TextEditingController(text: '0');
-  final _paidAmount = TextEditingController(text: '0');
   final _notes = TextEditingController();
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   bool _saving = false;
@@ -69,7 +70,6 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
   @override
   void dispose() {
     _extraCharges.dispose();
-    _paidAmount.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -89,6 +89,23 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
         _lines.add(_CartLine(product: product));
       }
     });
+  }
+
+  /// Opens the multi-select over the form and adds everything chosen.
+  ///
+  /// Products already in the cart are passed in so they show ticked and locked:
+  /// re-picking one would read as a second line for the same product rather than
+  /// a larger quantity, which is what the quantity box is for.
+  Future<void> _pickMoreProducts(List<Product> products) async {
+    final chosen = await showProductMultiPicker(
+      context,
+      products: products,
+      alreadyInCart: {for (final line in _lines) line.product.id},
+    );
+    if (chosen == null) return; // dismissed
+    for (final product in chosen) {
+      _addProduct(product);
+    }
   }
 
   Future<void> _submit() async {
@@ -114,7 +131,9 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
             OrderItemDraft(productId: l.product.id, productName: l.product.name, quantity: l.quantity, unitPrice: l.unitPrice, discount: l.discount, tax: l.tax),
         ],
         extraCharges: _extra,
-        paidAmount: double.tryParse(_paidAmount.text.trim()) ?? 0,
+        // Nothing is paid at creation now that the field is gone; payment is
+        // recorded against the order afterwards.
+        paidAmount: 0,
         paymentMethod: _paymentMethod,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       );
@@ -194,11 +213,32 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
               spacing: 12,
               children: [
                 productsAsync.when(
-                  data: (products) => AppSearchableSelectField<String>(
-                    label: l10n.fieldProduct,
-                    hintText: l10n.selectPlaceholder,
-                    options: [for (final p in products) AppSelectOption(p.id, '${p.name} (${p.currentQuantity} ${p.unit})')],
-                    onSelected: (id) => _addProduct(products.firstWhere((p) => p.id == id)),
+                  data: (products) => Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: AppSearchableSelectField<String>(
+                          label: l10n.fieldProduct,
+                          hintText: l10n.selectPlaceholder,
+                          options: [for (final p in products) AppSelectOption(p.id, '${p.name} (${p.currentQuantity} ${p.unit})')],
+                          onSelected: (id) => _addProduct(products.firstWhere((p) => p.id == id)),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      // Several at once, over the form rather than away from it.
+                      // The field beside it still takes one at a time, which is
+                      // quicker when there is only one.
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: AppButton(
+                          key: const ValueKey('addMoreProducts'),
+                          label: l10n.addMoreProducts,
+                          icon: Icons.add,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: () => _pickMoreProducts(products),
+                        ),
+                      ),
+                    ],
                   ),
                   loading: () => const LinearProgressIndicator(),
                   error: (_, _) => const SizedBox.shrink(),
@@ -279,8 +319,11 @@ class _OrderFormScreenState extends ConsumerState<OrderFormScreen> {
                   ],
                   onChanged: (value) => setState(() => _paymentMethod = value ?? PaymentMethod.cash),
                 ),
-                AppTextField.number(label: l10n.fieldPaidAmount, controller: _paidAmount, onChanged: (_) => setState(() {})),
-                _totalsRow(l10n.fieldRemainingAmount, _grandTotal - (double.tryParse(_paidAmount.text) ?? 0)),
+                // Paid, and the Remaining row derived from it, were removed at
+                // the owner's request. Payment is recorded against the order
+                // after it exists (§15's payment endpoint), not guessed while it
+                // is being written. Remaining went with it: with nothing paid at
+                // creation it could only ever repeat the grand total.
                 AppTextField.multiline(label: l10n.fieldNotes, controller: _notes, maxLines: 2),
               ],
             ),

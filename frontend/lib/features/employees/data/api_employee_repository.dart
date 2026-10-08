@@ -76,6 +76,10 @@ class ApiEmployeeRepository implements EmployeeRepository {
       'email': draft.email,
       'roleId': int.tryParse(draft.roleId) ?? draft.roleId,
       'status': _statusKey(draft.status),
+      // Only when one was typed. `createUserSchema` has it optional, and sending
+      // an empty string would fail its eight-character minimum rather than
+      // falling back to a generated password.
+      if (draft.password != null && draft.password!.isNotEmpty) 'password': draft.password,
     });
     lastTemporaryPassword = response['temporaryPassword'] as String?;
     return _fromJson(response);

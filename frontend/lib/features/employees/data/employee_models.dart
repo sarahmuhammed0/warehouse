@@ -33,12 +33,27 @@ class Employee {
 }
 
 class EmployeeDraft {
-  const EmployeeDraft({required this.name, required this.phone, this.email, required this.roleId, this.status = EmployeeStatus.active});
+  const EmployeeDraft({
+    required this.name,
+    required this.phone,
+    this.email,
+    required this.roleId,
+    this.status = EmployeeStatus.active,
+    this.password,
+  });
   final String name;
   final String phone;
   final String? email;
   final String roleId;
   final EmployeeStatus status;
+
+  /// The sign-in password, chosen when the account is created.
+  ///
+  /// Null on an edit: changing an existing password is its own endpoint
+  /// (`PUT /users/:id/password`), not a side effect of renaming somebody. Null
+  /// on create too means the server generates a temporary one and hands it back
+  /// once — the behaviour that existed before this field, kept as the fallback.
+  final String? password;
 }
 
 /// Seeded system roles (spec §23's list) — editable per business, not fixed

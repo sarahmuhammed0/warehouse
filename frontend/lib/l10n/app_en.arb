@@ -37,6 +37,13 @@
 
   "search": "Search",
   "searchPlaceholder": "Search…",
+  "saveAsPdf": "Save as PDF",
+  "pdfSaved": "Saved {name}",
+  "@pdfSaved": {"placeholders":{"name":{"type":"String"}}},
+  "addProductsTitle": "Add products",
+  "addMoreProducts": "Add more",
+  "selectedCount": "{count} selected",
+  "@selectedCount": {"placeholders":{"count":{"type":"int"}}},
   "searchPrompt": "Type a product, customer, supplier or order number to search for.",
   "searchPartial": "Some modules could not be searched with your permissions.",
   "filters": "Filters",

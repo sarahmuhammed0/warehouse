@@ -33,6 +33,9 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
   late final _name = TextEditingController(text: widget.editing?.name ?? '');
   late final _phone = TextEditingController(text: widget.editing?.phone ?? '');
   late final _email = TextEditingController(text: widget.editing?.email ?? '');
+  /// Create only — an existing account's password is changed through its own
+  /// endpoint, not by reopening the details dialog.
+  final _password = TextEditingController();
   String? _roleId;
   bool _active = true;
   bool _saving = false;
@@ -50,6 +53,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
     _name.dispose();
     _phone.dispose();
     _email.dispose();
+    _password.dispose();
     super.dispose();
   }
 
@@ -65,6 +69,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
       email: _email.text.trim().isEmpty ? null : _email.text.trim(),
       roleId: _roleId!,
       status: _active ? EmployeeStatus.active : EmployeeStatus.inactive,
+      password: widget.editing == null && _password.text.isNotEmpty ? _password.text : null,
     );
     try {
       final repo = ref.read(employeeRepositoryProvider);
@@ -112,6 +117,20 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog> {
             children: [
               AppTextField(label: l10n.fieldName, controller: _name, required: true, enabled: !_saving, validator: required(l10n.requiredFieldMessage)),
               AppTextField(label: l10n.fieldPhone, controller: _phone, required: true, enabled: !_saving, keyboardType: TextInputType.phone, validator: required(l10n.requiredFieldMessage)),
+              // The sign-in password, set when the account is made. Create only:
+              // changing an existing one is `PUT /users/:id/password`, and
+              // offering it here would make a rename look like a reset.
+              if (widget.editing == null)
+                AppTextField.password(
+                  key: const ValueKey('employeePassword'),
+                  label: l10n.password,
+                  controller: _password,
+                  required: true,
+                  enabled: !_saving,
+                  // Eight is the server's own minimum (`createUserSchema`);
+                  // saying so here beats a round trip to be told.
+                  validator: combine([required(l10n.requiredFieldMessage), minLength(8, l10n.signUpPasswordTooShort)]),
+                ),
               AppTextField(label: l10n.fieldEmail, controller: _email, enabled: !_saving, keyboardType: TextInputType.emailAddress),
               rolesAsync.when(
                 data: (roles) => AppDropdownField<String>(

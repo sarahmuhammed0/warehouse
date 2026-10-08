@@ -16,10 +16,40 @@ import PDFDocument from "pdfkit";
  * NO NUMBERS ARE COMPUTED HERE. Every figure is taken from the document as
  * stored — a PDF that adds its lines up its own way is how a customer ends up
  * holding a piece of paper the system disagrees with.
+ *
+ * NOTHING IN IT IS NON-DETERMINISTIC either: no "generated at", no run id. Two
+ * renders of the same order are byte-identical, which is what makes a reprint
+ * trustworthy and is asserted in `documents.customfields.backups.test.js`.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * THE LAYOUT, AND WHY IT IS BLOCKS RATHER THAN A COLUMN OF TEXT
+ *
+ * It used to be one flow: title, address lines, a thin table, totals. Readable,
+ * but everything carried the same weight, so finding the one figure a person
+ * actually opened the file for meant reading all of it.
+ *
+ *   band     who issued it and which document this is — the two questions asked
+ *            before any number is looked at
+ *   meta     who it is for and how it was paid, as labelled pairs
+ *   summary  the figures that get quoted, in boxes, with the one that settles
+ *            the account given the accent
+ *   table    the lines, with a filled header and banded rows so the eye keeps
+ *            its place across a wide row
+ *   totals   the arithmetic, right-aligned under the table it belongs to
+ *   footer   the business's own words, on every page
  */
 
-const PAGE_MARGIN = 48;
-const LINE_GAP = 4;
+const PAGE_MARGIN = 44;
+const BAND_HEIGHT = 86;
+const FOOTER_SPACE = 64;
+
+/** Ink, fills and rules. One place, so the document stays of a piece. */
+const INK = "#14304A";
+const INK_SOFT = "#5A6B7C";
+const PAPER_SOFT = "#F1F5F9";
+const RULE = "#D8E0E8";
+const ACCENT = "#0F766E";
+const ON_DARK = "#FFFFFF";
 
 /** Right-aligned money in a fixed column, so the decimal points line up. */
 function money(value, currency) {
@@ -46,6 +76,13 @@ function formatDate(value, format) {
   }
 }
 
+/** Status reads as a word, not as a column name: `partially_paid` → `Partially paid`. */
+function humanise(value) {
+  const text = String(value ?? "").replace(/_/g, " ").trim();
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /**
  * Writes an order's invoice into `stream`.
  *
@@ -63,162 +100,305 @@ export function writeInvoicePdf({ stream, business, template, order, items, paym
 
   const currency = template.currency || business.currency || "";
   const fields = template.fields;
+  const left = PAGE_MARGIN;
   const right = doc.page.width - PAGE_MARGIN;
+  const contentWidth = right - left;
 
-  // ---- header ----------------------------------------------------------
-  doc.fontSize(20).text(template.invoiceTitle || "INVOICE", { align: "left" });
-  doc.moveDown(0.2);
+  /** The business's own words, pinned to the bottom of whichever page we are on. */
+  const drawFooter = () => {
+    const y = doc.page.height - PAGE_MARGIN - 22;
+    doc.save();
+    doc.moveTo(left, y - 10).lineTo(right, y - 10).lineWidth(0.5).strokeColor(RULE).stroke();
+    const contact = [business.name, business.phone, business.email].filter(Boolean).join("  ·  ");
+    doc.font("Helvetica").fontSize(7.5).fillColor(INK_SOFT);
+    doc.text(contact, left, y, { width: contentWidth, align: "left", lineBreak: false });
+    if (template.footerText) {
+      doc.text(String(template.footerText), left, y + 10, { width: contentWidth, align: "left", lineBreak: false });
+    }
+    doc.restore();
+  };
 
-  doc.fontSize(10);
-  doc.text(business.name, { continued: false });
-  for (const line of [business.address, business.city, business.country, business.phone, business.email]) {
-    if (line) doc.text(String(line));
-  }
-  if (fields.taxInfo && business.tax_number) doc.text(`Tax number: ${business.tax_number}`);
+  // Every page gets the footer, including ones a long table creates.
+  doc.on("pageAdded", drawFooter);
 
-  if (template.headerText) {
-    doc.moveDown(0.4);
-    doc.fontSize(9).fillColor("#555").text(template.headerText);
-    doc.fillColor("#000");
+  // ---- the band: who issued it, and which document this is --------------
+  doc.save();
+  doc.rect(0, 0, doc.page.width, BAND_HEIGHT).fill(INK);
+
+  doc.font("Helvetica-Bold").fontSize(16).fillColor(ON_DARK);
+  doc.text(String(business.name ?? ""), left, 22, { width: contentWidth * 0.55, lineBreak: false });
+
+  const issuerLines = [business.address, business.city, business.country].filter(Boolean).join(", ");
+  doc.font("Helvetica").fontSize(8).fillColor("#C7D4E0");
+  if (issuerLines) doc.text(issuerLines, left, 44, { width: contentWidth * 0.55, lineBreak: false });
+  const issuerContact = [business.phone, business.email].filter(Boolean).join("  ·  ");
+  if (issuerContact) doc.text(issuerContact, left, 55, { width: contentWidth * 0.55, lineBreak: false });
+  if (fields.taxInfo && business.tax_number) {
+    doc.text(`Tax number: ${business.tax_number}`, left, 66, { width: contentWidth * 0.55, lineBreak: false });
   }
 
   // The document's own identity, top right, where an invoice is read from.
-  const identityTop = PAGE_MARGIN;
-  doc.fontSize(10);
-  doc.text(`No.  ${order.orderNumber}`, PAGE_MARGIN, identityTop, { align: "right", width: right - PAGE_MARGIN });
-  doc.text(`Date  ${formatDate(order.orderDate ?? order.createdAt, template.dateFormat)}`, {
+  const idWidth = contentWidth * 0.4;
+  const idLeft = right - idWidth;
+  doc.font("Helvetica-Bold").fontSize(15).fillColor(ON_DARK);
+  doc.text(String(template.invoiceTitle || "INVOICE").toUpperCase(), idLeft, 22, {
+    width: idWidth,
     align: "right",
-    width: right - PAGE_MARGIN,
+    lineBreak: false,
   });
-  doc.text(`Status  ${order.status}`, { align: "right", width: right - PAGE_MARGIN });
+  doc.font("Helvetica").fontSize(9).fillColor("#C7D4E0");
+  doc.text(`No. ${order.orderNumber ?? ""}`, idLeft, 44, { width: idWidth, align: "right", lineBreak: false });
+  doc.text(formatDate(order.orderDate ?? order.createdAt, template.dateFormat), idLeft, 56, {
+    width: idWidth,
+    align: "right",
+    lineBreak: false,
+  });
+  doc.restore();
 
-  doc.moveDown(1.5);
+  doc.y = BAND_HEIGHT + 18;
 
-  // ---- who it is for ---------------------------------------------------
-  if (order.customerName) {
-    doc.fontSize(9).fillColor("#555").text("BILL TO");
-    doc.fillColor("#000").fontSize(11).text(order.customerName);
-    if (fields.customerAddress) {
-      for (const line of [order.customerPhone].filter(Boolean)) doc.fontSize(10).text(String(line));
-    }
-    doc.moveDown(0.8);
+  if (template.headerText) {
+    doc.font("Helvetica").fontSize(8.5).fillColor(INK_SOFT);
+    doc.text(String(template.headerText), left, doc.y, { width: contentWidth });
+    doc.y += 8;
   }
 
-  // ---- the lines -------------------------------------------------------
+  // ---- meta: who it is for, and how it was settled ----------------------
+  const meta = [
+    ["Billed to", order.customerName || "—"],
+    ...(fields.customerAddress && order.customerPhone ? [["Phone", order.customerPhone]] : []),
+    ["Payment", humanise(order.paymentStatus) || "—"],
+    ["Status", humanise(order.status) || "—"],
+  ];
+
+  const metaTop = doc.y;
+  const metaWidth = contentWidth / meta.length;
+  meta.forEach(([label, value], index) => {
+    const x = left + index * metaWidth;
+    doc.font("Helvetica").fontSize(7).fillColor(INK_SOFT);
+    doc.text(label.toUpperCase(), x, metaTop, { width: metaWidth - 8, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(INK);
+    doc.text(String(value), x, metaTop + 11, { width: metaWidth - 8, lineBreak: false });
+  });
+  doc.y = metaTop + 34;
+  doc.moveTo(left, doc.y).lineTo(right, doc.y).lineWidth(0.5).strokeColor(RULE).stroke();
+  doc.y += 16;
+
+  // ---- summary: the figures people open the file for --------------------
+  //
+  // The boxed set is deliberately short. Everything here is also in the totals
+  // below; repeating ALL of it would make the summary a second table rather
+  // than a glance.
+  const cards = [
+    { label: "Subtotal", value: order.subtotal },
+    { label: "Discount", value: order.discountAmount },
+    { label: "Tax", value: order.taxAmount },
+    { label: "Total", value: order.grandTotal, accent: true },
+  ];
+
+  const cardGap = 8;
+  const cardWidth = (contentWidth - cardGap * (cards.length - 1)) / cards.length;
+  const cardTop = doc.y;
+  const cardHeight = 46;
+  cards.forEach((card, index) => {
+    const x = left + index * (cardWidth + cardGap);
+    doc.save();
+    doc.roundedRect(x, cardTop, cardWidth, cardHeight, 4).fill(card.accent ? INK : PAPER_SOFT);
+    doc.font("Helvetica").fontSize(7).fillColor(card.accent ? "#C7D4E0" : INK_SOFT);
+    doc.text(card.label.toUpperCase(), x + 10, cardTop + 9, { width: cardWidth - 20, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(12).fillColor(card.accent ? ON_DARK : INK);
+    doc.text(money(card.value, currency), x + 10, cardTop + 22, { width: cardWidth - 20, lineBreak: false });
+    doc.restore();
+  });
+  doc.y = cardTop + cardHeight + 20;
+
+  // ---- the lines --------------------------------------------------------
   const columns = fields.itemSku
     ? [
-        { key: "productName", label: "Item", width: 190 },
-        { key: "sku", label: "SKU", width: 80 },
+        { key: "productName", label: "Item", width: contentWidth - 330 },
+        { key: "sku", label: "SKU", width: 85 },
         { key: "quantity", label: "Qty", width: 45, align: "right" },
-        { key: "unitPrice", label: "Price", width: 70, align: "right", money: true },
-        { key: "taxAmount", label: "Tax", width: 55, align: "right", money: true },
-        { key: "lineTotal", label: "Total", width: 75, align: "right", money: true },
+        { key: "unitPrice", label: "Price", width: 70, align: "right" },
+        { key: "taxAmount", label: "Tax", width: 55, align: "right" },
+        { key: "lineTotal", label: "Total", width: 75, align: "right" },
       ]
     : [
-        { key: "productName", label: "Item", width: 265 },
-        { key: "quantity", label: "Qty", width: 50, align: "right" },
-        { key: "unitPrice", label: "Price", width: 80, align: "right", money: true },
-        { key: "taxAmount", label: "Tax", width: 60, align: "right", money: true },
-        { key: "lineTotal", label: "Total", width: 80, align: "right", money: true },
+        { key: "productName", label: "Item", width: contentWidth - 245 },
+        { key: "quantity", label: "Qty", width: 45, align: "right" },
+        { key: "unitPrice", label: "Price", width: 70, align: "right" },
+        { key: "taxAmount", label: "Tax", width: 55, align: "right" },
+        { key: "lineTotal", label: "Total", width: 75, align: "right" },
       ];
 
-  const drawRow = (values, { bold = false } = {}) => {
+  const ROW_HEIGHT = 20;
+  const HEADER_HEIGHT = 22;
+
+  const drawTableHeader = () => {
     const top = doc.y;
-    let x = PAGE_MARGIN;
-    doc.fontSize(bold ? 9 : 10).fillColor(bold ? "#555" : "#000");
+    doc.save();
+    doc.rect(left, top, contentWidth, HEADER_HEIGHT).fill(INK);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(ON_DARK);
+    let x = left;
     for (const column of columns) {
-      doc.text(String(values[column.key] ?? ""), x, top, {
-        width: column.width,
+      doc.text(column.label.toUpperCase(), x + 8, top + 7, {
+        width: column.width - 16,
         align: column.align ?? "left",
         lineBreak: false,
       });
       x += column.width;
     }
-    doc.fillColor("#000");
-    doc.y = top + (bold ? 14 : 16) + LINE_GAP;
+    doc.restore();
+    doc.y = top + HEADER_HEIGHT;
   };
 
-  drawRow(Object.fromEntries(columns.map((c) => [c.key, c.label])), { bold: true });
-  doc
-    .moveTo(PAGE_MARGIN, doc.y - LINE_GAP / 2)
-    .lineTo(right, doc.y - LINE_GAP / 2)
-    .strokeColor("#ccc")
-    .stroke();
-
-  for (const item of items) {
-    // A page break mid-table must not cut a row in half.
-    if (doc.y > doc.page.height - PAGE_MARGIN - 140) {
-      doc.addPage();
-      drawRow(Object.fromEntries(columns.map((c) => [c.key, c.label])), { bold: true });
-    }
-    drawRow({
-      productName: item.productName ?? "",
-      sku: item.sku ?? "",
-      quantity: Number(item.quantity ?? 0),
-      unitPrice: money(item.unitPrice, ""),
-      taxAmount: money(item.taxAmount, ""),
-      lineTotal: money(item.lineTotal, ""),
-    });
-  }
-
-  // ---- totals ----------------------------------------------------------
-  doc.moveTo(PAGE_MARGIN, doc.y).lineTo(right, doc.y).strokeColor("#ccc").stroke();
-  doc.moveDown(0.5);
-
-  const totalRow = (label, value, { bold = false } = {}) => {
+  const drawRow = (values, index) => {
     const top = doc.y;
-    doc.fontSize(bold ? 12 : 10);
-    doc.text(label, right - 260, top, { width: 160, align: "right" });
-    doc.text(money(value, currency), right - 100, top, { width: 100, align: "right" });
-    doc.y = top + (bold ? 18 : 15);
+    doc.save();
+    // Banded, so the eye keeps its line across a wide row.
+    if (index % 2 === 1) doc.rect(left, top, contentWidth, ROW_HEIGHT).fill(PAPER_SOFT);
+    doc.font("Helvetica").fontSize(9).fillColor(INK);
+    let x = left;
+    for (const column of columns) {
+      doc.text(String(values[column.key] ?? ""), x + 8, top + 6, {
+        width: column.width - 16,
+        align: column.align ?? "left",
+        lineBreak: false,
+      });
+      x += column.width;
+    }
+    doc.restore();
+    doc.y = top + ROW_HEIGHT;
+  };
+
+  drawTableHeader();
+  items.forEach((item, index) => {
+    // A page break mid-table must not cut a row in half, and the new page needs
+    // its own header or the columns become unlabelled.
+    if (doc.y > doc.page.height - PAGE_MARGIN - FOOTER_SPACE - ROW_HEIGHT) {
+      doc.addPage();
+      doc.y = PAGE_MARGIN;
+      drawTableHeader();
+    }
+    drawRow(
+      {
+        productName: item.productName ?? "",
+        sku: item.sku ?? "",
+        quantity: Number(item.quantity ?? 0),
+        unitPrice: money(item.unitPrice, ""),
+        taxAmount: money(item.taxAmount, ""),
+        lineTotal: money(item.lineTotal, ""),
+      },
+      index
+    );
+  });
+
+  doc.moveTo(left, doc.y).lineTo(right, doc.y).lineWidth(0.5).strokeColor(RULE).stroke();
+  doc.y += 12;
+
+  // ---- totals -----------------------------------------------------------
+  const totalsWidth = 240;
+  const totalsLeft = right - totalsWidth;
+  const totalRow = (label, value, { strong = false, accent = false } = {}) => {
+    if (doc.y > doc.page.height - PAGE_MARGIN - FOOTER_SPACE - 20) {
+      doc.addPage();
+      doc.y = PAGE_MARGIN;
+    }
+    const top = doc.y;
+    doc.save();
+    if (accent) doc.roundedRect(totalsLeft, top - 3, totalsWidth, 22, 3).fill(PAPER_SOFT);
+    doc.font(strong ? "Helvetica-Bold" : "Helvetica").fontSize(strong ? 11 : 9.5);
+    doc.fillColor(strong ? INK : INK_SOFT);
+    doc.text(label, totalsLeft + 8, top + 2, { width: totalsWidth / 2 - 8, align: "left", lineBreak: false });
+    doc.fillColor(INK);
+    doc.text(money(value, currency), totalsLeft + totalsWidth / 2, top + 2, {
+      width: totalsWidth / 2 - 8,
+      align: "right",
+      lineBreak: false,
+    });
+    doc.restore();
+    doc.y = top + (strong ? 22 : 16);
   };
 
   totalRow("Subtotal", order.subtotal);
   if (Number(order.discountAmount) > 0) totalRow("Discount", order.discountAmount);
   if (Number(order.taxAmount) > 0) totalRow("Tax", order.taxAmount);
   if (Number(order.extraCharges) > 0) totalRow("Other charges", order.extraCharges);
-  totalRow("Total", order.grandTotal, { bold: true });
+  totalRow("Total", order.grandTotal, { strong: true, accent: true });
   totalRow("Paid", order.paidAmount);
-  totalRow("Balance", order.remainingAmount, { bold: true });
+  totalRow("Balance", order.remainingAmount, { strong: true });
 
-  // ---- payments, when there are any -----------------------------------
+  // ---- payments, when there are any -------------------------------------
   if (payments.length > 0) {
-    doc.moveDown(1);
-    doc.fontSize(9).fillColor("#555").text("PAYMENTS");
-    doc.fillColor("#000").fontSize(10);
+    doc.y += 10;
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(INK_SOFT);
+    doc.text("PAYMENTS", left, doc.y, { width: contentWidth, lineBreak: false });
+    doc.y += 14;
+    doc.font("Helvetica").fontSize(9).fillColor(INK);
     for (const payment of payments) {
-      const method = String(payment.method ?? "").replace(/_/g, " ");
-      doc.text(
-        `${formatDate(payment.paidAt, template.dateFormat)}  ${method}  ${money(payment.amount, currency)}${
-          payment.reference ? `  (${payment.reference})` : ""
-        }`
-      );
+      if (doc.y > doc.page.height - PAGE_MARGIN - FOOTER_SPACE - 16) {
+        doc.addPage();
+        doc.y = PAGE_MARGIN;
+      }
+      const parts = [
+        formatDate(payment.paidAt, template.dateFormat),
+        humanise(payment.method),
+        money(payment.amount, currency),
+        payment.reference ? `(${payment.reference})` : "",
+      ].filter(Boolean);
+      doc.text(parts.join("   "), left, doc.y, { width: contentWidth, lineBreak: false });
+      doc.y += 13;
     }
   }
 
-  // ---- the business's own words ---------------------------------------
-  doc.moveDown(1.2);
-  doc.fontSize(9).fillColor("#333");
-  if (fields.paymentTerms && template.paymentTerms) doc.text(template.paymentTerms);
-  if (fields.returnPolicy && template.returnPolicy) doc.text(template.returnPolicy);
-  if (fields.thankYou && template.thankYouMessage) {
-    doc.moveDown(0.4);
-    doc.text(template.thankYouMessage);
+  // ---- the business's own words -----------------------------------------
+  const notes = [
+    fields.paymentTerms ? template.paymentTerms : null,
+    fields.returnPolicy ? template.returnPolicy : null,
+    fields.thankYou ? template.thankYouMessage : null,
+  ].filter(Boolean);
+
+  if (notes.length > 0) {
+    doc.y += 12;
+    if (doc.y > doc.page.height - PAGE_MARGIN - FOOTER_SPACE - 40) {
+      doc.addPage();
+      doc.y = PAGE_MARGIN;
+    }
+    doc.save();
+    const notesTop = doc.y;
+    doc.font("Helvetica").fontSize(8.5).fillColor(INK_SOFT);
+    const notesHeight = notes.reduce(
+      (sum, note) => sum + doc.heightOfString(String(note), { width: contentWidth - 24 }) + 3,
+      14
+    );
+    doc.roundedRect(left, notesTop, contentWidth, notesHeight, 4).fill(PAPER_SOFT);
+    doc.fillColor(INK_SOFT);
+    let noteY = notesTop + 8;
+    for (const note of notes) {
+      doc.text(String(note), left + 12, noteY, { width: contentWidth - 24 });
+      noteY = doc.y + 3;
+    }
+    doc.restore();
+    doc.y = notesTop + notesHeight + 6;
   }
 
   if (fields.signature && template.signatureText) {
-    doc.moveDown(2);
-    doc.fillColor("#000").text(template.signatureText);
-    doc.text("______________________________");
-  }
-
-  if (template.footerText) {
-    doc.fontSize(8).fillColor("#777");
-    doc.text(template.footerText, PAGE_MARGIN, doc.page.height - PAGE_MARGIN - 10, {
-      width: right - PAGE_MARGIN,
+    doc.y += 24;
+    if (doc.y > doc.page.height - PAGE_MARGIN - FOOTER_SPACE - 40) {
+      doc.addPage();
+      doc.y = PAGE_MARGIN;
+    }
+    const signTop = doc.y;
+    doc.font("Helvetica").fontSize(9).fillColor(INK);
+    doc.moveTo(right - 200, signTop).lineTo(right, signTop).lineWidth(0.5).strokeColor(RULE).stroke();
+    doc.text(String(template.signatureText), right - 200, signTop + 6, {
+      width: 200,
       align: "center",
+      lineBreak: false,
     });
   }
+
+  // The first page never fired `pageAdded`, so its footer is drawn here.
+  drawFooter();
 
   doc.end();
   return doc;

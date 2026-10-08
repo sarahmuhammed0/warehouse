@@ -35,6 +35,11 @@
 
   "search": "گەڕان",
   "searchPlaceholder": "گەڕان…",
+  "saveAsPdf": "پاشەکەوت وەک PDF",
+  "pdfSaved": "{name} پاشەکەوت کرا",
+  "addProductsTitle": "زیادکردنی بەرهەم",
+  "addMoreProducts": "زیاتر زیاد بکە",
+  "selectedCount": "{count} هەڵبژێردراو",
   "searchPrompt": "ناوی بەرهەم، کڕیار، دابینکەر یان ژمارەی داواکاری بنووسە بۆ گەڕان.",
   "searchPartial": "نەتوانرا لە هەندێک بەش بگەڕێیت بە دەسەڵاتەکانت.",
   "filters": "پاڵاوتن",
